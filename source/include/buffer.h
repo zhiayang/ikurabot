@@ -1,0 +1,107 @@
+// buffer.h
+// Copyright (c) 2020, zhiayang
+// Licensed under the Apache License Version 2.0.
+
+#pragma once
+
+#include <stdint.h>
+#include <stddef.h>
+
+#include <string>
+#include <string_view>
+
+namespace ikura
+{
+	struct Span;
+
+	struct Buffer
+	{
+		explicit Buffer(size_t cap);
+		~Buffer();
+
+		Buffer(const Buffer&) = delete;
+		Buffer& operator = (const Buffer&) = delete;
+
+		Buffer(Buffer&& oth);
+		Buffer& operator = (Buffer&& oth);
+
+
+		template <typename T> T* as() { return (T*) this->ptr; }
+		template <typename T> const T* as() const { return (T*) this->ptr; }
+
+		Span span() const;
+		Buffer clone() const;
+
+		uint8_t* data();
+		const uint8_t* data() const;
+
+		size_t size() const;
+		bool full() const;
+		size_t remaining() const;
+
+		void clear();
+
+		size_t write(Span spn);
+		size_t write(const Buffer& buf);
+		size_t write(const uint8_t* data, size_t len);
+
+
+		void grow(size_t sz);
+		void resize(size_t sz);
+
+		static Buffer empty();
+		static Buffer fromString(const std::string& s);
+
+	private:
+		size_t len;
+		size_t cap;
+		uint8_t* ptr;
+	};
+
+	struct Span
+	{
+		Span(const uint8_t* p, size_t l) : ptr(p), len(l) { }
+
+		Span(Span&&) = default;
+		Span(const Span&) = default;
+		Span& operator = (Span&&) = default;
+		Span& operator = (const Span&) = default;
+
+		Buffer reify() const
+		{
+			auto ret = Buffer(this->len);
+			ret.write(this->ptr, this->len);
+
+			return ret;
+		}
+
+		std::string_view str_view() const
+		{
+			return std::string_view((const char*) this->ptr, this->len);
+		}
+
+		size_t size() const { return this->len; }
+		const uint8_t* data() const { return this->ptr; }
+
+		Span& remove_prefix(size_t n) { n = std::min(n, this->len); this->ptr += n; this->len -= n; return *this; }
+		Span& remove_suffix(size_t n) { n = std::min(n, this->len); this->len -= n; return *this; }
+
+		template <typename T> T* as() { return (T*) this->ptr; }
+		template <typename T> const T* as() const { return (T*) this->ptr; }
+
+		uint8_t peek(size_t i) const { return this->ptr[i]; }
+
+
+		static Span fromString(std::string_view sv)
+		{
+			return Span((const uint8_t*) sv.data(), sv.size());
+		}
+
+	private:
+		const uint8_t* ptr;
+		size_t len;
+	};
+}
+
+
+
