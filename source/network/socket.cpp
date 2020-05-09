@@ -5,37 +5,44 @@
 #include "defs.h"
 #include "network.h"
 
+using namespace std::chrono_literals;
+
 namespace ikura
 {
-	Connection::Connection(std::string_view h, uint16_t p, bool ssl, uint32_t timeout_microsecs) : _host(h), _port(p)
+	// Socket::Socket() { }
+
+	Socket::Socket(const URL& url, bool ssl, std::chrono::nanoseconds timeout) : Socket(url.hostname(), url.port(), ssl, timeout) { }
+
+	Socket::Socket(std::string_view h, uint16_t p, bool ssl, std::chrono::nanoseconds timeout) : _host(h), _port(p)
 	{
 		this->is_connected = false;
 		this->rx_callback = [](Span) { };
 
 		this->socket = kissnet::socket(
 			ssl ? kissnet::protocol::tcp_ssl : kissnet::protocol::tcp,
-			kissnet::endpoint(zpr::sprint("%s:%u", this->_host, this->_port))
+			kissnet::endpoint(this->_host, this->_port)
 		);
 
-		if(timeout_microsecs > 0)
-			this->socket.set_timeout(timeout_microsecs);
+		if(timeout > 0ns)
+			this->socket.set_timeout(std::chrono::duration_cast<std::chrono::microseconds>(timeout).count());
 	}
 
-	Connection::~Connection()
+	Socket::~Socket()
 	{
 		this->is_connected = false;
 		this->socket.close();
 	}
 
-	bool Connection::connected()
+	bool Socket::connected()
 	{
 		return this->is_connected.load();
 	}
 
-	bool Connection::connect()
+	bool Socket::connect()
 	{
 		this->is_connected = this->socket.connect();
 
+		zpr::println("%s", is_connected.load());
 		if(!this->is_connected)
 			return false;
 
@@ -66,7 +73,7 @@ namespace ikura
 		return true;
 	}
 
-	void Connection::disconnect()
+	void Socket::disconnect()
 	{
 		if(this->is_connected)
 		{
@@ -78,17 +85,17 @@ namespace ikura
 		}
 	}
 
-	size_t Connection::availableBytes()
+	size_t Socket::availableBytes()
 	{
 		return this->socket.bytes_available();
 	}
 
-	void Connection::send(Span sv)
+	void Socket::send(Span sv)
 	{
 		this->socket.send(sv.data(), sv.size());
 	}
 
-	void Connection::onReceive(std::function<RxCallbackFn>&& fn)
+	void Socket::onReceive(std::function<RxCallbackFn>&& fn)
 	{
 		this->rx_callback = std::move(fn);
 	}

@@ -38,14 +38,30 @@ namespace ikura
 	constexpr uint8_t OP_PING           = 0x9;
 	constexpr uint8_t OP_PONG           = 0xA;
 
-	constexpr auto DEFAULT_TIMEOUT      = 500ms;
+	constexpr auto DEFAULT_TIMEOUT      = 300ms;
 
 
-	WebSocket::WebSocket(std::string_view host, uint16_t port, bool ssl, uint32_t timeout_microsecs)
-		: conn(host, port, ssl, timeout_microsecs), buffer(DEFAULT_FRAME_BUFFER_SIZE)
-	{
+	WebSocket::WebSocket(std::string_view host, uint16_t port, bool ssl, std::chrono::nanoseconds timeout)
+		: conn(host, port, ssl, timeout), buffer(DEFAULT_FRAME_BUFFER_SIZE) { }
 
-	}
+	// WebSocket::WebSocket(const URL& url, std::chrono::nanoseconds timeout) : buffer(DEFAULT_FRAME_BUFFER_SIZE)
+	// {
+	// 	auto proto = url.protocol();
+	// 	if(proto != "ws" && proto != "wss")
+	// 	{
+	// 		error("websocket: invalid protocol '%s'", proto);
+	// 		return;
+	// 	}
+
+	// 	auto host = url.hostname();
+	// 	if(host.empty())
+	// 	{
+	// 		error("websocket: invalid url '%s'", host);
+	// 		return;
+	// 	}
+
+	// 	new (&this->conn) Socket(host, proto == "wss" ? 443 : 80, proto == "wss" ? true : false, timeout);
+	// }
 
 	WebSocket::~WebSocket()
 	{

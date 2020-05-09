@@ -5,8 +5,91 @@
 #include "defs.h"
 #include "network.h"
 
+#include <unordered_map>
+
 namespace ikura
 {
+	static std::unordered_map<std::string, uint16_t> default_ports = {
+		{ "http", 80 },
+		{ "https", 443 },
+
+		{ "ws", 80 },
+		{ "wss", 443 },
+	};
+
+	URL::URL(std::string_view url)
+	{
+		do {
+			auto i = url.find("://");
+			if(i == std::string::npos || i == 0)
+				{ log("owo"); break; }
+
+			this->_protocol = std::string(url.substr(0, i));
+			url.remove_prefix(i + 3);
+
+			// you don't need to have a slash, but if you do it can't be the first thing.
+			i = url.find('/');
+			if(i == 0)
+				break;
+
+			auto tmp = url.substr(0, i);
+			url.remove_prefix(i);   // include the leading / for the path
+
+			this->_resource = std::string(url);
+
+			// need to check for ports. (if i = 0, then your hostname was empty, which is bogus)
+			i = tmp.find(':');
+			if(i == 0)
+				break;
+
+			if(i != std::string::npos)
+			{
+				char* end = 0;
+
+				// tmp only contains 'basename:PORT'
+				auto copy = std::string(tmp.substr(i+1));
+				auto val = std::strtol(copy.c_str(), &end, 10);
+
+				if(end != (copy.c_str() + copy.size()))
+					break;
+
+				this->_port = val;
+				this->_hostname = std::string(tmp.substr(0, i));
+			}
+			else
+			{
+				this->_hostname = std::string(tmp);
+				this->_port = default_ports[this->_protocol];
+			}
+
+			// ok, success. return to skip the error message.
+			return;
+		} while(false);
+
+		error("invalid url '%s'", url);
+	}
+
+	std::string URL::str() const
+	{
+		return zpr::sprint("%s://%s:%d%s", this->_protocol, this->_hostname, this->_port, this->_resource);
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 	HttpHeaders::HttpHeaders(std::string_view status)
 	{
 		this->_status = status;

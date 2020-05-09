@@ -7,7 +7,7 @@ WARNINGS        = -Wno-padded -Wno-cast-align -Wno-unreachable-code -Wno-switch-
 
 COMMON_CFLAGS   = -Wall -O2
 
-CXXFLAGS        = $(COMMON_CFLAGS) -Wno-old-style-cast -std=c++17 -ferror-limit=0 -g
+CXXFLAGS        = $(COMMON_CFLAGS) -Wno-old-style-cast -std=c++17 -ferror-limit=0 -fno-exceptions
 
 CXXSRC          = $(shell find source -iname "*.cpp" -print)
 CXXOBJ          = $(CXXSRC:.cpp=.cpp.o)

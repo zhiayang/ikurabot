@@ -854,8 +854,7 @@ namespace kissnet
 			struct timeval tv;
 			tv.tv_sec = 0;
 			tv.tv_usec = microseconds;
-			int ret = setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*) &tv, sizeof tv);
-			printf("owo %d\n", ret);
+			setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*) &tv, sizeof tv);
 		#endif
 		}
 

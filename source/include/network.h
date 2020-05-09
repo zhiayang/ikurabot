@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include <chrono>
 #include <thread>
 #include <atomic>
 #include <string>
@@ -19,12 +20,40 @@
 
 namespace ikura
 {
-	struct Connection
+	struct URL
 	{
+		URL(std::string_view url);
+
+		std::string& protocol()             { return this->_protocol; }
+		const std::string& protocol() const { return this->_protocol; }
+
+		std::string& hostname()             { return this->_hostname; }
+		const std::string& hostname() const { return this->_hostname; }
+
+		std::string& resource()             { return this->_resource; }
+		const std::string& resource() const { return this->_resource; }
+
+		uint16_t port() const               { return this->_port; }
+		std::string str() const;
+
+	private:
+		std::string _protocol;
+		std::string _hostname;
+		std::string _resource;
+		uint16_t _port = 0;
+	};
+
+
+
+	struct Socket
+	{
+		friend struct WebSocket;
+
 		using RxCallbackFn = void(Span);
 
-		Connection(std::string_view host, uint16_t port, bool ssl, uint32_t timeout_microsecs = 0);
-		~Connection();
+		Socket(const URL& url, bool ssl = false, std::chrono::nanoseconds timeout = { });
+		Socket(std::string_view host, uint16_t port, bool ssl, std::chrono::nanoseconds timeout = { });
+		~Socket();
 
 		bool connect();
 		void disconnect();
@@ -39,6 +68,8 @@ namespace ikura
 		uint16_t port() const { return this->_port; }
 
 	private:
+		// Socket();
+
 		std::string _host;
 		uint16_t _port;
 
@@ -60,7 +91,8 @@ namespace ikura
 		using RxTextCallbackFn = void(bool, std::string_view);
 		using RxBinaryCallbackFn = void(bool, Span);
 
-		WebSocket(std::string_view host, uint16_t port, bool ssl, uint32_t timeout_microsecs = 0);
+		// WebSocket(const URL& url, std::chrono::nanoseconds timeout = { });
+		WebSocket(std::string_view host, uint16_t port, bool ssl, std::chrono::nanoseconds timeout = { });
 		~WebSocket();
 
 		void resizeBuffer(size_t sz);
@@ -87,7 +119,7 @@ namespace ikura
 
 		void send_pong(Span data);
 
-		Connection conn;
+		Socket conn;
 		Buffer buffer;
 
 		std::function<RxTextCallbackFn> text_callback;
@@ -119,6 +151,7 @@ namespace ikura
 		std::string _status;
 		std::vector<std::pair<std::string, std::string>> _headers;
 	};
+
 }
 
 
