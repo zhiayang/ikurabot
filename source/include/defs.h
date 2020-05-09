@@ -9,6 +9,7 @@
 
 #include <atomic>
 #include <thread>
+#include <chrono>
 
 #include "zpr.h"
 #include "utils.h"
@@ -19,10 +20,16 @@ namespace ikura
 	template <typename T>
 	struct condvar
 	{
-		condvar() : value(T()) { }
+		condvar() : value() { }
 		condvar(const T& x) : value(x) { }
 
 		void set(const T& x)
+		{
+			this->set_quiet(x);
+			this->notify_all();
+		}
+
+		void set_quiet(const T& x)
 		{
 			auto lk = std::lock_guard<std::mutex>(this->mtx);
 			this->value = x;
@@ -39,9 +46,15 @@ namespace ikura
 			this->cv.wait(lk, [&]{ return this->value == x; });
 		}
 
+		// returns true only if the value was set; if we timed out, it returns false.
+		bool wait(const T& x, std::chrono::nanoseconds timeout)
+		{
+			auto lk = std::unique_lock<std::mutex>(this->mtx);
+			return this->cv.wait_for(lk, timeout, [&]{ return this->value == x; });
+		}
+
 		void notify_one() { this->cv.notify_one(); }
 		void notify_all() { this->cv.notify_all(); }
-
 
 	private:
 		T value;

@@ -1,4 +1,4 @@
-// connection.cpp
+// socket.cpp
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
 
@@ -7,7 +7,7 @@
 
 namespace ikura
 {
-	Connection::Connection(std::string_view h, uint16_t p, bool ssl) : _host(h), _port(p)
+	Connection::Connection(std::string_view h, uint16_t p, bool ssl, uint32_t timeout_microsecs) : _host(h), _port(p)
 	{
 		this->is_connected = false;
 		this->rx_callback = [](Span) { };
@@ -16,6 +16,9 @@ namespace ikura
 			ssl ? kissnet::protocol::tcp_ssl : kissnet::protocol::tcp,
 			kissnet::endpoint(zpr::sprint("%s:%u", this->_host, this->_port))
 		);
+
+		if(timeout_microsecs > 0)
+			this->socket.set_timeout(timeout_microsecs);
 	}
 
 	Connection::~Connection()
@@ -48,12 +51,12 @@ namespace ikura
 				{
 					break;
 				}
-				else if(len == 0 || !status)
+				else if(!status)
 				{
-					error("read failed: len: %zu, status: %d", len, status.get_value());
+					error("read failed: status: %d", status.get_value());
 					break;
 				}
-				else if(this->rx_callback)
+				else if(len > 0 && this->rx_callback)
 				{
 					this->rx_callback(Span(this->internal_buffer, len));
 				}

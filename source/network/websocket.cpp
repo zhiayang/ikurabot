@@ -5,6 +5,8 @@
 #include "defs.h"
 #include "network.h"
 
+using namespace std::chrono_literals;
+
 namespace ikura
 {
 	struct raw_frame_t
@@ -36,11 +38,11 @@ namespace ikura
 	constexpr uint8_t OP_PING           = 0x9;
 	constexpr uint8_t OP_PONG           = 0xA;
 
+	constexpr auto DEFAULT_TIMEOUT      = 500ms;
 
 
-
-	WebSocket::WebSocket(std::string_view host, uint16_t port, bool ssl, size_t bufSize)
-		: conn(host, port, ssl), buffer(bufSize)
+	WebSocket::WebSocket(std::string_view host, uint16_t port, bool ssl, uint32_t timeout_microsecs)
+		: conn(host, port, ssl, timeout_microsecs), buffer(DEFAULT_FRAME_BUFFER_SIZE)
 	{
 
 	}
@@ -48,6 +50,11 @@ namespace ikura
 	WebSocket::~WebSocket()
 	{
 		this->disconnect();
+	}
+
+	void WebSocket::resizeBuffer(size_t sz)
+	{
+		this->buffer.resize(sz);
 	}
 
 	bool WebSocket::connected()
@@ -81,8 +88,6 @@ namespace ikura
 			if(!_hdrs.has_value())
 				return;
 
-			cv.set(true);
-
 			success = true;
 
 			// ok, we got the headers.
@@ -107,16 +112,19 @@ namespace ikura
 				error("websocket: invalid key (got '%s')", key);
 			}
 
-			cv.notify_one();
+			cv.set(true);
 		});
 
 		this->conn.send(Span::fromString(http.bytes()));
-		cv.wait(true);
+		if(!cv.wait(true, DEFAULT_TIMEOUT))
+		{
+			error("websocket: connection timed out");
+			return false;
+		}
+
 
 		if(!success)
 			return false;
-
-
 
 		// setup the handler.
 		this->conn.onReceive([this](Span data) {
@@ -209,7 +217,10 @@ namespace ikura
 		});
 
 		this->send_raw(OP_CLOSE, /* fin: */ true, Buffer::empty());
-		cv.wait(true);
+
+		// we don't really care whether this times out or not, we just don't want this to
+		// hang forever here.
+		cv.wait(true, DEFAULT_TIMEOUT);
 
 		this->conn.disconnect();
 	}
@@ -266,8 +277,7 @@ namespace ikura
 		}
 
 		// make some mask key
-		// auto mask_value = random::get<uint32_t>();
-		auto mask_value = 0x55555555;
+		auto mask_value = random::get<uint32_t>();
 
 		// split up the mask into bytes
 		uint8_t mask[4] = {
@@ -287,14 +297,9 @@ namespace ikura
 			bytes[i] ^= mask[i & 0x3];
 
 
-		// masked. to get around having to make one big buffer and copy stuff over, we
+		// to get around having to make one big buffer and copy stuff over, we
 		// just call send() on the underlying socket twice. if the OS is competent enough,
 		// the two calls ought to end up in the same TCP frame.
-
-		// auto combined = Buffer(hdrsz + payload.size());
-		// combined.write(buf, hdrsz);
-		// combined.write(payload);
-		// this->conn.send(combined.span());
 
 		this->conn.send(Span(buf, hdrsz));
 		this->conn.send(payload.span());

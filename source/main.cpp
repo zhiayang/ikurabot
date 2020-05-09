@@ -19,23 +19,20 @@ int main()
 {
 	zpr::println("hello, world!");
 
-	auto ws = ikura::WebSocket("echo.websocket.org", 443, /* ssl: */ true);
+	auto ws = ikura::WebSocket("echo.websocket.org", 80, /* ssl: */ false, 250'000);
 
-	ws.onReceiveText([](bool, std::string_view sv) {
+	ikura::condvar<bool> cv;
+	ws.onReceiveText([&](bool, std::string_view sv) {
 		zpr::println("%s", sv);
+		cv.set(true);
 	});
 
 	ws.connect();
 
-	ws.send("KEKW");
+	std::this_thread::sleep_for(2s);
+	ws.send("Sets the timeout value that specifies the maximum amount of time an input function waits until it completes. It accepts a timeval structure with the number of seconds and microseconds specifying the limit on how long to wait for an input operation to complete. If a receive operation has blocked for this much time without receiving additional data, it shall return with a partial count or errno set to [EAGAIN] or [EWOULDBLOCK] if no data is received. The default for this option is zero, which indicates that a receive operation shall not time out. This option takes a timeval structure. Note that not all implementations allow this option to be set.");
 
-	std::this_thread::sleep_for(0.5s);
-	ws.send("AYAYA");
-
-	std::this_thread::sleep_for(0.5s);
-	ws.send("I thought not. It's not a story the Jedi would tell you. It's a Sith legend. Darth Plagueis was a Dark Lord of the Sith, so powerful and so wise he could use the Force to influence the midichlorians to create life... He had such a knowledge of the dark side that he could even keep the ones he cared about from dying. The dark side of the Force is a pathway to many abilities some consider to be unnatural. He became so powerful... the only thing he was afraid of was losing his power, which eventually, of course, he did. Unfortunately, he taught his apprentice everything he knew, then his apprentice killed him in his sleep. It's ironic he could save others from death, but not himself.");
-
-	while(true)
-		;
+	cv.wait(true);
+	ws.disconnect();
 }
 

@@ -23,7 +23,7 @@ namespace ikura
 	{
 		using RxCallbackFn = void(Span);
 
-		Connection(std::string_view host, uint16_t port, bool ssl);
+		Connection(std::string_view host, uint16_t port, bool ssl, uint32_t timeout_microsecs = 0);
 		~Connection();
 
 		bool connect();
@@ -60,8 +60,10 @@ namespace ikura
 		using RxTextCallbackFn = void(bool, std::string_view);
 		using RxBinaryCallbackFn = void(bool, Span);
 
-		WebSocket(std::string_view host, uint16_t port, bool ssl, size_t bufferSize = DEFAULT_FRAME_BUFFER_SIZE);
+		WebSocket(std::string_view host, uint16_t port, bool ssl, uint32_t timeout_microsecs = 0);
 		~WebSocket();
+
+		void resizeBuffer(size_t sz);
 
 		bool connect();
 		void disconnect();
