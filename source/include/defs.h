@@ -11,6 +11,7 @@
 #include <thread>
 #include <chrono>
 #include <vector>
+#include <shared_mutex>
 
 #include "zpr.h"
 #include "utils.h"
@@ -54,6 +55,21 @@ namespace ikura
 			return this->cv.wait_for(lk, timeout, [&]{ return this->value == x; });
 		}
 
+		template <typename Predicate>
+		void wait_pred(const T& x, Predicate p)
+		{
+			auto lk = std::unique_lock<std::mutex>(this->mtx);
+			this->cv.wait(lk, p);
+		}
+
+		// returns true only if the value was set; if we timed out, it returns false.
+		template <typename Predicate>
+		bool wait_pred(const T& x, std::chrono::nanoseconds timeout, Predicate p)
+		{
+			auto lk = std::unique_lock<std::mutex>(this->mtx);
+			return this->cv.wait_for(lk, timeout, p);
+		}
+
 		void notify_one() { this->cv.notify_one(); }
 		void notify_all() { this->cv.notify_all(); }
 
@@ -62,6 +78,119 @@ namespace ikura
 		std::mutex mtx;
 		std::condition_variable cv;
 	};
+
+	template <typename T, typename Lk>
+	struct Synchronised
+	{
+	private:
+		struct ReadLockedInstance;
+		struct WriteLockedInstance;
+
+		Lk lk;
+		T value;
+
+	public:
+		~Synchronised() { }
+
+		template <typename = std::enable_if_t<std::is_default_constructible_v<T>>>
+		Synchronised() { }
+
+		template <typename = std::enable_if_t<std::is_copy_constructible_v<T>>>
+		Synchronised(const T& x) : value(x) { }
+
+		template <typename = std::enable_if_t<std::is_move_constructible_v<T>>>
+		Synchronised(T&& x) : value(std::move(x)) { }
+
+		Synchronised(Synchronised&&) = delete;
+		Synchronised(const Synchronised&) = delete;
+
+		Synchronised& operator = (Synchronised&&) = delete;
+		Synchronised& operator = (const Synchronised&) = delete;
+
+
+		template <typename Functor>
+		void perform_read(Functor&& fn)
+		{
+			std::shared_lock lk(this->lk);
+			fn(this->value);
+		}
+
+		template <typename Functor>
+		void perform_write(Functor&& fn)
+		{
+			std::unique_lock lk(this->lk);
+			fn(this->value);
+		}
+
+
+		Lk& getLock()
+		{
+			return this->lk;
+		}
+
+		ReadLockedInstance rlock()
+		{
+			return ReadLockedInstance(*this);
+		}
+
+		WriteLockedInstance wlock()
+		{
+			return WriteLockedInstance(*this);
+		}
+
+	private:
+
+		// static Lk& assert_not_held(Lk& lk) { if(lk.held()) assert(!"cannot move held Synchronised"); return lk; }
+
+		struct ReadLockedInstance
+		{
+			T* operator -> () { return &this->sync.value; }
+			T* get() { return &this->sync.value; }
+			~ReadLockedInstance() { this->sync.lk.unlock(); }
+
+		private:
+			ReadLockedInstance(Synchronised& sync) : sync(sync) { this->sync.lk.lock(); }
+
+			ReadLockedInstance(ReadLockedInstance&&) = delete;
+			ReadLockedInstance(const ReadLockedInstance&) = delete;
+
+			ReadLockedInstance& operator = (ReadLockedInstance&&) = delete;
+			ReadLockedInstance& operator = (const ReadLockedInstance&) = delete;
+
+			Synchronised& sync;
+
+			friend struct Synchronised;
+		};
+
+		struct WriteLockedInstance
+		{
+			T* operator -> () { return &this->sync.value; }
+			T* get() { return &this->sync.value; }
+			~WriteLockedInstance() { this->sync.lk.unlock_shared(); }
+
+		private:
+			WriteLockedInstance(Synchronised& sync) : sync(sync) { this->sync.lk.lock_shared(); }
+
+			WriteLockedInstance(WriteLockedInstance&&) = delete;
+			WriteLockedInstance(const WriteLockedInstance&) = delete;
+
+			WriteLockedInstance& operator = (WriteLockedInstance&&) = delete;
+			WriteLockedInstance& operator = (const WriteLockedInstance&) = delete;
+
+			Synchronised& sync;
+
+			friend struct Synchronised;
+		};
+	};
+
+
+	namespace twitch
+	{
+		void init();
+		void shutdown();
+
+		struct TwitchChannel;
+	}
 
 
 
@@ -76,7 +205,7 @@ namespace ikura
 		{
 			std::string getUsername();
 			std::string getOAuthToken();
-			std::vector<std::pair<std::string, bool>> getJoinChannels();
+			std::vector<ikura::twitch::TwitchChannel> getJoinChannels();
 		}
 	}
 
@@ -87,8 +216,8 @@ namespace ikura
 		size_t getFileSize(const std::string& path);
 		std::pair<uint8_t*, size_t> readEntireFile(const std::string& path);
 
-		std::pair<uint8_t*, size_t> mmapEntireFile(const std::string& path);
-		void munmapEntireFile(uint8_t* buf, size_t len);
+		std::tuple<int, uint8_t*, size_t> mmapEntireFile(const std::string& path);
+		void munmapEntireFile(int fd, uint8_t* buf, size_t len);
 	}
 
 	namespace random

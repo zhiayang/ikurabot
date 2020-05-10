@@ -14,6 +14,7 @@
 #include "defs.h"
 #include "serialise.h"
 
+using namespace std::chrono_literals;
 namespace std { namespace fs = filesystem; }
 
 namespace ikura::db
@@ -30,8 +31,9 @@ namespace ikura::db
 
 	constexpr const char* DB_MAGIC  = "ikura_db";
 	constexpr uint64_t DB_VERSION   = 1;
+	constexpr auto SYNC_INTERVAL    = 60s;
 
-	static Database TheDatabase;
+	static Synchronised<Database, std::shared_mutex> TheDatabase;
 	static std::fs::path databasePath;
 
 	// just a simple wrapper
@@ -58,21 +60,8 @@ namespace ikura::db
 	{
 		lg::log("db", "creating new database '%s'", path.string());
 
-		auto db = Database::create();
-
-		// mode 664
-		int fd = open(path.string().c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
-		if(fd < 0)
-		{
-			lg::error("db", "failed to create! error: %s", strerror(errno));
-			exit(1);
-		}
-
-		auto buf = Buffer(1024);
-		db.serialise(buf);
-
-		write(fd, buf.data(), buf.size());
-		close(fd);
+		*TheDatabase.wlock().get() = Database::create();
+		TheDatabase.rlock()->sync();
 	}
 
 	bool load(std::string_view p, bool create)
@@ -89,7 +78,7 @@ namespace ikura::db
 		}
 
 		// ok, for sure now there's something.
-		auto [ buf, len ] = util::mmapEntireFile(path.string());
+		auto [ fd, buf, len ] = util::mmapEntireFile(path.string());
 		if(buf == nullptr || len == 0)
 			return false;
 
@@ -99,9 +88,25 @@ namespace ikura::db
 		auto span = Span(buf, len);
 
 		if(auto db = Database::deserialise(span); db.has_value())
-			succ = true, TheDatabase = std::move(db.value());
+			succ = true, *TheDatabase.wlock().get() = std::move(db.value());
 
-		util::munmapEntireFile(buf, len);
+		util::munmapEntireFile(fd, buf, len);
+
+		if(succ)
+		{
+			// setup an idiot to periodically synchronise the database to disk.
+			auto thr = std::thread([]() {
+				while(true)
+				{
+					std::this_thread::sleep_for(SYNC_INTERVAL);
+					ikura::database().rlock()->sync();
+				}
+			});
+
+			thr.detach();
+		}
+
+		lg::log("db", "database loaded");
 		return succ;
 	}
 
@@ -158,10 +163,14 @@ namespace ikura::db
 		auto buf = Buffer(512);
 		this->serialise(buf);
 
-		int fd = open(databasePath.string().c_str(), O_WRONLY | O_TRUNC);
+		// make the new one
+		std::fs::path newdb = databasePath;
+		newdb.concat(".new");
+
+		int fd = open(newdb.string().c_str(), O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
 		if(fd < 0)
 		{
-			lg::error("failed to open for writing! error: %s", strerror(errno));
+			error("failed to open for writing! error: %s", strerror(errno));
 			return;
 		}
 
@@ -170,6 +179,16 @@ namespace ikura::db
 			todo -= write(fd, buf.data(), todo);
 
 		close(fd);
+
+		std::error_code ec;
+		std::fs::rename(newdb, databasePath, ec);
+		if(ec)
+		{
+			error("failed to sync! error: %s", ec.message());
+			return;
+		}
+
+		lg::log("db", "sync");
 	}
 
 	void TwitchDB::serialise(Buffer& buf) const
@@ -305,7 +324,7 @@ namespace ikura::cmd
 
 namespace ikura
 {
-	db::Database& database()
+	Synchronised<db::Database, std::shared_mutex>& database()
 	{
 		return db::TheDatabase;
 	}

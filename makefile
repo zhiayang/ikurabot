@@ -21,7 +21,7 @@ INCLUDES        = $(shell pkg-config --cflags openssl) -Isource/include -Iextern
 
 
 all: build
-	@build/ikurabot build/config.json build/database.db --create
+	@build/ikurabot build/config.json build/database.db
 
 build: build/ikurabot
 

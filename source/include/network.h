@@ -77,6 +77,8 @@ namespace ikura
 		std::atomic<bool> is_connected;
 		kissnet::socket<> socket;
 
+		std::chrono::nanoseconds timeout;
+
 		std::function<RxCallbackFn> rx_callback;
 
 		static constexpr size_t BufferSize = 4096;

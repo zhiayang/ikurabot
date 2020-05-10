@@ -13,7 +13,7 @@
 #include <unordered_map>
 
 #include "cmd.h"
-#include "buffer.h"
+#include "defs.h"
 #include "serialise.h"
 
 namespace ikura
@@ -82,5 +82,5 @@ namespace ikura
 		bool load(std::string_view path, bool create);
 	}
 
-	db::Database& database();
+	Synchronised<db::Database, std::shared_mutex>& database();
 }

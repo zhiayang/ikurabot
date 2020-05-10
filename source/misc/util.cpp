@@ -60,9 +60,9 @@ namespace ikura
 			return std::pair(buf, sz);
 		}
 
-		std::pair<uint8_t*, size_t> mmapEntireFile(const std::string& path)
+		std::tuple<int, uint8_t*, size_t> mmapEntireFile(const std::string& path)
 		{
-			auto bad = std::pair(nullptr, 0);;
+			auto bad = std::tuple(-1, nullptr, 0);;
 
 			auto sz = getFileSize(path);
 			if(sz == static_cast<size_t>(-1))
@@ -79,12 +79,13 @@ namespace ikura
 				exit(-1);
 			}
 
-			return { buf, sz };
+			return { fd, buf, sz };
 		}
 
-		void munmapEntireFile(uint8_t* buf, size_t len)
+		void munmapEntireFile(int fd, uint8_t* buf, size_t len)
 		{
 			munmap((void*) buf, len);
+			close(fd);
 		}
 	}
 

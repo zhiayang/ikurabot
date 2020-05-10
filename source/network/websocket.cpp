@@ -49,14 +49,14 @@ namespace ikura
 		auto proto = url.protocol();
 		if(proto != "ws" && proto != "wss")
 		{
-			lg::error("websocket", "invalid protocol '%s'", proto);
+			lg::error("ws", "invalid protocol '%s'", proto);
 			return;
 		}
 
 		auto host = url.hostname();
 		if(host.empty())
 		{
-			lg::error("websocket", "invalid url '%s'", host);
+			lg::error("ws", "invalid url '%s'", host);
 			return;
 		}
 
@@ -111,12 +111,12 @@ namespace ikura
 			if(hdrs.status().find("HTTP/1.1 101") != 0)
 			{
 				success = false;
-				lg::error("websocket", "unexpected http status '%s' (expected 101)", hdrs.status());
+				lg::error("ws", "unexpected http status '%s' (expected 101)", hdrs.status());
 			}
 			else if(hdrs.get("Upgrade") != "websocket" || hdrs.get("Connection") != "Upgrade")
 			{
 				success = false;
-				lg::error("websocket", "no upgrade header");
+				lg::error("ws", "no upgrade header");
 			}
 			else if(auto key = hdrs.get("Sec-WebSocket-Accept"); key != "BIrH2fXtdYwV1IU9u+MiGYCsuTA=")
 			{
@@ -125,7 +125,7 @@ namespace ikura
 				// -> base64 = BIrH2fXtdYwV1IU9u+MiGYCsuTA=
 
 				success = false;
-				lg::error("websocket", "invalid key (got '%s')", key);
+				lg::error("ws", "invalid key (got '%s')", key);
 			}
 
 			cv.set(true);
@@ -133,7 +133,7 @@ namespace ikura
 
 		this->conn.send(Span::fromString(http.bytes()));
 		if(!cv.wait(true, DEFAULT_TIMEOUT))
-			return lg::error("websocket", "connection timed out");
+			return lg::error("ws", "connection timed out");
 
 		if(!success)
 			return false;
@@ -249,7 +249,7 @@ namespace ikura
 	{
 		if((opcode & 0xF0) != 0 || opcode >= 0x0B)
 		{
-			lg::error("websocket", "invalid opcode '%x', opcode");
+			lg::error("ws", "invalid opcode '%x', opcode");
 			return;
 		}
 
@@ -315,8 +315,20 @@ namespace ikura
 		// just call send() on the underlying socket twice. if the OS is competent enough,
 		// the two calls ought to end up in the same TCP frame.
 
-		this->conn.send(Span(buf, hdrsz));
-		this->conn.send(payload.span());
+		// if the message is small enough though, sod it, we'll just make a combined buffer
+		if(payload.size() < 256)
+		{
+			auto combined = Buffer(hdrsz + payload.size());
+			combined.write(buf, hdrsz);
+			combined.write(payload.span());
+
+			this->conn.send(combined.span());
+		}
+		else
+		{
+			this->conn.send(Span(buf, hdrsz));
+			this->conn.send(payload.span());
+		}
 	}
 
 	void WebSocket::handle_frame(uint8_t opcode, bool fin, Span data)
@@ -329,7 +341,7 @@ namespace ikura
 		else if(opcode == OP_CLOSE)
 		{
 			// uwu, server closed us
-			lg::warn("websocket", "server closed connection");
+			lg::warn("ws", "server closed connection");
 			this->send_raw(OP_CLOSE, /* fin: */ true, Buffer::empty());
 		}
 		else if(opcode == OP_TEXT)
