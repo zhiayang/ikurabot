@@ -75,7 +75,7 @@ namespace ikura
 		return this->write(s.data(), s.size());
 	}
 
-	size_t Buffer::write(const uint8_t* data, size_t len)
+	size_t Buffer::write(const void* data, size_t len)
 	{
 		auto todo = std::min(len, this->cap - this->len);
 
@@ -85,7 +85,8 @@ namespace ikura
 		return todo;
 	}
 
-	void Buffer::grow(size_t sz) { this->resize(this->cap + sz); }
+	void Buffer::grow()             { this->resize(this->cap * 1.6); }
+	void Buffer::grow(size_t sz)    { this->resize(this->cap + sz); }
 	void Buffer::resize(size_t sz)
 	{
 		if(sz < this->cap)
@@ -107,7 +108,7 @@ namespace ikura
 	Buffer Buffer::fromString(const std::string& s)
 	{
 		auto ret = Buffer(s.size());
-		ret.write((const uint8_t*) s.data(), s.size());
+		ret.write(s.data(), s.size());
 		return ret;
 	}
 }

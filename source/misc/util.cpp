@@ -4,10 +4,15 @@
 
 #include <limits>
 #include <random>
+#include <chrono>
 #include <fstream>
 
+#include <stdio.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
+#include <sys/types.h>
 
 #include "defs.h"
 
@@ -15,6 +20,12 @@ namespace ikura
 {
 	namespace util
 	{
+		uint64_t getMillisecondTimestamp()
+		{
+			return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		}
+
+
 		size_t getFileSize(const std::string& path)
 		{
 			struct stat st;
@@ -47,6 +58,33 @@ namespace ikura
 			fs.close();
 
 			return std::pair(buf, sz);
+		}
+
+		std::pair<uint8_t*, size_t> mmapEntireFile(const std::string& path)
+		{
+			auto bad = std::pair(nullptr, 0);;
+
+			auto sz = getFileSize(path);
+			if(sz == static_cast<size_t>(-1))
+				return bad;
+
+			auto fd = open(path.c_str(), O_RDONLY, 0);
+			if(fd == -1)
+				return bad;
+
+			auto buf = (uint8_t*) mmap(0, sz, PROT_READ, MAP_PRIVATE, fd, 0);
+			if(buf == (void*) (-1))
+			{
+				perror("there was an error reading the file");
+				exit(-1);
+			}
+
+			return { buf, sz };
+		}
+
+		void munmapEntireFile(uint8_t* buf, size_t len)
+		{
+			munmap((void*) buf, len);
 		}
 	}
 

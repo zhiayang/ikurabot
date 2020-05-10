@@ -5,6 +5,7 @@
 #include <thread>
 #include <chrono>
 
+#include "db.h"
 #include "defs.h"
 #include "network.h"
 
@@ -12,34 +13,43 @@ using namespace std::chrono_literals;
 
 int main(int argc, char** argv)
 {
-	if(argc != 2)
+	if(argc < 3)
 	{
-		zpr::println("usage: ./ikurabot <config.json>");
+		zpr::println("usage: ./ikurabot <config.json> <database.db> [--create]");
 		exit(1);
 	}
 
+	ikura::lg::log("ikura", "starting...");
 	if(!ikura::config::load(argv[1]))
-	{
-		ikura::lg::error("invalid config file '%s'", argv[1]);
-		exit(1);
-	}
+		ikura::lg::fatal("cfg", "failed to load config file '%s'", argv[1]);
+
+	if(!ikura::db::load(argv[2], (argc > 3 && std::string(argv[3]) == "--create")))
+		ikura::lg::fatal("db", "failed to load database '%s'", argv[2]);
 
 
-	zpr::println("hello, world!");
+	// auto tw = ikura::db::TwitchUser();
+	// tw.id = "asdf";
+	// tw.username = "zhiayang";
+	// tw.displayname = "zhiayang";
 
-	// auto ws = ikura::WebSocket(ikura::URL("wss://echo.websocket.org"), 500ms);
-	auto ws = ikura::WebSocket(ikura::URL("wss://irc-ws.chat.twitch.tv"), 500ms);
+	// ikura::database().twitchData.knownTwitchUsers.insert({ "zhiayang", tw });
+	// ikura::database().sync();
 
-	ikura::condvar<bool> cv;
-	ws.onReceiveText([&](bool, std::string_view sv) {
-		zpr::println("%s", sv);
-		// cv.set(true);
-	});
+	zpr::println("%s -> %s", "zhiayang", ikura::database().twitchData.knownTwitchUsers["zhiayang"].id);
 
-	ws.connect();
 
-	// cv.wait(true, 3s);
-	std::this_thread::sleep_for(5s);
-	ws.disconnect();
+	// auto ws = ikura::WebSocket(ikura::URL("wss://irc-ws.chat.twitch.tv"), 500ms);
+
+	// ikura::condvar<bool> cv;
+	// ws.onReceiveText([&](bool, std::string_view sv) {
+	// 	zpr::println("%s", sv);
+	// 	// cv.set(true);
+	// });
+
+	// ws.connect();
+
+	// // cv.wait(true, 3s);
+	// std::this_thread::sleep_for(5s);
+	// ws.disconnect();
 }
 

@@ -630,10 +630,10 @@ namespace kissnet
 		KISSNET_OS_SPECIFIC;
 
 		///operatic-system type for a socket object
-		SOCKET sock;
+		SOCKET sock = 0;
 
-		SSL* pSSL;
-		SSL_CTX* pContext;
+		SSL* pSSL = nullptr;
+		SSL_CTX* pContext = nullptr;
 
 		///Location where this socket is bound
 		endpoint bind_loc;

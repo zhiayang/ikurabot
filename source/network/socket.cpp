@@ -9,7 +9,7 @@ using namespace std::chrono_literals;
 
 namespace ikura
 {
-	Socket::Socket() { }
+	Socket::Socket() { this->is_connected = false; }
 
 	Socket::Socket(const URL& url, bool ssl, std::chrono::nanoseconds timeout) : Socket(url.hostname(), url.port(), ssl, timeout) { }
 
@@ -32,8 +32,11 @@ namespace ikura
 
 	Socket::~Socket()
 	{
-		this->is_connected = false;
-		this->socket.close();
+		if(this->is_connected)
+		{
+			this->is_connected = false;
+			this->socket.close();
+		}
 	}
 
 	bool Socket::connected()

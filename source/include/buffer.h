@@ -43,11 +43,11 @@ namespace ikura
 
 		size_t write(Span spn);
 		size_t write(const Buffer& buf);
-		size_t write(const uint8_t* data, size_t len);
+		size_t write(const void* data, size_t len);
 
-
-		void grow(size_t sz);
-		void resize(size_t sz);
+		void grow();            // auto-expands by 1.6x
+		void grow(size_t sz);   // expands only by the specified amount
+		void resize(size_t sz); // changes the size to be sz. (only expands, never contracts)
 
 		static Buffer empty();
 		static Buffer fromString(const std::string& s);
@@ -89,7 +89,7 @@ namespace ikura
 		template <typename T> T* as() { return (T*) this->ptr; }
 		template <typename T> const T* as() const { return (T*) this->ptr; }
 
-		uint8_t peek(size_t i) const { return this->ptr[i]; }
+		uint8_t peek(size_t i = 0) const { return this->ptr[i]; }
 
 
 		static Span fromString(std::string_view sv)

@@ -133,11 +133,7 @@ namespace ikura
 
 		this->conn.send(Span::fromString(http.bytes()));
 		if(!cv.wait(true, DEFAULT_TIMEOUT))
-		{
-			lg::error("websocket", "connection timed out");
-			return false;
-		}
-
+			return lg::error("websocket", "connection timed out");
 
 		if(!success)
 			return false;
@@ -213,6 +209,9 @@ namespace ikura
 
 	void WebSocket::disconnect()
 	{
+		if(!this->conn.connected())
+			return;
+
 		auto cv = condvar<bool>();
 
 		auto buf = Buffer(256);

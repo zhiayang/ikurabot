@@ -39,7 +39,7 @@ namespace ikura::config
 				return it->second.get<std::string>();
 
 			else
-				lg::error("config", "expected string value for '%s'", key);
+				lg::error("cfg", "expected string value for '%s'", key);
 		}
 
 		return def;
@@ -53,7 +53,7 @@ namespace ikura::config
 				return it->second.get<pj::array>();
 
 			else
-				lg::error("config", "expected array value for '%s'", key);
+				lg::error("cfg", "expected array value for '%s'", key);
 		}
 
 		return { };
@@ -67,7 +67,7 @@ namespace ikura::config
 				return it->second.get<bool>();
 
 			else
-				lg::error("config", "expected boolean value for '%s'", key);
+				lg::error("cfg", "expected boolean value for '%s'", key);
 		}
 
 		return def;
@@ -78,17 +78,11 @@ namespace ikura::config
 	{
 		auto username = get_string(twitch, "username", "");
 		if(username.empty())
-		{
-			lg::error("config/twitch", "username cannot be empty");
-			return false;
-		}
+			return lg::error("cfg/twitch", "username cannot be empty");
 
 		auto oauthToken = get_string(twitch, "oauth_token", "");
 		if(oauthToken.empty())
-		{
-			lg::error("config/twitch", "oauth_token cannot be empty");
-			return false;
-		}
+			return lg::error("cfg/twitch", "oauth_token cannot be empty");
 
 		TwitchConfig.username = username;
 		TwitchConfig.oauthToken = oauthToken;
@@ -99,7 +93,7 @@ namespace ikura::config
 			for(const auto& ch : channels)
 			{
 				if(!ch.is<pj::object>())
-					lg::error("config/twitch", "channel should be a json object");
+					lg::error("cfg/twitch", "channel should be a json object");
 
 				auto chan = ch.get<pj::object>();
 
@@ -107,7 +101,7 @@ namespace ikura::config
 				tmp.name = get_string(chan, "name", "");
 				if(tmp.name.empty())
 				{
-					lg::error("config/twitch", "channel name cannot be empty");
+					lg::error("cfg/twitch", "channel name cannot be empty");
 				}
 				else
 				{
@@ -135,17 +129,11 @@ namespace ikura::config
 	{
 		std::fs::path configPath = path;
 		if(!std::fs::exists(configPath))
-		{
-			lg::error("config", "file does not exist", path);
-			return false;
-		}
+			return lg::error("cfg", "file does not exist", path);
 
 		auto [ buf, sz ] = util::readEntireFile(configPath.string());
 		if(!buf || sz == 0)
-		{
-			lg::error("config", "failed to read file");
-			return false;
-		}
+			return lg::error("cfg", "failed to read file");
 
 		pj::value config;
 
@@ -155,10 +143,7 @@ namespace ikura::config
 		pj::parse(config, begin, end, &err);
 
 		if(!err.empty())
-		{
-			lg::error("config", "json error: %s", err);
-			return false;
-		}
+			return lg::error("cfg", "json error: %s", err);
 
 		// read twitch
 		if(auto twitch = config.get("twitch"); !twitch.is<pj::null>() && twitch.is<pj::object>())
