@@ -22,7 +22,7 @@ namespace ikura
 		do {
 			auto i = url.find("://");
 			if(i == std::string::npos || i == 0)
-				{ log("owo"); break; }
+				break;
 
 			this->_protocol = std::string(url.substr(0, i));
 			url.remove_prefix(i + 3);
@@ -66,7 +66,7 @@ namespace ikura
 			return;
 		} while(false);
 
-		error("invalid url '%s'", url);
+		lg::error("url", "invalid url '%s'", url);
 	}
 
 	std::string URL::str() const

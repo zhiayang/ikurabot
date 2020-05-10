@@ -22,7 +22,7 @@ namespace ikura
 {
 	struct URL
 	{
-		URL(std::string_view url);
+		explicit URL(std::string_view url);
 
 		std::string& protocol()             { return this->_protocol; }
 		const std::string& protocol() const { return this->_protocol; }
@@ -68,7 +68,7 @@ namespace ikura
 		uint16_t port() const { return this->_port; }
 
 	private:
-		// Socket();
+		Socket();
 
 		std::string _host;
 		uint16_t _port;
@@ -91,7 +91,7 @@ namespace ikura
 		using RxTextCallbackFn = void(bool, std::string_view);
 		using RxBinaryCallbackFn = void(bool, Span);
 
-		// WebSocket(const URL& url, std::chrono::nanoseconds timeout = { });
+		WebSocket(const URL& url, std::chrono::nanoseconds timeout = { });
 		WebSocket(std::string_view host, uint16_t port, bool ssl, std::chrono::nanoseconds timeout = { });
 		~WebSocket();
 

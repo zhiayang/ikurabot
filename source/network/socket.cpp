@@ -9,7 +9,7 @@ using namespace std::chrono_literals;
 
 namespace ikura
 {
-	// Socket::Socket() { }
+	Socket::Socket() { }
 
 	Socket::Socket(const URL& url, bool ssl, std::chrono::nanoseconds timeout) : Socket(url.hostname(), url.port(), ssl, timeout) { }
 
@@ -24,7 +24,10 @@ namespace ikura
 		);
 
 		if(timeout > 0ns)
-			this->socket.set_timeout(std::chrono::duration_cast<std::chrono::microseconds>(timeout).count());
+		{
+			auto micros = std::chrono::duration_cast<std::chrono::microseconds>(timeout).count();
+			this->socket.set_timeout(micros);
+		}
 	}
 
 	Socket::~Socket()
@@ -42,7 +45,6 @@ namespace ikura
 	{
 		this->is_connected = this->socket.connect();
 
-		zpr::println("%s", is_connected.load());
 		if(!this->is_connected)
 			return false;
 
@@ -60,7 +62,7 @@ namespace ikura
 				}
 				else if(!status)
 				{
-					error("read failed: status: %d", status.get_value());
+					lg::error("socket", "read failed: status: %d", status.get_value());
 					break;
 				}
 				else if(len > 0 && this->rx_callback)

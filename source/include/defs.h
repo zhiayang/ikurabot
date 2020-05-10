@@ -10,6 +10,7 @@
 #include <atomic>
 #include <thread>
 #include <chrono>
+#include <vector>
 
 #include "zpr.h"
 #include "utils.h"
@@ -64,7 +65,26 @@ namespace ikura
 
 
 
+	namespace config
+	{
+		bool load(std::string_view path);
 
+		bool haveTwitch();
+		bool haveDiscord();
+
+		namespace twitch
+		{
+			std::string getUsername();
+			std::string getOAuthToken();
+			std::vector<std::pair<std::string, bool>> getJoinChannels();
+		}
+	}
+
+	namespace util
+	{
+		size_t getFileSize(const std::string& path);
+		std::pair<uint8_t*, size_t> readEntireFile(const std::string& path);
+	}
 
 	namespace random
 	{
@@ -85,7 +105,7 @@ namespace ikura
 
 	namespace colours
 	{
-		constexpr const char* RESET         = "\033[0m";
+		constexpr const char* COLOUR_RESET  = "\033[0m";
 		constexpr const char* BLACK         = "\033[30m";
 		constexpr const char* RED           = "\033[31m";
 		constexpr const char* GREEN         = "\033[32m";
@@ -103,31 +123,65 @@ namespace ikura
 		constexpr const char* CYAN_BOLD     = "\033[1m\033[36m";
 		constexpr const char* WHITE_BOLD    = "\033[1m\033[37m";
 		constexpr const char* GREY_BOLD     = "\033[30;1m";
+
+		constexpr bool USE_COLOURS = true;
+		constexpr const char* RESET = (USE_COLOURS ? COLOUR_RESET : "");
+		constexpr const char* SUBSYS = (USE_COLOURS ? BLUE_BOLD : "");
+
+		constexpr const char* DBG = (USE_COLOURS ? WHITE : "");
+		constexpr const char* LOG = (USE_COLOURS ? GREY_BOLD : "");
+		constexpr const char* WRN = (USE_COLOURS ? YELLOW_BOLD : "");
+		constexpr const char* ERR = (USE_COLOURS ? RED_BOLD : "");
 	}
 
-	template <typename... Args>
-	static void error(const std::string& fmt, Args&&... args)
+	namespace lg
 	{
-		fprintf(stderr, " %s*%s %s\n", colours::RED_BOLD, colours::RESET, zpr::sprint(fmt, args...).c_str());
-	}
+		constexpr bool ENABLE_DEBUG = false;
 
-	template <typename... Args>
-	static void log(const std::string& fmt, Args&&... args)
-	{
-		printf(" %s*%s %s\n", colours::GREEN_BOLD, colours::RESET, zpr::sprint(fmt, args...).c_str());
-	}
+		template <typename... Args>
+		static inline void __generic_log(int lvl, std::string_view sys, const std::string& fmt, Args&&... args)
+		{
+			if(!ENABLE_DEBUG && lvl < 0)
+				return;
 
-	template <typename... Args>
-	static void info(const std::string& fmt, Args&&... args)
-	{
-		printf(" %s*%s %s\n", colours::BLUE_BOLD, colours::RESET, zpr::sprint(fmt, args...).c_str());
-	}
+			const char* col = 0;
+			const char* str = 0;
 
-	template <typename... Args>
-	static void warn(const std::string& fmt, Args&&... args)
-	{
+			if(lvl == -1)       { col = colours::DBG;  str = "[dbg]"; }
+			else if(lvl == 0)   { col = colours::LOG;  str = "[log]"; }
+			else if(lvl == 1)   { col = colours::WRN;  str = "[wrn]"; }
+			else if(lvl == 2)   { col = colours::ERR;  str = "[err]"; }
 
-		printf(" %s*%s %s\n", colours::YELLOW_BOLD, colours::RESET, zpr::sprint(fmt, args...).c_str());
+			auto out = zpr::sprint("%s%s%s %s%s%s: ", col, str, colours::RESET, colours::SUBSYS, sys, colours::RESET);
+			out += zpr::sprint(fmt, args...);
+
+			if(lvl >= 2)    fprintf(stderr, "%s\n", out.c_str());
+			else            printf("%s\n", out.c_str());
+		}
+
+		template <typename... Args>
+		static void log(std::string_view sys, const std::string& fmt, Args&&... args)
+		{
+			__generic_log(0, sys, fmt, args...);
+		}
+
+		template <typename... Args>
+		static void warn(std::string_view sys, const std::string& fmt, Args&&... args)
+		{
+			__generic_log(1, sys, fmt, args...);
+		}
+
+		template <typename... Args>
+		static void error(std::string_view sys, const std::string& fmt, Args&&... args)
+		{
+			__generic_log(2, sys, fmt, args...);
+		}
+
+		template <typename... Args>
+		static void dbglog(std::string_view sys, const std::string& fmt, Args&&... args)
+		{
+			__generic_log(-1, sys, fmt, args...);
+		}
 	}
 }
 

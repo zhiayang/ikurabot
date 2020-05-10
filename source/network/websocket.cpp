@@ -44,24 +44,24 @@ namespace ikura
 	WebSocket::WebSocket(std::string_view host, uint16_t port, bool ssl, std::chrono::nanoseconds timeout)
 		: conn(host, port, ssl, timeout), buffer(DEFAULT_FRAME_BUFFER_SIZE) { }
 
-	// WebSocket::WebSocket(const URL& url, std::chrono::nanoseconds timeout) : buffer(DEFAULT_FRAME_BUFFER_SIZE)
-	// {
-	// 	auto proto = url.protocol();
-	// 	if(proto != "ws" && proto != "wss")
-	// 	{
-	// 		error("websocket: invalid protocol '%s'", proto);
-	// 		return;
-	// 	}
+	WebSocket::WebSocket(const URL& url, std::chrono::nanoseconds timeout) : buffer(DEFAULT_FRAME_BUFFER_SIZE)
+	{
+		auto proto = url.protocol();
+		if(proto != "ws" && proto != "wss")
+		{
+			lg::error("websocket", "invalid protocol '%s'", proto);
+			return;
+		}
 
-	// 	auto host = url.hostname();
-	// 	if(host.empty())
-	// 	{
-	// 		error("websocket: invalid url '%s'", host);
-	// 		return;
-	// 	}
+		auto host = url.hostname();
+		if(host.empty())
+		{
+			lg::error("websocket", "invalid url '%s'", host);
+			return;
+		}
 
-	// 	new (&this->conn) Socket(host, proto == "wss" ? 443 : 80, proto == "wss" ? true : false, timeout);
-	// }
+		new (&this->conn) Socket(host, proto == "wss" ? 443 : 80, proto == "wss" ? true : false, timeout);
+	}
 
 	WebSocket::~WebSocket()
 	{
@@ -111,12 +111,12 @@ namespace ikura
 			if(hdrs.status().find("HTTP/1.1 101") != 0)
 			{
 				success = false;
-				error("websocket: unexpected http status '%s' (expected 101)", hdrs.status());
+				lg::error("websocket", "unexpected http status '%s' (expected 101)", hdrs.status());
 			}
 			else if(hdrs.get("Upgrade") != "websocket" || hdrs.get("Connection") != "Upgrade")
 			{
 				success = false;
-				error("websocket: no upgrade header");
+				lg::error("websocket", "no upgrade header");
 			}
 			else if(auto key = hdrs.get("Sec-WebSocket-Accept"); key != "BIrH2fXtdYwV1IU9u+MiGYCsuTA=")
 			{
@@ -125,7 +125,7 @@ namespace ikura
 				// -> base64 = BIrH2fXtdYwV1IU9u+MiGYCsuTA=
 
 				success = false;
-				error("websocket: invalid key (got '%s')", key);
+				lg::error("websocket", "invalid key (got '%s')", key);
 			}
 
 			cv.set(true);
@@ -134,7 +134,7 @@ namespace ikura
 		this->conn.send(Span::fromString(http.bytes()));
 		if(!cv.wait(true, DEFAULT_TIMEOUT))
 		{
-			error("websocket: connection timed out");
+			lg::error("websocket", "connection timed out");
 			return false;
 		}
 
@@ -208,7 +208,6 @@ namespace ikura
 			this->buffer.clear();
 		});
 
-		log("websocket: connected");
 		return true;
 	}
 
@@ -251,7 +250,7 @@ namespace ikura
 	{
 		if((opcode & 0xF0) != 0 || opcode >= 0x0B)
 		{
-			error("websocket: invalid opcode '%x', opcode");
+			lg::error("websocket", "invalid opcode '%x', opcode");
 			return;
 		}
 
@@ -327,6 +326,12 @@ namespace ikura
 		if(opcode == OP_PING)
 		{
 			this->send_pong(data);
+		}
+		else if(opcode == OP_CLOSE)
+		{
+			// uwu, server closed us
+			lg::warn("websocket", "server closed connection");
+			this->send_raw(OP_CLOSE, /* fin: */ true, Buffer::empty());
 		}
 		else if(opcode == OP_TEXT)
 		{

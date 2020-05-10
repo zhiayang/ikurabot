@@ -4,10 +4,51 @@
 
 #include <limits>
 #include <random>
+#include <fstream>
+
+#include <unistd.h>
+#include <sys/stat.h>
 
 #include "defs.h"
 
-namespace ikura {
+namespace ikura
+{
+	namespace util
+	{
+		size_t getFileSize(const std::string& path)
+		{
+			struct stat st;
+			if(stat(path.c_str(), &st) != 0)
+			{
+				char buf[128] = { 0 };
+				strerror_r(errno, buf, 127);
+				lg::error("misc", "failed to get filesize for '%s' (error code %d / %s)", path, errno, buf);
+
+				return -1;
+			}
+
+			return st.st_size;
+		}
+
+		std::pair<uint8_t*, size_t> readEntireFile(const std::string& path)
+		{
+			auto bad = std::pair(nullptr, 0);;
+
+			auto sz = getFileSize(path);
+			if(sz == static_cast<size_t>(-1)) return bad;
+
+			// i'm lazy, so just use fstreams.
+			auto fs = std::fstream(path);
+			if(!fs.good()) return bad;
+
+
+			uint8_t* buf = new uint8_t[sz + 1];
+			fs.read(reinterpret_cast<char*>(buf), sz);
+			fs.close();
+
+			return std::pair(buf, sz);
+		}
+	}
 
 	namespace random
 	{
