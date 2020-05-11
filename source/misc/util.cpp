@@ -20,13 +20,10 @@ namespace ikura
 {
 	namespace util
 	{
-		std::string join(const std::vector<ikura::str_view>& xs, char delim, size_t startidx, size_t endidx)
+		std::string join(const ikura::span<ikura::str_view>& xs, char delim)
 		{
 			std::string ret;
-			if(endidx == (size_t) -1)
-				endidx = xs.size();
-
-			for(size_t i = startidx; i < endidx; i++)
+			for(size_t i = 0; i < xs.size(); i++)
 			{
 				ret += xs[i];
 				if(i + 1 != xs.size())

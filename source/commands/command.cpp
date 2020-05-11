@@ -25,8 +25,6 @@ namespace ikura::cmd
 	}
 
 
-
-
 	static void processCommand(str_view user, const Channel* chan, str_view cmd)
 	{
 		CmdContext cs;
@@ -61,11 +59,8 @@ namespace ikura::cmd
 				return;
 			}
 
-			// erase the first two
-			split.erase(split.begin());
-			split.erase(split.begin());
-
-			auto code = util::join(split, ' ');
+			// drop the first two
+			auto code = util::join(ikura::span(split).drop(2), ' ');
 
 			interp().wlock()->commands.emplace(name, Command(name.str(), code));
 

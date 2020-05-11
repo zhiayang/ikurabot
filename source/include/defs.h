@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "zpr.h"
+#include "span.h"
 #include "tsl/robin_map.h"
 
 namespace ikura
@@ -194,7 +195,7 @@ namespace ikura
 	namespace util
 	{
 		std::vector<ikura::str_view> split(ikura::str_view view, char delim);
-		std::string join(const std::vector<ikura::str_view>&, char delim, size_t startIdx = 0, size_t endIdx = -1);
+		std::string join(const ikura::span<ikura::str_view>&, char delim);
 
 		uint64_t getMillisecondTimestamp();
 

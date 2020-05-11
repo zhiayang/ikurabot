@@ -20,7 +20,7 @@ namespace ikura::cmd
 		ikura::str_view caller;
 		const Channel* channel = nullptr;
 
-		std::vector<ikura::str_view> args;
+		ikura::span<ikura::str_view> args;
 	};
 
 	namespace properties
