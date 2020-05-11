@@ -7,6 +7,7 @@
 
 #include <optional>
 
+#include "defs.h"
 #include "serialise.h"
 
 namespace ikura::cmd
@@ -39,4 +40,6 @@ namespace ikura::cmd
 
 		static constexpr uint8_t TYPE_TAG = serialise::TAG_COMMAND;
 	};
+
+	void processMessage(ikura::str_view user, const Channel* channel, ikura::str_view message);
 }

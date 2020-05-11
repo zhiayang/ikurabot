@@ -9,11 +9,11 @@
 
 #include <string>
 #include <optional>
-#include <string_view>
-#include <unordered_map>
+#include <shared_mutex>
 
 #include "cmd.h"
 #include "defs.h"
+#include "synchro.h"
 #include "serialise.h"
 
 namespace ikura
@@ -35,10 +35,10 @@ namespace ikura
 		struct TwitchDB : serialise::Serialisable
 		{
 			// map from userid to user.
-			std::unordered_map<std::string, TwitchUser> knownTwitchUsers;
+			ikura::string_map<TwitchUser> knownTwitchUsers;
 
 			// cache of known username -> userids
-			std::unordered_map<std::string, std::string> knownTwitchIdMappings;
+			ikura::string_map<std::string> knownTwitchIdMappings;
 
 			virtual void serialise(Buffer& buf) const override;
 			static std::optional<TwitchDB> deserialise(Span& buf);
@@ -49,10 +49,10 @@ namespace ikura
 		struct CommandDB : serialise::Serialisable
 		{
 			// map of name -> Command
-			std::unordered_map<std::string, cmd::Command> commands;
+			ikura::string_map<cmd::Command> commands;
 
 			// map of alias -> name
-			std::unordered_map<std::string, std::string> aliases;
+			ikura::string_map<std::string> aliases;
 
 			virtual void serialise(Buffer& buf) const override;
 			static std::optional<CommandDB> deserialise(Span& buf);
@@ -79,7 +79,7 @@ namespace ikura
 			uint64_t timestamp; // modified timestamp (millis since 1970)
 		};
 
-		bool load(std::string_view path, bool create);
+		bool load(ikura::str_view path, bool create);
 	}
 
 	Synchronised<db::Database, std::shared_mutex>& database();

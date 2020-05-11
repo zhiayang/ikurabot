@@ -64,9 +64,11 @@ namespace ikura::db
 		TheDatabase.rlock()->sync();
 	}
 
-	bool load(std::string_view p, bool create)
+	bool load(ikura::str_view p, bool create)
 	{
-		std::fs::path path = p;
+		std::fs::path path = p.str();
+		databasePath = path;
+
 		if(!std::fs::exists(path))
 		{
 			if(create)  createNewDatabase(path);
@@ -81,8 +83,6 @@ namespace ikura::db
 		auto [ fd, buf, len ] = util::mmapEntireFile(path.string());
 		if(buf == nullptr || len == 0)
 			return false;
-
-		databasePath = path;
 
 		bool succ = false;
 		auto span = Span(buf, len);

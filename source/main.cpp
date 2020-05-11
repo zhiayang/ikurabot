@@ -29,8 +29,22 @@ int main(int argc, char** argv)
 	if(ikura::config::haveTwitch())
 		ikura::twitch::init();
 
-	std::this_thread::sleep_for(std::chrono::seconds::max());
+	auto thr = std::thread([]() {
+		while(true)
+		{
+			auto ch = fgetc(stdin);
+			if(ch == '\n' || ch == '\r')
+				continue;
 
+			if(ch == 'q')
+				break;
+		}
+	});
+
+	thr.join();
 	ikura::twitch::shutdown();
+
+	std::this_thread::sleep_for(1s);
+	ikura::database().rlock()->sync();
 }
 

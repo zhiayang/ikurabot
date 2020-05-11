@@ -5,6 +5,8 @@
 #include "defs.h"
 #include "network.h"
 
+#include "synchro.h"
+
 using namespace std::chrono_literals;
 
 namespace ikura
@@ -388,7 +390,7 @@ namespace ikura
 		this->cur_tx_cont_op = 0;
 	}
 
-	void WebSocket::send(std::string_view sv)
+	void WebSocket::send(ikura::str_view sv)
 	{
 		auto buf = Buffer(sv.size());
 		buf.write(Span::fromString(sv));
@@ -414,7 +416,7 @@ namespace ikura
 		else     this->cur_tx_cont_op = OP_BINARY;
 	}
 
-	void WebSocket::sendFragment(std::string_view sv, bool last)
+	void WebSocket::sendFragment(ikura::str_view sv, bool last)
 	{
 		auto op = (this->cur_tx_cont_op == 0
 			? OP_TEXT

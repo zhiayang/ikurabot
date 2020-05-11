@@ -20,6 +20,33 @@ namespace ikura
 {
 	namespace util
 	{
+		std::vector<ikura::str_view> splitString(ikura::str_view view, char delim)
+		{
+			std::vector<ikura::str_view> ret;
+
+			while(true)
+			{
+				size_t ln = view.find(delim);
+
+				if(ln != ikura::str_view::npos)
+				{
+					ret.emplace_back(view.data(), ln);
+					view.remove_prefix(ln + 1);
+				}
+				else
+				{
+					break;
+				}
+			}
+
+			// account for the case when there's no trailing newline, and we still have some stuff stuck in the view.
+			if(!view.empty())
+				ret.emplace_back(view.data(), view.length());
+
+			return ret;
+		};
+
+
 		uint64_t getMillisecondTimestamp()
 		{
 			return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();

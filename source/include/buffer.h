@@ -7,8 +7,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <string>
-#include <string_view>
+#include "defs.h"
 
 namespace ikura
 {
@@ -75,9 +74,9 @@ namespace ikura
 			return ret;
 		}
 
-		std::string_view str_view() const
+		ikura::str_view str_view() const
 		{
-			return std::string_view((const char*) this->ptr, this->len);
+			return ikura::str_view((const char*) this->ptr, this->len);
 		}
 
 		size_t size() const { return this->len; }

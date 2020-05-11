@@ -13,9 +13,9 @@
 #include <string>
 #include <optional>
 #include <functional>
-#include <string_view>
 
 #include "defs.h"
+#include "buffer.h"
 #include "kissnet.h"
 
 namespace ikura
@@ -90,7 +90,7 @@ namespace ikura
 		static constexpr size_t DEFAULT_FRAME_BUFFER_SIZE = 8192;
 
 		// first argument is true if the FIN bit was set.
-		using RxTextCallbackFn = void(bool, std::string_view);
+		using RxTextCallbackFn = void(bool, ikura::str_view);
 		using RxBinaryCallbackFn = void(bool, Span);
 
 		WebSocket(const URL& url, std::chrono::nanoseconds timeout = { });
@@ -105,10 +105,10 @@ namespace ikura
 		bool connected();
 
 		void send(Span data);
-		void send(std::string_view sv);
+		void send(ikura::str_view sv);
 
 		void sendFragment(Span data, bool last);
-		void sendFragment(std::string_view sv, bool last);
+		void sendFragment(ikura::str_view sv, bool last);
 
 		void onReceiveText(std::function<RxTextCallbackFn>&& fn);
 		void onReceiveBinary(std::function<RxBinaryCallbackFn>&& fn);

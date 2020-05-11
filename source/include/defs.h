@@ -7,192 +7,18 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <atomic>
-#include <thread>
-#include <chrono>
 #include <vector>
-#include <shared_mutex>
 
 #include "zpr.h"
-#include "utils.h"
-#include "buffer.h"
+#include "tsl/robin_map.h"
 
 namespace ikura
 {
-	template <typename T>
-	struct condvar
-	{
-		condvar() : value() { }
-		condvar(const T& x) : value(x) { }
-
-		void set(const T& x)
-		{
-			this->set_quiet(x);
-			this->notify_all();
-		}
-
-		void set_quiet(const T& x)
-		{
-			auto lk = std::lock_guard<std::mutex>(this->mtx);
-			this->value = x;
-		}
-
-		T get()
-		{
-			return this->value;
-		}
-
-		void wait(const T& x)
-		{
-			auto lk = std::unique_lock<std::mutex>(this->mtx);
-			this->cv.wait(lk, [&]{ return this->value == x; });
-		}
-
-		// returns true only if the value was set; if we timed out, it returns false.
-		bool wait(const T& x, std::chrono::nanoseconds timeout)
-		{
-			auto lk = std::unique_lock<std::mutex>(this->mtx);
-			return this->cv.wait_for(lk, timeout, [&]{ return this->value == x; });
-		}
-
-		template <typename Predicate>
-		void wait_pred(const T& x, Predicate p)
-		{
-			auto lk = std::unique_lock<std::mutex>(this->mtx);
-			this->cv.wait(lk, p);
-		}
-
-		// returns true only if the value was set; if we timed out, it returns false.
-		template <typename Predicate>
-		bool wait_pred(const T& x, std::chrono::nanoseconds timeout, Predicate p)
-		{
-			auto lk = std::unique_lock<std::mutex>(this->mtx);
-			return this->cv.wait_for(lk, timeout, p);
-		}
-
-		void notify_one() { this->cv.notify_one(); }
-		void notify_all() { this->cv.notify_all(); }
-
-	private:
-		T value;
-		std::mutex mtx;
-		std::condition_variable cv;
-	};
-
-	template <typename T, typename Lk>
-	struct Synchronised
-	{
-	private:
-		struct ReadLockedInstance;
-		struct WriteLockedInstance;
-
-		Lk lk;
-		T value;
-
-	public:
-		~Synchronised() { }
-
-		template <typename = std::enable_if_t<std::is_default_constructible_v<T>>>
-		Synchronised() { }
-
-		template <typename = std::enable_if_t<std::is_copy_constructible_v<T>>>
-		Synchronised(const T& x) : value(x) { }
-
-		template <typename = std::enable_if_t<std::is_move_constructible_v<T>>>
-		Synchronised(T&& x) : value(std::move(x)) { }
-
-		Synchronised(Synchronised&&) = delete;
-		Synchronised(const Synchronised&) = delete;
-
-		Synchronised& operator = (Synchronised&&) = delete;
-		Synchronised& operator = (const Synchronised&) = delete;
-
-
-		template <typename Functor>
-		void perform_read(Functor&& fn)
-		{
-			std::shared_lock lk(this->lk);
-			fn(this->value);
-		}
-
-		template <typename Functor>
-		void perform_write(Functor&& fn)
-		{
-			std::unique_lock lk(this->lk);
-			fn(this->value);
-		}
-
-
-		Lk& getLock()
-		{
-			return this->lk;
-		}
-
-		ReadLockedInstance rlock()
-		{
-			return ReadLockedInstance(*this);
-		}
-
-		WriteLockedInstance wlock()
-		{
-			return WriteLockedInstance(*this);
-		}
-
-	private:
-
-		// static Lk& assert_not_held(Lk& lk) { if(lk.held()) assert(!"cannot move held Synchronised"); return lk; }
-
-		struct ReadLockedInstance
-		{
-			T* operator -> () { return &this->sync.value; }
-			T* get() { return &this->sync.value; }
-			~ReadLockedInstance() { this->sync.lk.unlock(); }
-
-		private:
-			ReadLockedInstance(Synchronised& sync) : sync(sync) { this->sync.lk.lock(); }
-
-			ReadLockedInstance(ReadLockedInstance&&) = delete;
-			ReadLockedInstance(const ReadLockedInstance&) = delete;
-
-			ReadLockedInstance& operator = (ReadLockedInstance&&) = delete;
-			ReadLockedInstance& operator = (const ReadLockedInstance&) = delete;
-
-			Synchronised& sync;
-
-			friend struct Synchronised;
-		};
-
-		struct WriteLockedInstance
-		{
-			T* operator -> () { return &this->sync.value; }
-			T* get() { return &this->sync.value; }
-			~WriteLockedInstance() { this->sync.lk.unlock_shared(); }
-
-		private:
-			WriteLockedInstance(Synchronised& sync) : sync(sync) { this->sync.lk.lock_shared(); }
-
-			WriteLockedInstance(WriteLockedInstance&&) = delete;
-			WriteLockedInstance(const WriteLockedInstance&) = delete;
-
-			WriteLockedInstance& operator = (WriteLockedInstance&&) = delete;
-			WriteLockedInstance& operator = (const WriteLockedInstance&) = delete;
-
-			Synchronised& sync;
-
-			friend struct Synchronised;
-		};
-	};
-
-
 	namespace twitch
 	{
 		void init();
 		void shutdown();
-
-		struct TwitchChannel;
 	}
-
-
 
 	namespace config
 	{
@@ -203,38 +29,19 @@ namespace ikura
 
 		namespace twitch
 		{
+			struct Chan
+			{
+				std::string name;
+				bool lurk;
+				bool mod;
+				bool respondToPings;
+			};
+
 			std::string getUsername();
 			std::string getOAuthToken();
-			std::vector<ikura::twitch::TwitchChannel> getJoinChannels();
+			std::string getCommandPrefix();
+			std::vector<Chan> getJoinChannels();
 		}
-	}
-
-	namespace util
-	{
-		uint64_t getMillisecondTimestamp();
-
-		size_t getFileSize(const std::string& path);
-		std::pair<uint8_t*, size_t> readEntireFile(const std::string& path);
-
-		std::tuple<int, uint8_t*, size_t> mmapEntireFile(const std::string& path);
-		void munmapEntireFile(int fd, uint8_t* buf, size_t len);
-	}
-
-	namespace random
-	{
-		template <typename T> T get();
-	}
-
-	namespace value
-	{
-		template <typename T> T to_native(T x);
-		template <typename T> T to_network(T x);
-	}
-
-	namespace base64
-	{
-		std::string encode(const uint8_t* src, size_t len);
-		std::string decode(std::string_view src);
 	}
 
 	namespace colours
@@ -330,8 +137,160 @@ namespace ikura
 			__generic_log(-1, sys, fmt, args...);
 		}
 	}
+
+
+	namespace __detail
+	{
+		struct equal_string
+		{
+			using is_transparent = void;
+			bool operator () (const std::string& a, std::string_view b) const   { return a == b; }
+			bool operator () (std::string_view a, const std::string& b) const   { return a == b; }
+			bool operator () (const std::string& a, const std::string& b) const { return a == b; }
+		};
+
+		struct hash_string
+		{
+			size_t operator () (const std::string& x) const { return std::hash<std::string>()(x); }
+			size_t operator () (std::string_view x) const   { return std::hash<std::string_view>()(x); }
+		};
+	}
+
+	template <typename T>
+	struct string_map : public tsl::robin_map<std::string, T, __detail::hash_string, __detail::equal_string>
+	{
+		T& operator [] (const std::string_view& key)
+		{
+			auto it = this->find(key);
+			if(it == this->end())   return this->try_emplace(std::string(key), T()).first.value();
+			else                    return it.value();
+		}
+
+		T& operator [] (std::string_view&& key)
+		{
+			auto it = this->find(key);
+			if(it == this->end())   return this->try_emplace(std::string(std::move(key)), T()).first.value();
+			else                    return it.value();
+		}
+	};
+
+	struct str_view : public std::string_view
+	{
+		str_view(std::string&& s)           : std::string_view(std::move(s)) { }
+		str_view(std::string_view&& s)      : std::string_view(std::move(s)) { }
+		str_view(const std::string& s)      : std::string_view(s) { }
+		str_view(const std::string_view& s) : std::string_view(s) { }
+		str_view(const char* s)             : std::string_view(s) { }
+		str_view(const char* s, size_t l)   : std::string_view(s, l) { }
+
+		std::string_view sv() const   { return *this; }
+		str_view drop(size_t n) const { return (this->size() > n ? str_view(this->substr(n)) : ""); }
+		str_view take(size_t n) const { return (this->size() > n ? str_view(this->substr(0, n)) : *this); }
+
+		std::string str() const { return std::string(*this); }
+	};
+
+	namespace util
+	{
+		std::vector<ikura::str_view> splitString(ikura::str_view view, char delim);
+
+		uint64_t getMillisecondTimestamp();
+
+		size_t getFileSize(const std::string& path);
+		std::pair<uint8_t*, size_t> readEntireFile(const std::string& path);
+
+		std::tuple<int, uint8_t*, size_t> mmapEntireFile(const std::string& path);
+		void munmapEntireFile(int fd, uint8_t* buf, size_t len);
+	}
+
+	namespace random
+	{
+		template <typename T> T get();
+	}
+
+	namespace value
+	{
+		template <typename T> T to_native(T x);
+		template <typename T> T to_network(T x);
+	}
+
+	namespace base64
+	{
+		std::string encode(const uint8_t* src, size_t len);
+		std::string decode(std::string_view src);
+	}
+
+
+	struct Emote
+	{
+		std::string name;
+	};
+
+	struct Message
+	{
+		struct Fragment
+		{
+			Fragment(std::string_view sv) : isEmote(false), str(sv) { }
+			Fragment(const Emote& emote) : isEmote(true), emote(emote) { }
+
+			~Fragment() { if(isEmote) this->emote.~Emote(); else this->str.~decltype(this->str)(); }
+
+			Fragment(const Fragment& frag)
+			{
+				this->isEmote = frag.isEmote;
+				if(isEmote) new (&this->str) std::string(frag.str);
+				else        new (&this->emote) Emote(frag.emote);
+			}
+
+			Fragment& operator = (const Fragment& frag)
+			{
+				if(this->isEmote)   this->emote.~Emote();
+				else                this->str.~decltype(this->str)();
+
+				this->isEmote = frag.isEmote;
+				if(isEmote) new (&this->str) std::string(frag.str);
+				else        new (&this->emote) Emote(frag.emote);
+
+				return *this;
+			}
+
+
+			bool isEmote = 0;
+			union {
+				std::string str;
+				Emote emote;
+			};
+		};
+
+		std::vector<Fragment> fragments;
+
+		Message& add(std::string_view sv) { fragments.emplace_back(sv); return *this; }
+		Message& add(const Emote& emote) { fragments.emplace_back(emote); return *this; }
+	};
+
+	struct Channel
+	{
+		virtual ~Channel() { }
+
+		virtual bool shouldReplyMentions() const = 0;
+		virtual std::string getUsername() const = 0;
+		virtual std::string getCommandPrefix() const = 0;
+
+		virtual void sendMessage(const Message& msg) const = 0;
+	};
 }
 
+namespace zpr
+{
+	template<>
+	struct print_formatter<ikura::str_view>
+	{
+		std::string print(ikura::str_view sv, const format_args& args)
+		{
+			return print_formatter<std::string_view>().print(sv.sv(), args);
+		}
+	};
+}
 
 
 

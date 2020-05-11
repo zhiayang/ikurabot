@@ -21,16 +21,18 @@ namespace ikura::config
 
 		std::string username;
 		std::string oauthToken;
-		std::vector<ikura::twitch::TwitchChannel> channels;
+		std::string commandPrefix;
+		std::vector<twitch::Chan> channels;
 
 	} TwitchConfig;
 
 	namespace twitch
 	{
-		std::string getUsername()   { return TwitchConfig.username; }
-		std::string getOAuthToken() { return TwitchConfig.oauthToken; }
+		std::string getUsername()       { return TwitchConfig.username; }
+		std::string getOAuthToken()     { return TwitchConfig.oauthToken; }
+		std::string getCommandPrefix()  { return TwitchConfig.commandPrefix; }
 
-		std::vector<ikura::twitch::TwitchChannel> getJoinChannels()
+		std::vector<Chan> getJoinChannels()
 		{
 			return TwitchConfig.channels;
 		}
@@ -98,8 +100,13 @@ namespace ikura::config
 		if(oauthToken.empty())
 			return lg::error("cfg/twitch", "oauth_token cannot be empty");
 
+		auto commandPrefix = get_string(twitch, "command_prefix", "");
+		if(commandPrefix.empty())
+			return lg::error("cfg/twitch", "command_prefix cannot be empty");
+
 		TwitchConfig.username = username;
 		TwitchConfig.oauthToken = oauthToken;
+		TwitchConfig.commandPrefix = commandPrefix;
 
 		auto channels = get_array(twitch, "channels");
 		if(!channels.empty())
@@ -111,7 +118,7 @@ namespace ikura::config
 
 				auto obj = ch.get<pj::object>();
 
-				ikura::twitch::TwitchChannel chan;
+				twitch::Chan chan;
 				chan.name = get_string(obj, "name", "");
 				if(chan.name.empty())
 				{
@@ -119,6 +126,7 @@ namespace ikura::config
 				}
 				else
 				{
+					chan.respondToPings = get_bool(obj, "respond_to_pings", false);
 					chan.lurk = get_bool(obj, "lurk", false);
 					chan.mod = get_bool(obj, "mod", false);
 
