@@ -8,7 +8,7 @@ namespace ikura::cmd
 {
 	static Synchronised<InterpState, std::shared_mutex> TheInterpreter;
 
-	Synchronised<InterpState, std::shared_mutex>& interp()
+	Synchronised<InterpState, std::shared_mutex>& interpreter()
 	{
 		return TheInterpreter;
 	}
@@ -72,19 +72,25 @@ namespace ikura::cmd
 		const Command* command = nullptr;
 		while(!command)
 		{
-			if(auto it = interp().rlock()->commands.find(name); it != interp().rlock()->commands.end())
-			{
-				command = &it->second;
-				break;
-			}
+			bool action = interpreter().map_read([&name, &command](auto& interp) {
 
-			if(auto it = interp().rlock()->aliases.find(name); it != interp().rlock()->aliases.end())
-			{
-				name = it->second;
-				continue;
-			}
+				if(auto it = interp.commands.find(name); it != interp.commands.end())
+				{
+					command = &it->second;
+					return true;
+				}
 
-			break;
+				if(auto it = interp.aliases.find(name); it != interp.aliases.end())
+				{
+					name = it->second;
+					return false;
+				}
+
+				return true;
+			});
+
+			if(action)  break;
+			else        continue;
 		}
 
 		return command;
@@ -121,7 +127,7 @@ namespace ikura::cmd
 
 	void DbInterpState::serialise(Buffer& buf) const
 	{
-		interp().rlock()->serialise(buf);
+		interpreter().rlock()->serialise(buf);
 	}
 
 	std::optional<DbInterpState> DbInterpState::deserialise(Span& buf)
@@ -130,7 +136,7 @@ namespace ikura::cmd
 		if(!it) return { };
 
 		DbInterpState ret;
-		*interp().wlock().get() = std::move(it.value());
+		*interpreter().wlock().get() = std::move(it.value());
 
 		return ret;
 	}

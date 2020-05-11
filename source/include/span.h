@@ -67,17 +67,21 @@ namespace ikura
 
 		void clear() { this->ptr = 0; this->cnt = 0; }
 
-		void remove_prefix(size_t n)
+		span& remove_prefix(size_t n)
 		{
 			assert(n <= this->cnt);
 			this->ptr += n;
 			this->cnt -= n;
+
+			return *this;
 		}
 
-		void remove_suffix(size_t n)
+		span& remove_suffix(size_t n)
 		{
 			assert(n <= this->cnt);
 			this->cnt -= n;
+
+			return *this;
 		}
 
 		std::vector<T> vec() const              { return std::vector<T>(this->begin(), this->end()); }

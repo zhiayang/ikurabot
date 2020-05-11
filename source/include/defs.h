@@ -195,7 +195,8 @@ namespace ikura
 	namespace util
 	{
 		std::vector<ikura::str_view> split(ikura::str_view view, char delim);
-		std::string join(const ikura::span<ikura::str_view>&, char delim);
+		std::string join(const ikura::span<ikura::str_view>&, const std::string& delim);
+		std::string join(const ikura::span<std::string>&, const std::string& delim);
 
 		uint64_t getMillisecondTimestamp();
 

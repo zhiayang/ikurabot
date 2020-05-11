@@ -6,6 +6,7 @@
 #include <chrono>
 
 #include "db.h"
+#include "ast.h"
 #include "defs.h"
 #include "network.h"
 
@@ -25,6 +26,13 @@ int main(int argc, char** argv)
 
 	if(!ikura::db::load(argv[2], (argc > 3 && std::string(argv[3]) == "--create")))
 		ikura::lg::fatal("db", "failed to load database '%s'", argv[2]);
+
+
+	auto expr = ikura::cmd::ast::parse("3 + 7 * 8 - 4 * (3 - 1)");
+	zpr::println(" = %s", expr->evaluate(nullptr, { })->str());
+
+
+	return 0;
 
 	if(ikura::config::haveTwitch())
 		ikura::twitch::init();

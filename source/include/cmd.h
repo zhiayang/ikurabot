@@ -85,5 +85,5 @@ namespace ikura::cmd
 	};
 
 
-	Synchronised<InterpState, std::shared_mutex>& interp();
+	Synchronised<InterpState, std::shared_mutex>& interpreter();
 }

@@ -34,11 +34,11 @@ namespace ikura::cmd
 		// split by words
 		auto split = util::split(cmd, ' ');
 
-		auto command = interp().rlock()->findCommand(split[0]);
+		auto command = interpreter().rlock()->findCommand(split[0]);
 
 		if(command)
 		{
-			auto msg = interp().map_write([&](auto& fs) {
+			auto msg = interpreter().map_write([&](auto& fs) {
 				return interpretCommandCode(&fs, &cs, command->getCode());
 			});
 
@@ -53,16 +53,15 @@ namespace ikura::cmd
 			}
 
 			auto name = split[1];
-			if(interp().rlock()->findCommand(name) != nullptr)
+			if(interpreter().rlock()->findCommand(name) != nullptr)
 			{
 				chan->sendMessage(Message().add(zpr::sprint("command or alias '%s' already exists", name)));
 				return;
 			}
 
 			// drop the first two
-			auto code = util::join(ikura::span(split).drop(2), ' ');
-
-			interp().wlock()->commands.emplace(name, Command(name.str(), code));
+			auto code = util::join(ikura::span(split).drop(2), " ");
+			interpreter().wlock()->commands.emplace(name, Command(name.str(), code));
 
 			chan->sendMessage(Message().add(zpr::sprint("added command '%s'", name)));
 		}
