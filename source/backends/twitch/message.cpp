@@ -17,7 +17,7 @@ namespace ikura::twitch
 		if(msg.size() < 2)
 			return;
 
-		auto parts = util::splitString(msg, ' ');
+		auto parts = util::split(msg, ' ');
 		if(parts.empty())
 			return;
 
@@ -52,7 +52,7 @@ namespace ikura::twitch
 			return warn("discarding malformed message\n%s", msg);
 
 		auto channel = parts[2].drop(1);
-		auto message = parts[3].drop(1);
+		auto message = msg.drop(msg.drop(1).find(':') + 1).drop(1);
 
 		// ignore messages from self
 		if(user == this->username)

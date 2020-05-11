@@ -32,6 +32,7 @@ namespace ikura::serialise
 	constexpr uint8_t TAG_COMMAND_DB    = 0x82;
 	constexpr uint8_t TAG_TWITCH_USER   = 0x83;
 	constexpr uint8_t TAG_COMMAND       = 0x84;
+	constexpr uint8_t TAG_INTERP_STATE  = 0x85;
 
 	struct Serialisable
 	{
@@ -224,7 +225,7 @@ namespace ikura::serialise
 					if(!k.has_value() || !v.has_value())
 						return { };
 
-					ret.insert({ k.value(), v.value() });
+					ret.emplace(k.value(), v.value());
 				}
 
 				return ret;
@@ -250,13 +251,14 @@ namespace ikura::serialise
 					if(!k.has_value() || !v.has_value())
 						return { };
 
-					ret.insert({ k.value(), v.value() });
+					ret.emplace(k.value(), v.value());
 				}
 
 				return ret;
 			}
 			else
 			{
+				printf("UNKNOWN TYPE!\n");
 				return { };
 			}
 		}

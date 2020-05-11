@@ -123,7 +123,7 @@ namespace ikura::db
 		buf.write(&sb, sizeof(Superblock));
 
 		wr.write(this->twitchData);
-		wr.write(this->commands);
+		wr.write(this->interpState);
 	}
 
 	std::optional<Database> Database::deserialise(Span& buf)
@@ -151,8 +151,8 @@ namespace ikura::db
 		if(!rd.read(&db.twitchData))
 			return error("failed to read twitch data");
 
-		if(!rd.read(&db.commands))
-			return error("failed to read commands");
+		if(!rd.read(&db.interpState))
+			return error("failed to read command interpreter state");
 
 		return db;
 	}
@@ -252,75 +252,7 @@ namespace ikura::db
 
 		return ret;
 	}
-
-
-	std::optional<CommandDB> CommandDB::deserialise(Span& buf)
-	{
-		auto rd = serialise::Reader(buf);
-		if(auto t = rd.tag(); t != TYPE_TAG)
-			return error("type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-
-		CommandDB ret;
-
-		if(!rd.read(&ret.commands))
-			return { };
-
-		if(!rd.read(&ret.aliases))
-			return { };
-
-		return ret;
-	}
-
-	void CommandDB::serialise(Buffer& buf) const
-	{
-		auto wr = serialise::Writer(buf);
-		wr.tag(TYPE_TAG);
-
-		wr.write(this->commands);
-		wr.write(this->aliases);
-	}
 }
-
-namespace ikura::cmd
-{
-	void Command::serialise(Buffer& buf) const
-	{
-		auto wr = serialise::Writer(buf);
-		wr.tag(TYPE_TAG);
-
-		wr.write(this->name);
-		wr.write(this->action);
-		wr.write(this->timeoutType);
-		wr.write(this->allowedUsers);
-		wr.write(this->timeoutMilliseconds);
-	}
-
-	std::optional<Command> Command::deserialise(Span& buf)
-	{
-		auto rd = serialise::Reader(buf);
-		if(auto t = rd.tag(); t != TYPE_TAG)
-			return db::error("type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-
-		Command ret;
-		if(!rd.read(&ret.name))
-			return { };
-
-		if(!rd.read(&ret.action))
-			return { };
-
-		if(!rd.read(&ret.timeoutType))
-			return { };
-
-		if(!rd.read(&ret.allowedUsers))
-			return { };
-
-		if(!rd.read(&ret.timeoutMilliseconds))
-			return { };
-
-		return ret;
-	}
-}
-
 
 namespace ikura
 {

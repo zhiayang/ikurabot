@@ -8,10 +8,21 @@
 #include <optional>
 
 #include "defs.h"
+#include "synchro.h"
 #include "serialise.h"
 
 namespace ikura::cmd
 {
+	struct InterpState;
+
+	struct CmdContext
+	{
+		ikura::str_view caller;
+		const Channel* channel = nullptr;
+
+		std::vector<ikura::str_view> args;
+	};
+
 	namespace properties
 	{
 		static constexpr uint8_t TIMEOUT_NONE           = 0;
@@ -27,19 +38,52 @@ namespace ikura::cmd
 
 	struct Command : serialise::Serialisable
 	{
-		std::string name;
-		std::string action;
+		Command(std::string name, std::string code);
 
-		uint8_t timeoutType = properties::TIMEOUT_NONE;
-		uint8_t allowedUsers = properties::ALLOWED_ALL;
+		std::string getCode() const { return this->code; }
+		std::string getName() const { return this->name; }
 
-		uint32_t timeoutMilliseconds = 0;
+		std::optional<Message> run(InterpState* fs, CmdContext* cs) const;
+
 
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<Command> deserialise(Span& buf);
 
 		static constexpr uint8_t TYPE_TAG = serialise::TAG_COMMAND;
+
+
+	private:
+		std::string name;
+		std::string code;
 	};
 
+	void init();
 	void processMessage(ikura::str_view user, const Channel* channel, ikura::str_view message);
+
+	std::optional<Message> interpretCommandCode(InterpState* fs, CmdContext* cs, ikura::str_view code);
+
+
+	// ugh, too many layers. the idea behind this is that we want the command interpreter
+	// to be available under its own lock without needing to lock the database.
+	struct InterpState : serialise::Serialisable
+	{
+		ikura::string_map<Command> commands;
+		ikura::string_map<std::string> aliases;
+
+		const Command* findCommand(ikura::str_view name) const;
+
+		virtual void serialise(Buffer& buf) const override;
+		static std::optional<InterpState> deserialise(Span& buf);
+
+		static constexpr uint8_t TYPE_TAG = serialise::TAG_INTERP_STATE;
+	};
+
+	struct DbInterpState : serialise::Serialisable
+	{
+		virtual void serialise(Buffer& buf) const override;
+		static std::optional<DbInterpState> deserialise(Span& buf);
+	};
+
+
+	Synchronised<InterpState, std::shared_mutex>& interp();
 }

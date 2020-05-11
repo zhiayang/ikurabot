@@ -46,24 +46,10 @@ namespace ikura
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_DB;
 		};
 
-		struct CommandDB : serialise::Serialisable
-		{
-			// map of name -> Command
-			ikura::string_map<cmd::Command> commands;
-
-			// map of alias -> name
-			ikura::string_map<std::string> aliases;
-
-			virtual void serialise(Buffer& buf) const override;
-			static std::optional<CommandDB> deserialise(Span& buf);
-
-			static constexpr uint8_t TYPE_TAG = serialise::TAG_COMMAND_DB;
-		};
-
 		struct Database : serialise::Serialisable
 		{
 			TwitchDB twitchData;
-			CommandDB commands;
+			cmd::DbInterpState interpState;
 
 			void sync() const;
 

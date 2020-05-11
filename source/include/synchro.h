@@ -115,6 +115,20 @@ namespace ikura
 			fn(this->value);
 		}
 
+		template <typename Functor>
+		auto map_read(Functor&& fn) -> decltype(fn(this->value))
+		{
+			std::shared_lock lk(this->lk);
+			return fn(this->value);
+		}
+
+		template <typename Functor>
+		auto map_write(Functor&& fn) -> decltype(fn(this->value))
+		{
+			std::unique_lock lk(this->lk);
+			return fn(this->value);
+		}
+
 
 		Lk& getLock()
 		{
@@ -137,12 +151,12 @@ namespace ikura
 
 		struct ReadLockedInstance
 		{
-			T* operator -> () { return &this->sync.value; }
-			T* get() { return &this->sync.value; }
-			~ReadLockedInstance() { this->sync.lk.unlock(); }
+			const T* operator -> () { return &this->sync.value; }
+			const T* get() { return &this->sync.value; }
+			~ReadLockedInstance() { this->sync.lk.unlock_shared(); }
 
 		private:
-			ReadLockedInstance(Synchronised& sync) : sync(sync) { this->sync.lk.lock(); }
+			ReadLockedInstance(Synchronised& sync) : sync(sync) { this->sync.lk.lock_shared(); }
 
 			ReadLockedInstance(ReadLockedInstance&&) = delete;
 			ReadLockedInstance(const ReadLockedInstance&) = delete;
@@ -159,10 +173,10 @@ namespace ikura
 		{
 			T* operator -> () { return &this->sync.value; }
 			T* get() { return &this->sync.value; }
-			~WriteLockedInstance() { this->sync.lk.unlock_shared(); }
+			~WriteLockedInstance() { this->sync.lk.unlock(); }
 
 		private:
-			WriteLockedInstance(Synchronised& sync) : sync(sync) { this->sync.lk.lock_shared(); }
+			WriteLockedInstance(Synchronised& sync) : sync(sync) { this->sync.lk.lock(); }
 
 			WriteLockedInstance(WriteLockedInstance&&) = delete;
 			WriteLockedInstance(const WriteLockedInstance&) = delete;

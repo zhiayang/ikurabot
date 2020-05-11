@@ -20,7 +20,24 @@ namespace ikura
 {
 	namespace util
 	{
-		std::vector<ikura::str_view> splitString(ikura::str_view view, char delim)
+		std::string join(const std::vector<ikura::str_view>& xs, char delim, size_t startidx, size_t endidx)
+		{
+			std::string ret;
+			if(endidx == (size_t) -1)
+				endidx = xs.size();
+
+			for(size_t i = startidx; i < endidx; i++)
+			{
+				ret += xs[i];
+				if(i + 1 != xs.size())
+					ret += delim;
+			}
+
+			return ret;
+		}
+
+
+		std::vector<ikura::str_view> split(ikura::str_view view, char delim)
 		{
 			std::vector<ikura::str_view> ret;
 

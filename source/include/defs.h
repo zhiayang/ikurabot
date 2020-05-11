@@ -176,6 +176,7 @@ namespace ikura
 
 	struct str_view : public std::string_view
 	{
+		str_view()                          : std::string_view("") { }
 		str_view(std::string&& s)           : std::string_view(std::move(s)) { }
 		str_view(std::string_view&& s)      : std::string_view(std::move(s)) { }
 		str_view(const std::string& s)      : std::string_view(s) { }
@@ -192,7 +193,8 @@ namespace ikura
 
 	namespace util
 	{
-		std::vector<ikura::str_view> splitString(ikura::str_view view, char delim);
+		std::vector<ikura::str_view> split(ikura::str_view view, char delim);
+		std::string join(const std::vector<ikura::str_view>&, char delim, size_t startIdx = 0, size_t endIdx = -1);
 
 		uint64_t getMillisecondTimestamp();
 
@@ -230,7 +232,7 @@ namespace ikura
 	{
 		struct Fragment
 		{
-			Fragment(std::string_view sv) : isEmote(false), str(sv) { }
+			Fragment(ikura::str_view sv) : isEmote(false), str(sv.str()) { }
 			Fragment(const Emote& emote) : isEmote(true), emote(emote) { }
 
 			~Fragment() { if(isEmote) this->emote.~Emote(); else this->str.~decltype(this->str)(); }
@@ -264,7 +266,7 @@ namespace ikura
 
 		std::vector<Fragment> fragments;
 
-		Message& add(std::string_view sv) { fragments.emplace_back(sv); return *this; }
+		Message& add(ikura::str_view sv) { fragments.emplace_back(sv); return *this; }
 		Message& add(const Emote& emote) { fragments.emplace_back(emote); return *this; }
 	};
 
