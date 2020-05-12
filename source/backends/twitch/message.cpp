@@ -92,13 +92,28 @@ namespace ikura::twitch
 		return config::twitch::getUsername();
 	}
 
+	std::string TwitchChannel::getName() const
+	{
+		return this->name;
+	}
+
+	bool TwitchChannel::shouldReplyMentions() const
+	{
+		return this->respondToPings;
+	}
+
 	void TwitchChannel::sendMessage(const Message& msg) const
 	{
 		std::string str;
-		for(const auto& frag : msg.fragments)
+		for(size_t i = 0; i < msg.fragments.size(); i++)
 		{
+			const auto& frag = msg.fragments[i];
+
 			if(frag.isEmote)    str += frag.emote.name;
 			else                str += frag.str;
+
+			if(i + 1 != msg.fragments.size())
+				str += ' ';
 		}
 
 		this->state->sendMessage(this->name, str);

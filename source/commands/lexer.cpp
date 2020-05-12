@@ -41,13 +41,7 @@ namespace ikura::cmd::lexer
 		if(src.empty())
 			return Token(TT::EndOfFile, "");
 
-		if(src.find("**=") == 0)
-		{
-			auto ret = Token(TT::ExponentEquals, src.take(3));
-			src.remove_prefix(3);
-			return ret;
-		}
-		else if(src.find("<<=") == 0)
+		if(src.find("<<=") == 0)
 		{
 			auto ret = Token(TT::ShiftLeftEquals, src.take(3));
 			src.remove_prefix(3);
@@ -104,12 +98,6 @@ namespace ikura::cmd::lexer
 		else if(src.find(">>") == 0)
 		{
 			auto ret = Token(TT::ShiftRight, src.take(2));
-			src.remove_prefix(2);
-			return ret;
-		}
-		else if(src.find("**") == 0)
-		{
-			auto ret = Token(TT::Exponent, src.take(2));
 			src.remove_prefix(2);
 			return ret;
 		}
@@ -348,6 +336,7 @@ namespace ikura::cmd::lexer
 				case '>': ret = Token(TT::RAngle, src.take(1));         break;
 				case '=': ret = Token(TT::Equal, src.take(1));          break;
 				case '%': ret = Token(TT::Percent, src.take(1));        break;
+				case '~': ret = Token(TT::Tilde, src.take(1));          break;
 				default:  ret = Token(TT::Invalid, src.take(1));        break;
 			}
 

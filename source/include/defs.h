@@ -195,6 +195,7 @@ namespace ikura
 	namespace util
 	{
 		std::vector<ikura::str_view> split(ikura::str_view view, char delim);
+		std::vector<std::string> split_copy(ikura::str_view view, char delim);
 		std::string join(const ikura::span<ikura::str_view>&, const std::string& delim);
 		std::string join(const ikura::span<std::string>&, const std::string& delim);
 
@@ -227,6 +228,9 @@ namespace ikura
 
 	struct Emote
 	{
+		Emote() : name("") { }
+		explicit Emote(std::string name) : name(std::move(name)) { }
+
 		std::string name;
 	};
 
@@ -277,6 +281,7 @@ namespace ikura
 		virtual ~Channel() { }
 
 		virtual bool shouldReplyMentions() const = 0;
+		virtual std::string getName() const = 0;
 		virtual std::string getUsername() const = 0;
 		virtual std::string getCommandPrefix() const = 0;
 

@@ -75,6 +75,17 @@ namespace ikura
 			return ret;
 		};
 
+		std::vector<std::string> split_copy(ikura::str_view view, char delim)
+		{
+			auto xs = split(view, delim);
+			std::vector<std::string> ret; ret.reserve(xs.size());
+
+			for(auto& x : xs)
+				ret.push_back(x.str());
+
+			return ret;
+		};
+
 
 		uint64_t getMillisecondTimestamp()
 		{

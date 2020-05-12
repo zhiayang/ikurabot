@@ -129,7 +129,11 @@ namespace ikura::cmd::ast
 		[[maybe_unused]] std::tuple<> __get_error() { return { }; }
 
 		template <typename A, typename = std::enable_if_t<is_result<A>::value>>
-		[[maybe_unused]] std::tuple<typename A::error_type> __get_error(const A& a) { return (a ? typename A::error_type() : a.error()); }
+		[[maybe_unused]] std::tuple<typename A::error_type> __get_error(const A& a)
+		{
+			if(a) return typename A::error_type();
+			return a.error();
+		}
 
 		template <typename A, typename = std::enable_if_t<!is_result<A>::value>>
 		[[maybe_unused]] std::tuple<> __get_error(const A& a) { return std::tuple<>(); }
@@ -148,8 +152,7 @@ namespace ikura::cmd::ast
 		std::vector<std::string> __concat_errors(Err&&... errs)
 		{
 			std::vector<std::string> ret;
-			(ret.push_back(errs), ...);
-
+			([&ret](auto e) { if(!e.empty()) ret.push_back(e); }(errs), ...);
 			return ret;
 		}
 	}
@@ -175,7 +178,10 @@ namespace ikura::cmd::ast
 
 
 
-
+	static bool is_right_associative(TT op)
+	{
+		return op == TT::Caret;
+	}
 
 	static int get_binary_precedence(TT op)
 	{
@@ -183,7 +189,7 @@ namespace ikura::cmd::ast
 		{
 			case TT::Period:            return 8000;
 
-			case TT::Exponent:          return 2600;
+			case TT::Caret:             return 2600;
 
 			case TT::Asterisk:          return 2400;
 			case TT::Slash:             return 2200;
@@ -196,8 +202,6 @@ namespace ikura::cmd::ast
 			case TT::ShiftRight:        return 1600;
 
 			case TT::Ampersand:         return 1400;
-
-			case TT::Caret:             return 1200;
 
 			case TT::Pipe:              return 1000;
 
@@ -222,7 +226,6 @@ namespace ikura::cmd::ast
 			case TT::BitwiseAndEquals:  return 200;
 			case TT::BitwiseOrEquals:   return 200;
 			case TT::BitwiseXorEquals:  return 200;
-			case TT::ExponentEquals:    return 200;
 
 			case TT::Pipeline:          return 1;
 
@@ -327,13 +330,14 @@ namespace ikura::cmd::ast
 		if(st.match(TT::Exclamation))   return makeAST<UnaryOp>(TT::Exclamation, "!", parseUnary(st));
 		else if(st.match(TT::Minus))    return makeAST<UnaryOp>(TT::Minus, "-", parseUnary(st));
 		else if(st.match(TT::Plus))     return makeAST<UnaryOp>(TT::Plus, "+", parseUnary(st));
+		else if(st.match(TT::Tilde))    return makeAST<UnaryOp>(TT::Tilde, "~", parseUnary(st));
 		else                            return parsePrimary(st);
 	}
 
 	static Result<Expr*> parseRhs(State& st, Result<Expr*> lhs, int prio)
 	{
 		if(!lhs)
-			return { };
+			return lhs;
 
 		else if(st.empty() || prio == -1)
 			return lhs;
@@ -341,17 +345,17 @@ namespace ikura::cmd::ast
 		while(true)
 		{
 			auto prec = get_binary_precedence(st.peek());
-			if(prec < prio)
+			if(prec < prio && !is_right_associative(st.peek()))
 				return lhs;
 
 			auto oper = st.peek();
 			st.pop();
 
 			auto rhs = parseUnary(st);
-			if(!rhs) return { };
+			if(!rhs) return rhs;
 
 			auto next = get_binary_precedence(st.peek());
-			if(next > prec)
+			if(next > prec || is_right_associative(st.peek()))
 				rhs = parseRhs(st, rhs, prec + 1);
 
 			lhs = makeAST<BinaryOp>(oper.type, oper.str().str(), lhs, rhs);;
@@ -361,7 +365,7 @@ namespace ikura::cmd::ast
 	static Result<Expr*> parseExpr(State& st)
 	{
 		auto lhs = parseUnary(st);
-		if(!lhs) return { };
+		if(!lhs) return lhs;
 
 		return parseRhs(st, lhs, 0);
 	}
@@ -370,7 +374,6 @@ namespace ikura::cmd::ast
 	static Result<Expr*> parseNumber(State& st)
 	{
 		assert(st.peek() == TT::NumberLit);
-
 		auto num = st.peek().str();
 		st.pop();
 
@@ -380,13 +383,50 @@ namespace ikura::cmd::ast
 							&& (num.find('e') != npos || num.find('E') != npos)
 						);
 
+		int base = 10;
+		if(num.find("0b") == 0 || num.find("0B") == 0) num.remove_prefix(2), base = 2;
+		if(num.find("0x") == 0 || num.find("0X") == 0) num.remove_prefix(2), base = 16;
+
 		if(is_floating) return makeAST<LitDouble>(std::stod(num.str()));
-		else            return makeAST<LitInteger>(std::stoll(num.str()));
+		else            return makeAST<LitInteger>(std::stoll(num.str(), nullptr, base));
 	}
 
 	static Result<Expr*> parseString(State& st)
 	{
-		return std::string("owo");
+		assert(st.peek() == TT::StringLit);
+		auto str = st.peek().str();
+		st.pop();
+
+
+		// TODO: handle all the escapes! (hex, unicode)
+		std::string ret; ret.reserve(str.size());
+
+		for(size_t i = 0; i < str.length(); i++)
+		{
+			if(str[i] == '\\')
+			{
+				i++;
+				switch(str[i])
+				{
+					case 'n':   ret += "\n"; break;
+					case 'b':   ret += "\b"; break;
+					case 'r':   ret += "\r"; break;
+					case 't':   ret += "\t"; break;
+					case '"':   ret += "\""; break;
+					case '\\':  ret += "\\"; break;
+
+					default:
+						ret += std::string("\\") + str[i];
+						break;
+				}
+			}
+			else
+			{
+				ret += str[i];
+			}
+		}
+
+		return makeAST<LitString>(ret);
 	}
 
 	static Result<Expr*> parseBool(State& st)

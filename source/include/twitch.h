@@ -27,9 +27,10 @@ namespace ikura::twitch
 		TwitchChannel(TwitchState* st, std::string n, bool l, bool m, bool p)
 			: name(std::move(n)), lurk(l), mod(m), respondToPings(p), state(st) { }
 
+		virtual std::string getName() const override;
 		virtual std::string getUsername() const override;
 		virtual std::string getCommandPrefix() const override;
-		virtual bool shouldReplyMentions() const override { return this->respondToPings; };
+		virtual bool shouldReplyMentions() const override;
 
 		virtual void sendMessage(const Message& msg) const override;
 

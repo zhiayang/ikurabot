@@ -6,6 +6,7 @@
 #include <stddef.h>
 
 #include "defs.h"
+#include "interp.h"
 
 namespace ikura::cmd
 {
@@ -49,6 +50,7 @@ namespace ikura::cmd
 			RAngle,
 			Equal,
 			Percent,
+			Tilde,
 			LogicalOr,
 			LogicalAnd,
 			EqualTo,
@@ -57,7 +59,6 @@ namespace ikura::cmd
 			GreaterThanEqual,
 			ShiftLeft,
 			ShiftRight,
-			Exponent,
 			RightArrow,
 
 			PlusEquals,
@@ -70,7 +71,6 @@ namespace ikura::cmd
 			BitwiseAndEquals,
 			BitwiseOrEquals,
 			BitwiseXorEquals,
-			ExponentEquals,
 
 			Pipeline,
 
@@ -97,49 +97,6 @@ namespace ikura::cmd
 		std::vector<Token> lexString(ikura::str_view src);
 	}
 
-	namespace interp
-	{
-		struct Value
-		{
-			static constexpr int TYPE_VOID      = 0;
-			static constexpr int TYPE_INTEGER   = 1;
-			static constexpr int TYPE_FLOATING  = 2;
-			static constexpr int TYPE_BOOLEAN   = 3;
-			static constexpr int TYPE_STRING    = 4;
-
-			int type() const { return this->v_type; }
-
-			bool isVoid() const     { return this->v_type == TYPE_VOID; }
-			bool isInteger() const  { return this->v_type == TYPE_INTEGER; }
-			bool isFloating() const { return this->v_type == TYPE_FLOATING; }
-			bool isBoolean() const  { return this->v_type == TYPE_BOOLEAN; }
-			bool isString() const   { return this->v_type == TYPE_STRING; }
-
-			int64_t getInteger() const      { return this->v_integer; }
-			double getFloating() const      { return this->v_floating; }
-			bool getBool() const            { return this->v_bool; }
-			std::string getString() const   { return this->v_string; }
-
-
-			std::string str() const;
-
-			static Value of_void();
-			static Value of_bool(bool b);
-			static Value of_double(double d);
-			static Value of_string(const std::string& s);
-			static Value of_integer(int64_t i);
-
-		private:
-			int v_type = TYPE_VOID;
-			struct {
-				int64_t     v_integer;
-				double      v_floating;
-				bool        v_bool;
-				std::string v_string;
-			};
-		};
-	}
-
 	namespace ast
 	{
 		struct Expr
@@ -147,18 +104,18 @@ namespace ikura::cmd
 			Expr() { }
 			virtual ~Expr() { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, const CmdContext& cs) const = 0;
+			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const = 0;
 		};
 
 		struct LitString : Expr
 		{
-			LitString(std::string s) : str(std::move(s)) { }
+			LitString(std::string s) : value(std::move(s)) { }
 			virtual ~LitString() override { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, const CmdContext& cs) const override;
+			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
-			std::string str;
+			std::string value;
 		};
 
 		struct LitInteger : Expr
@@ -166,7 +123,7 @@ namespace ikura::cmd
 			LitInteger(int64_t v) : value(v) { }
 			virtual ~LitInteger() override { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, const CmdContext& cs) const override;
+			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			int64_t value;
@@ -177,7 +134,7 @@ namespace ikura::cmd
 			LitDouble(double v) : value(v) { }
 			virtual ~LitDouble() override { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, const CmdContext& cs) const override;
+			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			double value;
@@ -188,7 +145,7 @@ namespace ikura::cmd
 			LitBoolean(bool v) : value(v) { }
 			virtual ~LitBoolean() override { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, const CmdContext& cs) const override;
+			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			bool value;
@@ -199,7 +156,7 @@ namespace ikura::cmd
 			UnaryOp(lexer::TokenType op, std::string s, Expr* e) : op(op), op_str(std::move(s)), expr(e) { }
 			virtual ~UnaryOp() override { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, const CmdContext& cs) const override;
+			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			lexer::TokenType op;
@@ -212,7 +169,7 @@ namespace ikura::cmd
 			BinaryOp(lexer::TokenType op, std::string s, Expr* l, Expr* r) : op(op), op_str(std::move(s)), lhs(l), rhs(r) { }
 			virtual ~BinaryOp() override { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, const CmdContext& cs) const override;
+			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			lexer::TokenType op;

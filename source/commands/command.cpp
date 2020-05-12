@@ -4,7 +4,6 @@
 
 #include "cmd.h"
 
-
 namespace ikura::cmd
 {
 	static void processCommand(str_view user, const Channel* chan, str_view cmd);
@@ -39,29 +38,29 @@ namespace ikura::cmd
 		if(command)
 		{
 			auto msg = interpreter().map_write([&](auto& fs) {
-				return interpretCommandCode(&fs, &cs, command->getCode());
+				return command->run(&fs, cs);
 			});
 
 			if(msg) chan->sendMessage(msg.value());
 		}
-		else if(split[0] == "addcmd")
+		else if(split[0] == "macro")
 		{
 			if(split.size() < 3)
 			{
-				chan->sendMessage(Message().add("not enough arguments to addcmd"));
+				chan->sendMessage(Message().add("not enough arguments to macro"));
 				return;
 			}
 
 			auto name = split[1];
 			if(interpreter().rlock()->findCommand(name) != nullptr)
 			{
-				chan->sendMessage(Message().add(zpr::sprint("command or alias '%s' already exists", name)));
+				chan->sendMessage(Message().add(zpr::sprint("macro or alias '%s' already exists", name)));
 				return;
 			}
 
 			// drop the first two
 			auto code = util::join(ikura::span(split).drop(2), " ");
-			interpreter().wlock()->commands.emplace(name, Command(name.str(), code));
+			interpreter().wlock()->commands.emplace(name, new Macro(name.str(), code));
 
 			chan->sendMessage(Message().add(zpr::sprint("added command '%s'", name)));
 		}
@@ -87,45 +86,23 @@ namespace ikura::cmd
 
 
 
-	Command::Command(std::string name, std::string code) : name(name), code(code) { }
+	Command::Command(std::string name) : name(std::move(name)) { }
 
-	std::optional<Message> Command::run(InterpState* fs, CmdContext* cs) const
+	std::optional<Command*> Command::deserialise(Span& buf)
 	{
-		return interpretCommandCode(fs, cs, this->code);
-	}
-
-
-	void Command::serialise(Buffer& buf) const
-	{
-		auto wr = serialise::Writer(buf);
-		wr.tag(TYPE_TAG);
-
-		// just write the name and the source code.
-		wr.write(this->name);
-		wr.write(this->code);
-	}
-
-	std::optional<Command> Command::deserialise(Span& buf)
-	{
-		auto rd = serialise::Reader(buf);
-		if(auto t = rd.tag(); t != TYPE_TAG)
+		auto tag = buf.peek();
+		switch(tag)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
+			case serialise::TAG_MACRO: {
+				auto ret = Macro::deserialise(buf);
+				if(ret) return ret.value();     // force unwrap to cast Macro* -> Command*
+				else    return { };
+			}
+
+			case serialise::TAG_FUNCTION:
+			default:
+				lg::error("db", "type tag mismatch (unexpected '%02x')", tag);
+				return { };
 		}
-
-		std::string name;
-		std::string code;
-
-		if(!rd.read(&name))
-			return { };
-
-		if(!rd.read(&code))
-			return { };
-
-		return Command(name, code);
 	}
-
-
-
 }

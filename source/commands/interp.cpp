@@ -13,59 +13,59 @@ namespace ikura::cmd
 		return TheInterpreter;
 	}
 
-	std::optional<Message> interpretCommandCode(InterpState* fs, CmdContext* cs, ikura::str_view _code)
+
+	std::optional<interp::Value> InterpState::resolveVariable(ikura::str_view name, CmdContext& cs) const
 	{
-		Message ret;
-		auto code = _code;
+		auto INVALID = [name](ikura::str_view s = "") -> std::optional<interp::Value> {
+			lg::error("interp", "variable '%s' not found%s", name, s);
+			return { };
+		};
 
-		while(code.size() > 0)
+		if(name.empty())
+			return INVALID();
+
+		if(name[0] == '$')
 		{
-			if(code[0] == '\\')
-			{
-				if(code.size() < 2)
-					return ret;
+			name.remove_prefix(1);
 
-				ret.add(code.take(2).drop(1));
-				code.remove_prefix(2);
-			}
-			else if(code[0] == '$')
-			{
-				if(code.size() < 2)
-					return ret;
+			if(name.empty())
+				return INVALID();
 
-				// grab to the next space.
-				auto var = code.take(code.find(' ')).drop(1);
-				code.remove_prefix(var.size() + 1);
-
-				if(var == "user")       { ret.add(cs->caller); }
-				else if(var == "self")  { ret.add(cs->channel->getUsername()); }
-				else                    { ret.add("??"); }
-			}
-			else if(code[0] == '|')
+			if('0' <= name[0] && name[0] <= '9')
 			{
-				code.remove_prefix(1);
+				size_t idx = name[0] - '0';
+				name.remove_prefix(1);
+
+				while('0' <= name[0] && name[0] <= '9')
+				{
+					idx = (10 * idx) + (name[0] - '0');
+					name.remove_prefix(1);
+				}
+
+				if(name.size() != 0)
+					return INVALID(zpr::sprint(" (junk '%s' at end)", name));
+
+				if(idx >= cs.macro_args.size())
+				{
+					lg::error("interp", "argument index out of bounds (want %zu, have %zu)",
+						idx, cs.macro_args.size());
+					return { };
+				}
+
+				// macro args are always strings
+				return interp::Value::of_string(cs.macro_args[idx].str());
 			}
 			else
 			{
-				ret.add(code.take(1));
-				code.remove_prefix(1);
+				if(name == "user")      return interp::Value::of_string(cs.caller.str());
+				if(name == "self")      return interp::Value::of_string(cs.channel->getUsername());
+				if(name == "channel")   return interp::Value::of_string(cs.channel->getName());
 			}
 		}
 
-		return ret;
+		// for now, nothing
+		return INVALID();
 	}
-
-
-
-
-
-
-
-
-
-
-
-
 
 	const Command* InterpState::findCommand(ikura::str_view name) const
 	{
@@ -76,7 +76,7 @@ namespace ikura::cmd
 
 				if(auto it = interp.commands.find(name); it != interp.commands.end())
 				{
-					command = &it->second;
+					command = it->second;
 					return true;
 				}
 
