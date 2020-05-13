@@ -3,7 +3,7 @@
 // Licensed under the Apache License Version 2.0.
 
 #include "ast.h"
-#include "utils.h"
+#include "zfu.h"
 
 #include <tuple>
 #include <utility>
@@ -180,7 +180,7 @@ namespace ikura::cmd::ast
 
 	static bool is_assignment(TT op)
 	{
-		return ::util::match(op, TT::Equal, TT::PlusEquals, TT::MinusEquals, TT::TimesEquals,
+		return zfu::match(op, TT::Equal, TT::PlusEquals, TT::MinusEquals, TT::TimesEquals,
 			TT::DivideEquals, TT::RemainderEquals, TT::ShiftLeftEquals, TT::ShiftRightEquals,
 			TT::BitwiseAndEquals, TT::BitwiseOrEquals, TT::ExponentEquals);
 	}

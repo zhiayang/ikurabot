@@ -1,4 +1,4 @@
-// utils.h
+// zfu.h
 // Copyright (c) 2017, zhiayang
 // Licensed under the Apache License Version 2.0.
 
@@ -38,7 +38,7 @@ std::vector<T> operator + (const std::vector<T>& a, const std::vector<T>& b)
 }
 
 
-namespace util
+namespace zfu
 {
 	template <typename T>
 	bool match(const T&)

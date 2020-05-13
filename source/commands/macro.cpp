@@ -46,10 +46,42 @@ namespace ikura::cmd
 		return new Macro(name, code);
 	}
 
-	std::optional<Message> Macro::run(InterpState* fs, CmdContext& cs) const
+
+	std::optional<interp::Value> Macro::run(InterpState* fs, CmdContext& cs) const
 	{
 		// just echo words wholesale until we get to a '$'
-		Message msg;
+		std::vector<interp::Value> list;
+
+		for(const auto& x : this->code)
+		{
+			if(x.empty())
+				continue;
+
+			auto a = ikura::str_view(x);
+
+			// syntax is :NAME for emotes
+			// but you can escape the : with \:
+			if(a[0] == '$')
+			{
+				auto v = fs->resolveVariable(a, cs);
+				if(v) list.push_back(v.value());
+			}
+			else
+			{
+				list.push_back(interp::Value::of_string(a.str()));
+			}
+		}
+
+		return interp::Value::of_list(list);
+	}
+
+
+#if 0
+
+	std::optional<interp::Value> Macro::run(InterpState* fs, CmdContext& cs) const
+	{
+		// just echo words wholesale until we get to a '$'
+		std::vector<interp::Value> list;
 
 		for(const auto& x : this->code)
 		{
@@ -80,6 +112,8 @@ namespace ikura::cmd
 			}
 		}
 
-		return msg;
+		// return msg;
+		return { };
 	}
+#endif
 }

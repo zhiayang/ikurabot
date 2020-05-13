@@ -32,7 +32,7 @@ namespace ikura::cmd
 		virtual ~Command() { }
 
 		std::string getName() const { return this->name; }
-		virtual std::optional<Message> run(InterpState* fs, CmdContext& cs) const = 0;
+		virtual std::optional<interp::Value> run(InterpState* fs, CmdContext& cs) const = 0;
 
 		// because this is static, it needs to exist in the abstract base class too
 		static std::optional<Command*> deserialise(Span& buf);
@@ -49,37 +49,16 @@ namespace ikura::cmd
 		Macro(std::string name, std::string raw_code);
 		Macro(std::string name, std::vector<std::string> codewords);
 
-		virtual std::optional<Message> run(InterpState* fs, CmdContext& cs) const override;
+		virtual std::optional<interp::Value> run(InterpState* fs, CmdContext& cs) const override;
 
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<Macro*> deserialise(Span& buf);
 
 		static constexpr uint8_t TYPE_TAG = serialise::TAG_MACRO;
-
 	private:
 		std::string name;
 		std::vector<std::string> code;
 	};
-
-	// struct Function : Command
-	// {
-	// 	Function(std::string name, std::string code);
-
-	// 	std::string getCode() const { return this->code; }
-	// 	std::string getName() const { return this->name; }
-
-	// 	std::optional<Message> run(InterpState* fs, CmdContext* cs) const;
-
-	// 	virtual void serialise(Buffer& buf) const override;
-	// 	static std::optional<Function> deserialise(Span& buf);
-
-	// 	static constexpr uint8_t TYPE_TAG = serialise::TAG_FUNCTION;
-
-
-	// private:
-	// 	std::string name;
-	// 	std::string code;
-	// };
 
 
 	void init();

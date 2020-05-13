@@ -4,7 +4,7 @@
 
 #include "db.h"
 #include "cmd.h"
-#include "utils.h"
+#include "zfu.h"
 #include "serialise.h"
 
 namespace ikura::cmd
@@ -48,7 +48,7 @@ namespace ikura::cmd
 
 	static bool is_builtin_var(ikura::str_view name)
 	{
-		return ::util::match(name, "user", "self", "args", "channel");
+		return zfu::match(name, "user", "self", "args", "channel");
 	}
 
 	static std::optional<Value> get_builtin_var(ikura::str_view name, CmdContext& cs)

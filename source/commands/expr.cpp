@@ -3,7 +3,7 @@
 // Licensed under the Apache License Version 2.0.
 
 #include "ast.h"
-#include "utils.h"
+#include "zfu.h"
 
 namespace ikura::cmd::ast
 {
@@ -52,23 +52,23 @@ namespace ikura::cmd::ast
 
 		if(this->op == TT::Plus)
 		{
-			if(e.isInteger() || e.isFloating())
+			if(e.is_integer() || e.is_double())
 				return e;
 		}
 		else if(this->op == TT::Minus)
 		{
-			if(e.isInteger())       return make_int(-e.getInteger());
-			else if(e.isFloating()) return make_flt(-e.getFloating());
+			if(e.is_integer())      return make_int(-e.get_integer());
+			else if(e.is_double())  return make_flt(-e.get_double());
 		}
 		else if(this->op == TT::Exclamation)
 		{
-			if(e.isBoolean())
-				return make_bool(!e.getBool());
+			if(e.is_bool())
+				return make_bool(!e.get_bool());
 		}
 		else if(this->op == TT::Tilde)
 		{
-			if(e.isInteger())
-				return make_int(~e.getInteger());
+			if(e.is_integer())
+				return make_int(~e.get_integer());
 		}
 
 		return error("invalid unary '%s' on type '%s'  --  (in expr %s%s)",
@@ -85,64 +85,64 @@ namespace ikura::cmd::ast
 
 		if(op == TT::Plus || op == TT::PlusEquals)
 		{
-			if(lhs.isInteger() && rhs.isInteger())          return make_int(lhs.getInteger() + rhs.getInteger());
-			else if(lhs.isInteger() && rhs.isFloating())    return make_flt(lhs.getInteger() + rhs.getFloating());
-			else if(lhs.isFloating() && rhs.isInteger())    return make_int(lhs.getFloating() + rhs.getInteger());
-			else if(lhs.isFloating() && rhs.isFloating())   return make_flt(lhs.getFloating() + rhs.getFloating());
-			else if(lhs.isString() && rhs.isString())       return make_str(lhs.getString() + rhs.getString());
+			if(lhs.is_integer() && rhs.is_integer())        return make_int(lhs.get_integer() + rhs.get_integer());
+			else if(lhs.is_integer() && rhs.is_double())    return make_flt(lhs.get_integer() + rhs.get_double());
+			else if(lhs.is_double() && rhs.is_integer())    return make_int(lhs.get_double() + rhs.get_integer());
+			else if(lhs.is_double() && rhs.is_double())     return make_flt(lhs.get_double() + rhs.get_double());
+			else if(lhs.is_string() && rhs.is_string())     return make_str(lhs.get_string() + rhs.get_string());
 		}
 		else if(op == TT::Minus || op == TT::MinusEquals)
 		{
-			if(lhs.isInteger() && rhs.isInteger())          return make_int(lhs.getInteger() - rhs.getInteger());
-			else if(lhs.isInteger() && rhs.isFloating())    return make_flt(lhs.getInteger() - rhs.getFloating());
-			else if(lhs.isFloating() && rhs.isInteger())    return make_int(lhs.getFloating() - rhs.getInteger());
-			else if(lhs.isFloating() && rhs.isFloating())   return make_flt(lhs.getFloating() - rhs.getFloating());
+			if(lhs.is_integer() && rhs.is_integer())        return make_int(lhs.get_integer() - rhs.get_integer());
+			else if(lhs.is_integer() && rhs.is_double())    return make_flt(lhs.get_integer() - rhs.get_double());
+			else if(lhs.is_double() && rhs.is_integer())    return make_int(lhs.get_double() - rhs.get_integer());
+			else if(lhs.is_double() && rhs.is_double())     return make_flt(lhs.get_double() - rhs.get_double());
 		}
 		else if(op == TT::Asterisk || op == TT::TimesEquals)
 		{
-			if(lhs.isInteger() && rhs.isInteger())          return make_int(lhs.getInteger() * rhs.getInteger());
-			else if(lhs.isInteger() && rhs.isFloating())    return make_flt(lhs.getInteger() * rhs.getFloating());
-			else if(lhs.isFloating() && rhs.isInteger())    return make_int(lhs.getFloating() * rhs.getInteger());
-			else if(lhs.isFloating() && rhs.isFloating())   return make_flt(lhs.getFloating() * rhs.getFloating());
-			else if(lhs.isString() && rhs.isInteger())      return make_str(rep_str(rhs.getInteger(), lhs.getString()));
-			else if(lhs.isInteger() && rhs.isString())      return make_str(rep_str(lhs.getInteger(), rhs.getString()));
+			if(lhs.is_integer() && rhs.is_integer())        return make_int(lhs.get_integer() * rhs.get_integer());
+			else if(lhs.is_integer() && rhs.is_double())    return make_flt(lhs.get_integer() * rhs.get_double());
+			else if(lhs.is_double() && rhs.is_integer())    return make_int(lhs.get_double() * rhs.get_integer());
+			else if(lhs.is_double() && rhs.is_double())     return make_flt(lhs.get_double() * rhs.get_double());
+			else if(lhs.is_string() && rhs.is_integer())    return make_str(rep_str(rhs.get_integer(), lhs.get_string()));
+			else if(lhs.is_integer() && rhs.is_string())    return make_str(rep_str(lhs.get_integer(), rhs.get_string()));
 		}
 		else if(op == TT::Slash || op == TT::DivideEquals)
 		{
-			if(lhs.isInteger() && rhs.isInteger())          return make_int(lhs.getInteger() / rhs.getInteger());
-			else if(lhs.isInteger() && rhs.isFloating())    return make_flt(lhs.getInteger() / rhs.getFloating());
-			else if(lhs.isFloating() && rhs.isInteger())    return make_int(lhs.getFloating() / rhs.getInteger());
-			else if(lhs.isFloating() && rhs.isFloating())   return make_flt(lhs.getFloating() / rhs.getFloating());
+			if(lhs.is_integer() && rhs.is_integer())        return make_int(lhs.get_integer() / rhs.get_integer());
+			else if(lhs.is_integer() && rhs.is_double())    return make_flt(lhs.get_integer() / rhs.get_double());
+			else if(lhs.is_double() && rhs.is_integer())    return make_int(lhs.get_double() / rhs.get_integer());
+			else if(lhs.is_double() && rhs.is_double())     return make_flt(lhs.get_double() / rhs.get_double());
 		}
 		else if(op == TT::Percent || op == TT::RemainderEquals)
 		{
-			if(lhs.isInteger() && rhs.isInteger())          return make_int(std::modulus()(lhs.getInteger(), rhs.getInteger()));
-			else if(lhs.isInteger() && rhs.isFloating())    return make_flt(fmodl(lhs.getInteger(), rhs.getFloating()));
-			else if(lhs.isFloating() && rhs.isInteger())    return make_int(fmodl(lhs.getFloating(), rhs.getInteger()));
-			else if(lhs.isFloating() && rhs.isFloating())   return make_flt(fmodl(lhs.getFloating(), rhs.getFloating()));
+			if(lhs.is_integer() && rhs.is_integer())        return make_int(std::modulus()(lhs.get_integer(), rhs.get_integer()));
+			else if(lhs.is_integer() && rhs.is_double())    return make_flt(fmodl(lhs.get_integer(), rhs.get_double()));
+			else if(lhs.is_double() && rhs.is_integer())    return make_int(fmodl(lhs.get_double(), rhs.get_integer()));
+			else if(lhs.is_double() && rhs.is_double())     return make_flt(fmodl(lhs.get_double(), rhs.get_double()));
 		}
 		else if(op == TT::Caret || op == TT::ExponentEquals)
 		{
-			if(lhs.isInteger() && rhs.isInteger())          return make_int((int64_t) powl(lhs.getInteger(), rhs.getInteger()));
-			else if(lhs.isInteger() && rhs.isFloating())    return make_flt(powl(lhs.getInteger(), rhs.getFloating()));
-			else if(lhs.isFloating() && rhs.isInteger())    return make_flt(powl(lhs.getFloating(), rhs.getInteger()));
-			else if(lhs.isFloating() && rhs.isFloating())   return make_flt(powl(lhs.getFloating(), rhs.getFloating()));
+			if(lhs.is_integer() && rhs.is_integer())        return make_int((int64_t) powl(lhs.get_integer(), rhs.get_integer()));
+			else if(lhs.is_integer() && rhs.is_double())    return make_flt(powl(lhs.get_integer(), rhs.get_double()));
+			else if(lhs.is_double() && rhs.is_integer())    return make_flt(powl(lhs.get_double(), rhs.get_integer()));
+			else if(lhs.is_double() && rhs.is_double())     return make_flt(powl(lhs.get_double(), rhs.get_double()));
 		}
-		else if((op == TT::ShiftLeft || op == TT::ShiftLeftEquals) && lhs.isInteger() && rhs.isInteger())
+		else if((op == TT::ShiftLeft || op == TT::ShiftLeftEquals) && lhs.is_integer() && rhs.is_integer())
 		{
-			return make_int(lhs.getInteger() << rhs.getInteger());
+			return make_int(lhs.get_integer() << rhs.get_integer());
 		}
-		else if((op == TT::ShiftRight || op == TT::ShiftRightEquals) && lhs.isInteger() && rhs.isInteger())
+		else if((op == TT::ShiftRight || op == TT::ShiftRightEquals) && lhs.is_integer() && rhs.is_integer())
 		{
-			return make_int(lhs.getInteger() >> rhs.getInteger());
+			return make_int(lhs.get_integer() >> rhs.get_integer());
 		}
-		else if((op == TT::Ampersand || op == TT::BitwiseAndEquals) && lhs.isInteger() && rhs.isInteger())
+		else if((op == TT::Ampersand || op == TT::BitwiseAndEquals) && lhs.is_integer() && rhs.is_integer())
 		{
-			return make_int(lhs.getInteger() & rhs.getInteger());
+			return make_int(lhs.get_integer() & rhs.get_integer());
 		}
-		else if((op == TT::Pipe || op == TT::BitwiseOrEquals) && lhs.isInteger() && rhs.isInteger())
+		else if((op == TT::Pipe || op == TT::BitwiseOrEquals) && lhs.is_integer() && rhs.is_integer())
 		{
-			return make_int(lhs.getInteger() | rhs.getInteger());
+			return make_int(lhs.get_integer() | rhs.get_integer());
 		}
 
 		return error("invalid binary '%s' between types '%s' and '%s' -- in expr (%s %s %s)",
@@ -172,10 +172,10 @@ namespace ikura::cmd::ast
 		auto rhs = this->rhs->evaluate(fs, cs);
 		if(!rhs) return { };
 
-		if(!lhs->isLValue())
+		if(!lhs->is_lvalue())
 			return error("cannot assign to rvalue");
 
-		auto lval = lhs->getLValue();
+		auto lval = lhs->get_lvalue();
 		if(!lval) return { };
 
 		auto ltyp = lval->type();

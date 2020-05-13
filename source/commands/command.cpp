@@ -5,6 +5,7 @@
 #include <chrono>
 
 #include "cmd.h"
+#include "zfu.h"
 
 struct timer
 {
@@ -40,6 +41,44 @@ namespace ikura::cmd
 	}
 
 
+
+	static Message messageFromValue(const interp::Value& val)
+	{
+		Message msg;
+
+		std::function<void (Message&, const interp::Value&)> do_one;
+		do_one = [&do_one](Message& m, const interp::Value& v) {
+			if(v.is_void())
+				return;
+
+			if(v.is_list())
+			{
+				auto& l = v.get_list();
+				for(auto& x : l)
+					do_one(m, x);
+			}
+			else if(v.is_string())
+			{
+				// don't include the quotes.
+				auto s = v.get_string();
+				auto sv = ikura::str_view(s);
+
+				if(sv.find("\\:") == 0)     m.add(sv.drop(1));
+				else if(sv.find(':') == 0)  m.add(Emote(sv.drop(1).str()));
+				else                        m.add(sv);
+			}
+			else
+			{
+				m.add(v.str());
+			}
+		};
+
+		do_one(msg, val);
+		return msg;
+	}
+
+
+
 	static void processCommand(str_view user, const Channel* chan, str_view cmd)
 	{
 		CmdContext cs;
@@ -54,13 +93,15 @@ namespace ikura::cmd
 		if(command)
 		{
 			auto t = timer();
-			cs.macro_args = ikura::span(split).drop(1);
-			auto msg = interpreter().map_write([&](auto& fs) {
+			auto args = zfu::map(split, [](const auto& x) -> auto { return interp::Value::of_string(x.str()); });
+
+			cs.macro_args = ikura::span(args).drop(1);
+			auto ret = interpreter().map_write([&](auto& fs) {
 				return command->run(&fs, cs);
 			});
 
 			lg::log("interp", "command took %.3f ms to execute", t.measure());
-			if(msg) chan->sendMessage(msg.value());
+			if(ret) chan->sendMessage(messageFromValue(ret.value()));
 		}
 		else if(split[0] == "macro")
 		{

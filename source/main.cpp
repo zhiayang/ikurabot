@@ -12,6 +12,7 @@
 
 using namespace std::chrono_literals;
 
+
 int main(int argc, char** argv)
 {
 	if(argc < 3)
@@ -30,16 +31,16 @@ int main(int argc, char** argv)
 
 	// ikura::cmd::interpreter().wlock()->addGlobal("asdf", ikura::cmd::interp::Value::of_integer(77));
 
-	ikura::cmd::CmdContext cs;
-	// auto expr = ikura::cmd::ast::parse("$asdf ^= 2");
-	// expr->evaluate(ikura::cmd::interpreter().wlock().get(), cs);
+	// ikura::cmd::CmdContext cs;
+	// // auto expr = ikura::cmd::ast::parse("$asdf /= 41");
+	// // expr->evaluate(ikura::cmd::interpreter().wlock().get(), cs);
 
-	auto expr = ikura::cmd::ast::parse("$asdf");
-	auto ret = expr->evaluate(ikura::cmd::interpreter().wlock().get(), cs);
-	zpr::println("> %s", ret->str());
+	// auto expr = ikura::cmd::ast::parse("$asdf");
+	// auto ret = expr->evaluate(ikura::cmd::interpreter().wlock().get(), cs);
+	// zpr::println("> %s", ret->str());
 
-	ikura::database().rlock()->sync();
-	return 0;
+	// ikura::database().rlock()->sync();
+	// return 0;
 
 
 
