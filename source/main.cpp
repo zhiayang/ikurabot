@@ -29,15 +29,14 @@ int main(int argc, char** argv)
 		ikura::lg::fatal("db", "failed to load database '%s'", argv[2]);
 
 
-	ikura::cmd::CmdContext cs;
+	// ikura::cmd::CmdContext cs;
 
-	// auto expr = ikura::cmd::ast::parse("false ? 7 : true ? 1 : 9");
-	auto expr = ikura::cmd::ast::parse("1 < 2 < 3 < 4 < 5 == 5 > 4 > 3 > 2 > 1");
-	auto ret = expr->evaluate(ikura::cmd::interpreter().wlock().get(), cs);
-	zpr::println("> %s", ret->str());
+	// auto expr = ikura::cmd::ast::parse("2 == 1 ? \"one\" : 2 == 2 ? \"two\" : 3 == 2 ? \"three\" : 4 == 2 ? \"four\" : \"nope\"");
+	// auto ret = expr->evaluate(ikura::cmd::interpreter().wlock().get(), cs);
+	// zpr::println("> %s", ret->str());
 
-	ikura::database().rlock()->sync();
-	return 0;
+	// ikura::database().rlock()->sync();
+	// return 0;
 
 
 

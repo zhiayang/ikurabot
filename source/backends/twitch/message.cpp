@@ -3,6 +3,7 @@
 // Licensed under the Apache License Version 2.0.
 
 #include "cmd.h"
+#include "irc.h"
 #include "defs.h"
 #include "twitch.h"
 
@@ -12,60 +13,47 @@ namespace ikura::twitch
 	template <typename... Args> void warn(const std::string& fmt, Args&&... args) { lg::warn("twitch", fmt, args...); }
 	template <typename... Args> void error(const std::string& fmt, Args&&... args) { lg::error("twitch", fmt, args...); }
 
-	void TwitchState::processMessage(ikura::str_view msg)
+	void TwitchState::processMessage(ikura::str_view input)
 	{
-		if(msg.size() < 2)
-			return;
+		auto m = irc::parseMessage(input);
+		if(!m) return error("malformed: '%s'", input);
 
-		auto parts = util::split(msg, ' ');
-		if(parts.empty())
-			return;
+		auto msg = m.value();
 
-		// lg::log("twitch", "<< %s", msg);
-
-		// :<user>!<user>@<user>.tmi.twitch.tv PRIVMSG #<channel> :This is a sample message
-
-		if(parts[0] == "PING")
+		if(msg.command == "PING")
 		{
-			// PING :tmi.twitch.tv
-			return this->sendRawMessage(zpr::sprint("PONG %s", parts[1]));
+			return this->sendRawMessage(zpr::sprint("PONG %s", msg.params.size() > 0 ? msg.params[0] : ""));
 		}
+		else if(msg.command == "PRIVMSG")
+		{
+			if(msg.params.size() < 2)
+				return error("malformed: less than 2 params for PRIVMSG");
 
-		// there should be a prefix
-		if(parts[0][0] != ':')
-			return warn("discarding message without prefix\n%s", msg);
+			auto user = msg.user;
 
-		// get the prefix
-		auto prefix = parts[0];
-		if(prefix.find('!') == std::string::npos)
-			return;
+			// check for self
+			if(user == this->username)
+				return;
 
-		// get the nick between the : and the !
-		// twitch says that all 3 components (the nick, the username, and the host)
-		// will all be the twitch username, so we just take the first one.
-		auto user = prefix.drop(1).take(prefix.find('!') - 1);
-		auto command = parts[1];
+			auto channel = msg.params[0];
+			if(channel[0] != '#')
+				return error("malformed: channel '%s'", channel);
 
-		// for now, only handle privmsgs.
-		if(command != "PRIVMSG")
-			return;
+			// drop the '#'
+			channel.remove_prefix(1);
 
-		if(parts.size() < 4)
-			return warn("discarding malformed message\n%s", msg);
+			auto message = msg.params[1];
+			lg::log("msg", "twitch/#%s: <%s>  %s", channel, user, message);
 
-		auto channel = parts[2].drop(1);
-		auto message = msg.drop(msg.drop(1).find(':') + 1).drop(1);
+			if(this->channels[channel].lurk)
+				return;
 
-		// ignore messages from self
-		if(user == this->username)
-			return;
-
-		lg::log("msg", "twitch/#%s: <%s>  %s", channel, user, message);
-
-		if(this->channels[channel].lurk)
-			return;
-
-		cmd::processMessage(user, &this->channels[channel], message);
+			cmd::processMessage(user, &this->channels[channel], message);
+		}
+		else
+		{
+			return warn("ignoring unhandled irc command '%s'", msg.command);
+		}
 	}
 
 	void TwitchState::sendRawMessage(ikura::str_view msg, ikura::str_view chan)

@@ -16,15 +16,21 @@ namespace ikura::cmd
 
 	namespace properties
 	{
-		static constexpr uint8_t TIMEOUT_NONE           = 0;
-		static constexpr uint8_t TIMEOUT_PER_USER       = 1;
-		static constexpr uint8_t TIMEOUT_PER_CHANNEL    = 2;
-		static constexpr uint8_t TIMEOUT_GLOBAL         = 3;
+		constexpr uint8_t TIMEOUT_NONE          = 0;
+		constexpr uint8_t TIMEOUT_PER_USER      = 1;
+		constexpr uint8_t TIMEOUT_PER_CHANNEL   = 2;
+		constexpr uint8_t TIMEOUT_GLOBAL        = 3;
 
-		static constexpr uint8_t ALLOWED_ALL            = 0;
-		static constexpr uint8_t ALLOWED_TRUSTED        = 1;
-		static constexpr uint8_t ALLOWED_MODERATOR      = 2;
-		static constexpr uint8_t ALLOWED_BROADCASTER    = 3;
+		constexpr uint32_t PERM_EVERYONE        = 0x001;
+		constexpr uint32_t PERM_FOLLOWER        = 0x002;
+		constexpr uint32_t PERM_TRUSTED         = 0x004;
+		constexpr uint32_t PERM_VIP             = 0x008;
+		constexpr uint32_t PERM_SUBSCRIBER      = 0x010;
+		constexpr uint32_t PERM_MODERATOR       = 0x020;
+		constexpr uint32_t PERM_BROADCASTER     = 0x040;
+		constexpr uint32_t PERM_OWNER           = 0x080;
+		constexpr uint32_t PERM_WHITELIST       = 0x100;
+		constexpr uint32_t PERM_WHITELIST_ONLY  = 0x200;
 	};
 
 	struct Command : Serialisable
@@ -41,7 +47,7 @@ namespace ikura::cmd
 		Command(std::string name);
 
 		std::string name;
-		std::string code;
+		uint32_t permissions;
 	};
 
 	struct Macro : Command
@@ -59,7 +65,6 @@ namespace ikura::cmd
 		// only used when deserialising.
 		Macro(std::string name, std::vector<std::string> codewords);
 
-		std::string name;
 		std::vector<std::string> code;
 	};
 

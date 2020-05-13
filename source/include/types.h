@@ -94,9 +94,6 @@ namespace ikura
 
 		const T& operator [] (size_t idx) const { assert(this->cnt > idx); return this->ptr[idx]; }
 
-		iterator begin()                        { return this->ptr; }
-		iterator end()                          { return this->ptr + this->cnt; }
-
 		const_iterator begin() const            { return this->ptr; }
 		const_iterator end() const              { return this->ptr + this->cnt; }
 
@@ -162,16 +159,24 @@ namespace ikura
 		str_view drop(size_t n) const { return (this->size() > n ? str_view(this->substr(n)) : ""); }
 		str_view take(size_t n) const { return (this->size() > n ? str_view(this->substr(0, n)) : *this); }
 		str_view substr(size_t pos = 0, size_t cnt = -1) const { return str_view(std::string_view::substr(pos, cnt)); }
-		str_view trim() const
+		str_view trim_front() const
 		{
 			auto ret = *this;
 			while(ret.size() > 0 && (ret[0] == ' ' || ret[0] == '\t'))
 				ret.remove_prefix(1);
-
+			return ret;
+		}
+		str_view trim_back() const
+		{
+			auto ret = *this;
 			while(ret.size() > 0 && (ret.back() == ' ' || ret.back() == '\t'))
 				ret.remove_suffix(1);
-
 			return ret;
+		}
+
+		str_view trim() const
+		{
+			return this->trim_front().trim_back();
 		}
 
 		std::string str() const { return std::string(*this); }

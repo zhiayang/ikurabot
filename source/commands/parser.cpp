@@ -193,7 +193,7 @@ namespace ikura::cmd::ast
 
 	static bool is_right_associative(TT op)
 	{
-		return op == TT::Caret || op == TT::Question;
+		return op == TT::Caret;
 	}
 
 	static int get_binary_precedence(TT op)
@@ -279,7 +279,7 @@ namespace ikura::cmd::ast
 			return tokens.empty();
 		}
 
-		lexer::Token eof = lexer::Token(TT::Invalid, "");
+		lexer::Token eof = lexer::Token(TT::EndOfFile, "");
 		ikura::span<lexer::Token> tokens;
 	};
 
@@ -352,8 +352,11 @@ namespace ikura::cmd::ast
 			case TT::Identifier:
 				return parseIdentifier(st);
 
+			case TT::EndOfFile:
+				return zpr::sprint("unexpected end of input");
+
 			default:
-				return zpr::sprint("unexpected token '%s'", st.peek().str());
+				return zpr::sprint("unexpected token '%s' (%d)", st.peek().str(), st.peek().type);
 		}
 	}
 
