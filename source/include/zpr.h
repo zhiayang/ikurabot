@@ -8,7 +8,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <map>
 #include <string>
 #include <algorithm>
 #include <type_traits>
@@ -410,14 +409,16 @@ namespace zpr
 				size_t digits_len = 0;
 				auto spec = args.specifier;
 
-				static std::map<int64_t, std::string> len_specs = {
-					{ format_args::LENGTH_SHORT_SHORT,  "hh"   },
-					{ format_args::LENGTH_SHORT,        "h"    },
-					{ format_args::LENGTH_LONG,         "l"    },
-					{ format_args::LENGTH_LONG_LONG,    "ll"   },
-					{ format_args::LENGTH_INTMAX_T,     "j"    },
-					{ format_args::LENGTH_SIZE_T,       "z"    },
-					{ format_args::LENGTH_PTRDIFF_T,    "t"    }
+				static const char* len_specs[] = {
+					/* LENGTH_DEFAULT */        = "",
+					/* LENGTH_SHORT_SHORT */    = "hh",
+					/* LENGTH_SHORT */          = "h",
+					/* LENGTH_LONG */           = "l",
+					/* LENGTH_LONG_LONG */      = "ll",
+					/* LENGTH_LONG_DOUBLE */    = "L",
+					/* LENGTH_INTMAX_T */       = "j",
+					/* LENGTH_SIZE_T */         = "z",
+					/* LENGTH_PTRDIFF_T */      = "t",
 				};
 
 				auto len_spec = len_specs[args.length];
@@ -431,7 +432,7 @@ namespace zpr
 					len_spec = "ll";
 
 
-				auto fmt_str = ("%" + len_spec + spec);
+				auto fmt_str = ("%" + std::string(len_spec) + spec);
 
 				digits_len = snprintf(&buf[0], 64, fmt_str.c_str(), x);
 
