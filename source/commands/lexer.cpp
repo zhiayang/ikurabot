@@ -139,7 +139,7 @@ namespace ikura::cmd::lexer
 		}
 		else if(src.find("^=") == 0)
 		{
-			auto ret = Token(TT::BitwiseXorEquals, src.take(2));
+			auto ret = Token(TT::ExponentEquals, src.take(2));
 			src.remove_prefix(2);
 			return ret;
 		}

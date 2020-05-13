@@ -70,7 +70,7 @@ namespace ikura::cmd
 			ShiftRightEquals,
 			BitwiseAndEquals,
 			BitwiseOrEquals,
-			BitwiseXorEquals,
+			ExponentEquals,
 
 			Pipeline,
 

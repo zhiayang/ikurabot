@@ -83,7 +83,7 @@ namespace ikura::cmd::ast
 			return ret;
 		};
 
-		if(op == TT::Plus)
+		if(op == TT::Plus || op == TT::PlusEquals)
 		{
 			if(lhs.isInteger() && rhs.isInteger())          return make_int(lhs.getInteger() + rhs.getInteger());
 			else if(lhs.isInteger() && rhs.isFloating())    return make_flt(lhs.getInteger() + rhs.getFloating());
@@ -91,14 +91,14 @@ namespace ikura::cmd::ast
 			else if(lhs.isFloating() && rhs.isFloating())   return make_flt(lhs.getFloating() + rhs.getFloating());
 			else if(lhs.isString() && rhs.isString())       return make_str(lhs.getString() + rhs.getString());
 		}
-		else if(op == TT::Minus)
+		else if(op == TT::Minus || op == TT::MinusEquals)
 		{
 			if(lhs.isInteger() && rhs.isInteger())          return make_int(lhs.getInteger() - rhs.getInteger());
 			else if(lhs.isInteger() && rhs.isFloating())    return make_flt(lhs.getInteger() - rhs.getFloating());
 			else if(lhs.isFloating() && rhs.isInteger())    return make_int(lhs.getFloating() - rhs.getInteger());
 			else if(lhs.isFloating() && rhs.isFloating())   return make_flt(lhs.getFloating() - rhs.getFloating());
 		}
-		else if(op == TT::Asterisk)
+		else if(op == TT::Asterisk || op == TT::TimesEquals)
 		{
 			if(lhs.isInteger() && rhs.isInteger())          return make_int(lhs.getInteger() * rhs.getInteger());
 			else if(lhs.isInteger() && rhs.isFloating())    return make_flt(lhs.getInteger() * rhs.getFloating());
@@ -107,40 +107,40 @@ namespace ikura::cmd::ast
 			else if(lhs.isString() && rhs.isInteger())      return make_str(rep_str(rhs.getInteger(), lhs.getString()));
 			else if(lhs.isInteger() && rhs.isString())      return make_str(rep_str(lhs.getInteger(), rhs.getString()));
 		}
-		else if(op == TT::Slash)
+		else if(op == TT::Slash || op == TT::DivideEquals)
 		{
 			if(lhs.isInteger() && rhs.isInteger())          return make_int(lhs.getInteger() / rhs.getInteger());
 			else if(lhs.isInteger() && rhs.isFloating())    return make_flt(lhs.getInteger() / rhs.getFloating());
 			else if(lhs.isFloating() && rhs.isInteger())    return make_int(lhs.getFloating() / rhs.getInteger());
 			else if(lhs.isFloating() && rhs.isFloating())   return make_flt(lhs.getFloating() / rhs.getFloating());
 		}
-		else if(op == TT::Percent)
+		else if(op == TT::Percent || op == TT::RemainderEquals)
 		{
 			if(lhs.isInteger() && rhs.isInteger())          return make_int(std::modulus()(lhs.getInteger(), rhs.getInteger()));
 			else if(lhs.isInteger() && rhs.isFloating())    return make_flt(fmodl(lhs.getInteger(), rhs.getFloating()));
 			else if(lhs.isFloating() && rhs.isInteger())    return make_int(fmodl(lhs.getFloating(), rhs.getInteger()));
 			else if(lhs.isFloating() && rhs.isFloating())   return make_flt(fmodl(lhs.getFloating(), rhs.getFloating()));
 		}
-		else if(op == TT::Caret)
+		else if(op == TT::Caret || op == TT::ExponentEquals)
 		{
-			if(lhs.isInteger() && rhs.isInteger())          return make_flt(powl(lhs.getInteger(), rhs.getInteger()));
+			if(lhs.isInteger() && rhs.isInteger())          return make_int((int64_t) powl(lhs.getInteger(), rhs.getInteger()));
 			else if(lhs.isInteger() && rhs.isFloating())    return make_flt(powl(lhs.getInteger(), rhs.getFloating()));
 			else if(lhs.isFloating() && rhs.isInteger())    return make_flt(powl(lhs.getFloating(), rhs.getInteger()));
 			else if(lhs.isFloating() && rhs.isFloating())   return make_flt(powl(lhs.getFloating(), rhs.getFloating()));
 		}
-		else if(op == TT::ShiftLeft && lhs.isInteger() && rhs.isInteger())
+		else if((op == TT::ShiftLeft || op == TT::ShiftLeftEquals) && lhs.isInteger() && rhs.isInteger())
 		{
 			return make_int(lhs.getInteger() << rhs.getInteger());
 		}
-		else if(op == TT::ShiftRight && lhs.isInteger() && rhs.isInteger())
+		else if((op == TT::ShiftRight || op == TT::ShiftRightEquals) && lhs.isInteger() && rhs.isInteger())
 		{
 			return make_int(lhs.getInteger() >> rhs.getInteger());
 		}
-		else if(op == TT::Ampersand && lhs.isInteger() && rhs.isInteger())
+		else if((op == TT::Ampersand || op == TT::BitwiseAndEquals) && lhs.isInteger() && rhs.isInteger())
 		{
 			return make_int(lhs.getInteger() & rhs.getInteger());
 		}
-		else if(op == TT::Pipe && lhs.isInteger() && rhs.isInteger())
+		else if((op == TT::Pipe || op == TT::BitwiseOrEquals) && lhs.isInteger() && rhs.isInteger())
 		{
 			return make_int(lhs.getInteger() | rhs.getInteger());
 		}
@@ -194,7 +194,7 @@ namespace ikura::cmd::ast
 		if(ltyp != rtyp)
 		{
 			return error("cannot assign value of type '%s' to variable of type '%s'",
-				rhs->type_str(), lhs->type_str());
+				rhs->type_str(), lval->type_str());
 		}
 
 		// ok

@@ -182,7 +182,7 @@ namespace ikura::cmd::ast
 	{
 		return ::util::match(op, TT::Equal, TT::PlusEquals, TT::MinusEquals, TT::TimesEquals,
 			TT::DivideEquals, TT::RemainderEquals, TT::ShiftLeftEquals, TT::ShiftRightEquals,
-			TT::BitwiseAndEquals, TT::BitwiseOrEquals, TT::BitwiseXorEquals);
+			TT::BitwiseAndEquals, TT::BitwiseOrEquals, TT::ExponentEquals);
 	}
 
 	static bool is_right_associative(TT op)
@@ -233,7 +233,7 @@ namespace ikura::cmd::ast
 			case TT::ShiftRightEquals:  return 200;
 			case TT::BitwiseAndEquals:  return 200;
 			case TT::BitwiseOrEquals:   return 200;
-			case TT::BitwiseXorEquals:  return 200;
+			case TT::ExponentEquals:    return 200;
 
 			case TT::Pipeline:          return 1;
 

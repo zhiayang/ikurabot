@@ -14,7 +14,7 @@ namespace ikura::cmd::interp
 			case TYPE_BOOLEAN:  return zpr::sprint("%s", this->v_bool);
 			case TYPE_INTEGER:  return zpr::sprint("%d", this->v_integer);
 			case TYPE_FLOATING: return zpr::sprint("%.3f", this->v_floating);
-			case TYPE_STRING:   return zpr::sprint("%s", this->v_string);
+			case TYPE_STRING:   return zpr::sprint("\"%s\"", this->v_string);
 			case TYPE_LVALUE:   return zpr::sprint("%s", this->v_lvalue->str());
 			default:            return "??";
 		}
