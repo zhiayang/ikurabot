@@ -2,8 +2,10 @@
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
 
+#include "db.h"
 #include "cmd.h"
 #include "utils.h"
+#include "serialise.h"
 
 namespace ikura::cmd
 {
@@ -208,21 +210,29 @@ namespace ikura::cmd
 
 		return interp;
 	}
+}
 
-
+namespace ikura::db
+{
 	void DbInterpState::serialise(Buffer& buf) const
 	{
-		interpreter().rlock()->serialise(buf);
+		cmd::interpreter().rlock()->serialise(buf);
 	}
 
 	std::optional<DbInterpState> DbInterpState::deserialise(Span& buf)
 	{
-		auto it = InterpState::deserialise(buf);
+		auto it = cmd::InterpState::deserialise(buf);
 		if(!it) return { };
 
 		DbInterpState ret;
-		*interpreter().wlock().get() = std::move(it.value());
+		*cmd::interpreter().wlock().get() = std::move(it.value());
 
 		return ret;
 	}
 }
+
+
+
+
+
+

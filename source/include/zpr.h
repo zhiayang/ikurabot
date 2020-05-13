@@ -9,9 +9,8 @@
 #include <stddef.h>
 
 #include <string>
-#include <algorithm>
-#include <type_traits>
 #include <string_view>
+#include <type_traits>
 
 #ifndef ENABLE_FIELD_SIZES
 	#define ENABLE_FIELD_SIZES          1
@@ -410,15 +409,15 @@ namespace zpr
 				auto spec = args.specifier;
 
 				static const char* len_specs[] = {
-					/* LENGTH_DEFAULT */        = "",
-					/* LENGTH_SHORT_SHORT */    = "hh",
-					/* LENGTH_SHORT */          = "h",
-					/* LENGTH_LONG */           = "l",
-					/* LENGTH_LONG_LONG */      = "ll",
-					/* LENGTH_LONG_DOUBLE */    = "L",
-					/* LENGTH_INTMAX_T */       = "j",
-					/* LENGTH_SIZE_T */         = "z",
-					/* LENGTH_PTRDIFF_T */      = "t",
+					/* LENGTH_DEFAULT */        "",
+					/* LENGTH_SHORT_SHORT */    "hh",
+					/* LENGTH_SHORT */          "h",
+					/* LENGTH_LONG */           "l",
+					/* LENGTH_LONG_LONG */      "ll",
+					/* LENGTH_LONG_DOUBLE */    "L",
+					/* LENGTH_INTMAX_T */       "j",
+					/* LENGTH_SIZE_T */         "z",
+					/* LENGTH_PTRDIFF_T */      "t",
 				};
 
 				auto len_spec = len_specs[args.length];

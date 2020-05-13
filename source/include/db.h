@@ -4,23 +4,18 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <stddef.h>
-
 #include <string>
 #include <optional>
-#include <shared_mutex>
 
-#include "cmd.h"
 #include "defs.h"
+#include "buffer.h"
 #include "synchro.h"
-#include "serialise.h"
 
 namespace ikura
 {
 	namespace db
 	{
-		struct TwitchUser : serialise::Serialisable
+		struct TwitchUser : Serialisable
 		{
 			std::string id;
 			std::string username;
@@ -32,7 +27,7 @@ namespace ikura
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_USER;
 		};
 
-		struct TwitchDB : serialise::Serialisable
+		struct TwitchDB : Serialisable
 		{
 			// map from userid to user.
 			ikura::string_map<TwitchUser> knownTwitchUsers;
@@ -46,10 +41,16 @@ namespace ikura
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_DB;
 		};
 
-		struct Database : serialise::Serialisable
+		struct DbInterpState : Serialisable
+		{
+			virtual void serialise(Buffer& buf) const override;
+			static std::optional<DbInterpState> deserialise(Span& buf);
+		};
+
+		struct Database : Serialisable
 		{
 			TwitchDB twitchData;
-			cmd::DbInterpState interpState;
+			DbInterpState interpState;
 
 			void sync() const;
 

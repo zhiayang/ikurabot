@@ -27,7 +27,7 @@ namespace ikura::cmd
 		static constexpr uint8_t ALLOWED_BROADCASTER    = 3;
 	};
 
-	struct Command : serialise::Serialisable
+	struct Command : Serialisable
 	{
 		virtual ~Command() { }
 
@@ -84,10 +84,4 @@ namespace ikura::cmd
 
 	void init();
 	void processMessage(ikura::str_view user, const Channel* channel, ikura::str_view message);
-
-	struct DbInterpState : serialise::Serialisable
-	{
-		virtual void serialise(Buffer& buf) const override;
-		static std::optional<DbInterpState> deserialise(Span& buf);
-	};
 }

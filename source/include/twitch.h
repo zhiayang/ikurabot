@@ -7,9 +7,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <shared_mutex>
-
-#include "defs.h"
 #include "synchro.h"
 #include "network.h"
 

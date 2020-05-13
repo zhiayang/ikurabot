@@ -43,7 +43,7 @@ namespace ikura
 
 	bool Socket::connected()
 	{
-		return this->is_connected.load();
+		return this->is_connected;
 	}
 
 	bool Socket::connect()

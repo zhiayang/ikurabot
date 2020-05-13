@@ -7,8 +7,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "defs.h"
-
 namespace ikura
 {
 	struct Span;
@@ -72,11 +70,6 @@ namespace ikura
 			ret.write(this->ptr, this->len);
 
 			return ret;
-		}
-
-		ikura::str_view str_view() const
-		{
-			return ikura::str_view((const char*) this->ptr, this->len);
 		}
 
 		size_t size() const { return this->len; }

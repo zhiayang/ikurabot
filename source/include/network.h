@@ -4,17 +4,12 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <stddef.h>
-
 #include <chrono>
 #include <thread>
-#include <atomic>
 #include <string>
 #include <optional>
-#include <functional>
 
-#include "defs.h"
+#include "types.h"
 #include "buffer.h"
 #include "kissnet.h"
 
@@ -74,8 +69,8 @@ namespace ikura
 		uint16_t _port;
 
 		std::thread thread;
-		std::atomic<bool> is_connected;
 		kissnet::socket<> socket;
+		bool is_connected = false;
 
 		std::chrono::nanoseconds timeout;
 

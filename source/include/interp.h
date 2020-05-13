@@ -4,20 +4,17 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <stddef.h>
-
 #include <string>
+#include <optional>
 
 #include "buffer.h"
 #include "synchro.h"
-#include "serialise.h"
 
 namespace ikura::cmd
 {
 	namespace interp
 	{
-		struct Value : serialise::Serialisable
+		struct Value : Serialisable
 		{
 			static constexpr uint8_t TYPE_VOID      = 0;
 			static constexpr uint8_t TYPE_INTEGER   = 1;
@@ -78,7 +75,7 @@ namespace ikura::cmd
 		ikura::span<ikura::str_view> macro_args;
 	};
 
-	struct InterpState : serialise::Serialisable
+	struct InterpState : Serialisable
 	{
 		ikura::string_map<Command*> commands;
 		ikura::string_map<std::string> aliases;

@@ -3,6 +3,7 @@
 // Licensed under the Apache License Version 2.0.
 
 #include "cmd.h"
+#include "serialise.h"
 
 namespace ikura::cmd::interp
 {

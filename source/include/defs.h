@@ -7,14 +7,48 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <vector>
-
 #include "zpr.h"
-#include "span.h"
-#include "tsl/robin_map.h"
+#include "types.h"
 
 namespace ikura
 {
+	struct Buffer;
+	struct Serialisable
+	{
+		virtual ~Serialisable() { }
+		virtual void serialise(Buffer& out) const = 0;
+	};
+
+	namespace serialise
+	{
+		constexpr uint8_t TAG_U8            = 0x01;
+		constexpr uint8_t TAG_U16           = 0x02;
+		constexpr uint8_t TAG_U32           = 0x03;
+		constexpr uint8_t TAG_U64           = 0x04;
+		constexpr uint8_t TAG_S8            = 0x05;
+		constexpr uint8_t TAG_S16           = 0x06;
+		constexpr uint8_t TAG_S32           = 0x07;
+		constexpr uint8_t TAG_S64           = 0x08;
+		constexpr uint8_t TAG_STRING        = 0x09;
+		constexpr uint8_t TAG_STL_UNORD_MAP = 0x0A;
+		constexpr uint8_t TAG_TSL_HASHMAP   = 0x0B;
+		constexpr uint8_t TAG_F32           = 0x0C;
+		constexpr uint8_t TAG_F64           = 0x0D;
+		constexpr uint8_t TAG_BOOL_TRUE     = 0x0E;
+		constexpr uint8_t TAG_BOOL_FALSE    = 0x0F;
+		constexpr uint8_t TAG_STL_VECTOR    = 0x10;
+
+		constexpr uint8_t TAG_TWITCH_DB     = 0x81;
+		constexpr uint8_t TAG_COMMAND_DB    = 0x82;
+		constexpr uint8_t TAG_TWITCH_USER   = 0x83;
+		constexpr uint8_t TAG_COMMAND       = 0x84;
+		constexpr uint8_t TAG_INTERP_STATE  = 0x85;
+		constexpr uint8_t TAG_MACRO         = 0x86;
+		constexpr uint8_t TAG_FUNCTION      = 0x87;
+		constexpr uint8_t TAG_INTERP_VALUE  = 0x88;
+	}
+
+
 	namespace twitch
 	{
 		void init();
@@ -138,59 +172,6 @@ namespace ikura
 			__generic_log(-1, sys, fmt, args...);
 		}
 	}
-
-
-	namespace __detail
-	{
-		struct equal_string
-		{
-			using is_transparent = void;
-			bool operator () (const std::string& a, std::string_view b) const   { return a == b; }
-			bool operator () (std::string_view a, const std::string& b) const   { return a == b; }
-			bool operator () (const std::string& a, const std::string& b) const { return a == b; }
-		};
-
-		struct hash_string
-		{
-			size_t operator () (const std::string& x) const { return std::hash<std::string>()(x); }
-			size_t operator () (std::string_view x) const   { return std::hash<std::string_view>()(x); }
-		};
-	}
-
-	template <typename T>
-	struct string_map : public tsl::robin_map<std::string, T, __detail::hash_string, __detail::equal_string>
-	{
-		T& operator [] (const std::string_view& key)
-		{
-			auto it = this->find(key);
-			if(it == this->end())   return this->try_emplace(std::string(key), T()).first.value();
-			else                    return it.value();
-		}
-
-		T& operator [] (std::string_view&& key)
-		{
-			auto it = this->find(key);
-			if(it == this->end())   return this->try_emplace(std::string(std::move(key)), T()).first.value();
-			else                    return it.value();
-		}
-	};
-
-	struct str_view : public std::string_view
-	{
-		str_view()                          : std::string_view("") { }
-		str_view(std::string&& s)           : std::string_view(std::move(s)) { }
-		str_view(std::string_view&& s)      : std::string_view(std::move(s)) { }
-		str_view(const std::string& s)      : std::string_view(s) { }
-		str_view(const std::string_view& s) : std::string_view(s) { }
-		str_view(const char* s)             : std::string_view(s) { }
-		str_view(const char* s, size_t l)   : std::string_view(s, l) { }
-
-		std::string_view sv() const   { return *this; }
-		str_view drop(size_t n) const { return (this->size() > n ? str_view(this->substr(n)) : ""); }
-		str_view take(size_t n) const { return (this->size() > n ? str_view(this->substr(0, n)) : *this); }
-
-		std::string str() const { return std::string(*this); }
-	};
 
 	namespace util
 	{
