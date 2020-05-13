@@ -289,6 +289,7 @@ namespace ikura::cmd::ast
 
 		auto st = State(span);
 
+		// lg::log("parser", "parsing '%s'", src);
 		auto result = parseStmt(st);
 		if(result)
 			return result.unwrap();

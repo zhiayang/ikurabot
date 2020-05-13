@@ -337,6 +337,7 @@ namespace ikura::cmd::lexer
 				case '=': ret = Token(TT::Equal, src.take(1));          break;
 				case '%': ret = Token(TT::Percent, src.take(1));        break;
 				case '~': ret = Token(TT::Tilde, src.take(1));          break;
+				case '?': ret = Token(TT::Question, src.take(1));       break;
 				default:  ret = Token(TT::Invalid, src.take(1));        break;
 			}
 

@@ -244,9 +244,8 @@ namespace ikura::cmd::ast
 
 	std::optional<Value> VarRef::evaluate(InterpState* fs, CmdContext& cs) const
 	{
-		auto lhs = fs->resolveAddressOf(this->name, cs);
-		if(!lhs) return { };
-
-		return Value::of_lvalue(lhs);
+		auto [ val, ref ] = fs->resolveVariable(this->name, cs);
+		if(ref) return Value::of_lvalue(ref);
+		else    return val;
 	}
 }

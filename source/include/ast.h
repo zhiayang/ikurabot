@@ -51,6 +51,7 @@ namespace ikura::cmd
 			Equal,
 			Percent,
 			Tilde,
+			Question,
 			LogicalOr,
 			LogicalAnd,
 			EqualTo,

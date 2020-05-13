@@ -63,11 +63,11 @@ namespace ikura::cmd
 		return { };
 	}
 
-	Value* InterpState::resolveAddressOf(ikura::str_view name, CmdContext& cs)
+	std::pair<std::optional<Value>, Value*> InterpState::resolveVariable(ikura::str_view name, CmdContext& cs)
 	{
-		auto INVALID = [name](ikura::str_view s = "") -> Value* {
+		auto INVALID = [name](ikura::str_view s = "") -> std::pair<std::optional<Value>, Value*> {
 			lg::error("interp", "variable '%s' not found%s", name, s);
-			return nullptr;
+			return { std::nullopt, nullptr };
 		};
 
 		if(name.empty())
@@ -82,55 +82,17 @@ namespace ikura::cmd
 
 			if('0' <= name[0] && name[0] <= '9')
 			{
-				lg::error("interp", "argument values cannot be used as lvalues");
-				return nullptr;
-			}
-			else
-			{
-				if(is_builtin_var(name))
-				{
-					lg::error("interp", "builtin vars cannot be used as lvalues");
-					return nullptr;
-				}
-
-				if(auto it = this->globals.find(name); it != this->globals.end())
-					return it.value();
-			}
-		}
-
-		// for now, nothing
-		return INVALID();
-	}
-
-	std::optional<Value> InterpState::resolveVariable(ikura::str_view name, CmdContext& cs)
-	{
-		auto INVALID = [name](ikura::str_view s = "") -> std::optional<Value> {
-			lg::error("interp", "variable '%s' not found%s", name, s);
-			return { };
-		};
-
-		if(name.empty())
-			return INVALID();
-
-		if(name[0] == '$')
-		{
-			if(name.size() < 2)
-				return INVALID();
-
-			if('0' <= name[1] && name[1] <= '9')
-			{
-				if(size_t idx = parse_number_arg(name.drop(1), cs); idx != (size_t) -1)
-					return Value::of_string(cs.macro_args[idx].str());
+				if(size_t idx = parse_number_arg(name, cs); idx != (size_t) -1)
+					return { cs.macro_args[idx], nullptr };
 			}
 			else
 			{
 				// check for builtins
-				if(auto b = get_builtin_var(name.drop(1), cs); b.has_value())
-					return b.value();
+				if(auto b = get_builtin_var(name, cs); b.has_value())
+					return { b.value(), nullptr };
 
-				auto var = this->resolveAddressOf(name, cs);
-				if(var) return *var;
-				else    return { };
+				if(auto it = this->globals.find(name); it != this->globals.end())
+					return { *it.value(), it.value() };
 			}
 		}
 

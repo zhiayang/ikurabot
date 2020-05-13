@@ -114,21 +114,15 @@ namespace ikura::cmd
 			auto type_str = arg_str.drop(name.size()).trim();
 
 			if(name.empty() || type_str.empty())
-			{
-				chan->sendMessage(Message("not enough arguments to global"));
-				return;
-			}
+				return chan->sendMessage(Message("not enough arguments to global"));
 
 			auto value = ast::parseType(type_str);
 			if(!value)
-			{
-				lg::error("interp", "invalid type '%s'", type_str);
-			}
-			else
-			{
-				interpreter().wlock()->addGlobal(name, value.value());
-				chan->sendMessage(Message(zpr::sprint("added global '%s' with type '%s'", name, value->type_str())));
-			}
+				return chan->sendMessage(Message(zpr::sprint("invalid type '%s'", type_str)));
+
+
+			interpreter().wlock()->addGlobal(name, value.value());
+			chan->sendMessage(Message(zpr::sprint("added global '%s' with type '%s'", name, value->type_str())));
 		}
 		else if(cmd_str == "def")
 		{
@@ -136,14 +130,15 @@ namespace ikura::cmd
 			auto name = arg_str.substr(0, arg_str.find(' ')).trim();
 			auto expansion = arg_str.drop(name.size()).trim();
 
-			if(name.empty()) { chan->sendMessage(Message("not enough arguments to 'def'")); return; }
-			if(expansion.empty()) { chan->sendMessage(Message("'def' expansion cannot be empty")); return; }
+			if(name.empty())
+				return chan->sendMessage(Message("not enough arguments to 'def'"));
+
+			if(expansion.empty())
+				return chan->sendMessage(Message("'def' expansion cannot be empty"));
 
 			if(interpreter().rlock()->findCommand(name) != nullptr)
-			{
-				chan->sendMessage(Message(zpr::sprint("'%s' is already defined", name)));
-				return;
-			}
+				return chan->sendMessage(Message(zpr::sprint("'%s' is already defined", name)));
+
 
 			interpreter().wlock()->commands.emplace(name, new Macro(name.str(), expansion));
 			chan->sendMessage(Message(zpr::sprint("defined '%s'", name)));
@@ -152,14 +147,14 @@ namespace ikura::cmd
 		{
 			// syntax: undef <name>
 			if(arg_str.find(' ') != std::string::npos)
-			{
-				chan->sendMessage(Message("'undef' takes exactly 1 argument"));
-				return;
-			}
+				return chan->sendMessage(Message("'undef' takes exactly 1 argument"));
 
 			auto done = interpreter().wlock()->removeCommandOrAlias(arg_str);
-			if(done) chan->sendMessage(Message(zpr::sprint("removed '%s'", arg_str)));
-			else     chan->sendMessage(Message(zpr::sprint("'%s' does not exist", arg_str)));
+
+			chan->sendMessage(Message(
+				done ? zpr::sprint("removed '%s'", arg_str)
+					 : zpr::sprint("'%s' does not exist", arg_str)
+			));
 		}
 		else
 		{

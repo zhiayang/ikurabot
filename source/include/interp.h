@@ -160,8 +160,7 @@ namespace ikura::cmd
 		const Command* findCommand(ikura::str_view name) const;
 		bool removeCommandOrAlias(ikura::str_view name);
 
-		interp::Value* resolveAddressOf(ikura::str_view name, CmdContext& cs);
-		std::optional<interp::Value> resolveVariable(ikura::str_view name, CmdContext& cs);
+		std::pair<std::optional<interp::Value>, interp::Value*> resolveVariable(ikura::str_view name, CmdContext& cs);
 
 		std::optional<interp::Value> evaluateExpr(ikura::str_view expr, CmdContext& cs);
 

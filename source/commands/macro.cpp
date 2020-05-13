@@ -38,7 +38,7 @@ namespace ikura::cmd
 					}
 
 					end++;
-					if(parens == 0 && braces == 0 && squares == 0)
+					if(code[end - 1] == ' ' && parens == 0 && braces == 0 && squares == 0)
 						break;
 				}
 
@@ -55,11 +55,13 @@ namespace ikura::cmd
 			else
 			{
 			add_piece:
-				lg::log("cmd", "piece = '%s'", code.take(end));
-
+				// lg::log("cmd", "piece = '%s'", code.take(end));
 				this->code.push_back(code.take(end).str());
-				code.remove_prefix(end + 1);
+				code.remove_prefix(end);
 				end = 0;
+
+				while(code.size() > 0 && (code[0] == ' ' || code[0] == '\t'))
+					code.remove_prefix(1);
 			}
 		}
 
