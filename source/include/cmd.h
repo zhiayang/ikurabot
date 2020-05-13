@@ -46,8 +46,7 @@ namespace ikura::cmd
 
 	struct Macro : Command
 	{
-		Macro(std::string name, std::string raw_code);
-		Macro(std::string name, std::vector<std::string> codewords);
+		Macro(std::string name, ikura::str_view raw_code);
 
 		virtual std::optional<interp::Value> run(InterpState* fs, CmdContext& cs) const override;
 
@@ -55,7 +54,11 @@ namespace ikura::cmd
 		static std::optional<Macro*> deserialise(Span& buf);
 
 		static constexpr uint8_t TYPE_TAG = serialise::TAG_MACRO;
+
 	private:
+		// only used when deserialising.
+		Macro(std::string name, std::vector<std::string> codewords);
+
 		std::string name;
 		std::vector<std::string> code;
 	};

@@ -7,8 +7,64 @@
 
 namespace ikura::cmd
 {
-	Macro::Macro(std::string name, std::string raw_code) : Command(std::move(name)), code(util::split_copy(raw_code, ' '))
+	Macro::Macro(std::string name, ikura::str_view code) : Command(std::move(name))
 	{
+		// split up the thing.
+		size_t end = 0;
+		while(end < code.size())
+		{
+			if(code.find("\\\\") == 0)
+			{
+				end += 2;
+			}
+			else if(code.find("\\") == 0)
+			{
+				end += 1;
+				int parens = 0;
+				int braces = 0;
+				int squares = 0;
+
+				while(end < code.size())
+				{
+					switch(code[end])
+					{
+						case '(':   parens++; break;
+						case ')':   parens--; break;
+						case '{':   braces++; break;
+						case '}':   braces--; break;
+						case '[':   squares++; break;
+						case ']':   squares--; break;
+						default:    break;
+					}
+
+					end++;
+					if(parens == 0 && braces == 0 && squares == 0)
+						break;
+				}
+
+				if(end == code.size() && (parens > 0 || braces > 0 || squares > 0))
+					lg::error("interp", "unterminated inline expr");
+
+				else
+					goto add_piece;
+			}
+			else if(code[end] != ' ')
+			{
+				end += 1;
+			}
+			else
+			{
+			add_piece:
+				lg::log("cmd", "piece = '%s'", code.take(end));
+
+				this->code.push_back(code.take(end).str());
+				code.remove_prefix(end + 1);
+				end = 0;
+			}
+		}
+
+		if(end > 0)
+			this->code.push_back(code.take(end).str());
 	}
 
 	Macro::Macro(std::string name, std::vector<std::string> words) : Command(std::move(name)), code(std::move(words))
@@ -59,11 +115,13 @@ namespace ikura::cmd
 
 			auto a = ikura::str_view(x);
 
-			// syntax is :NAME for emotes
-			// but you can escape the : with \:
-			if(a[0] == '$')
+			if(a.find("\\\\") == 0)
 			{
-				auto v = fs->resolveVariable(a, cs);
+				list.push_back(interp::Value::of_string(a.drop(1).str()));
+			}
+			else if(a[0] == '\\')
+			{
+				auto v = fs->evaluateExpr(a.drop(1), cs);
 				if(v) list.push_back(v.value());
 			}
 			else
@@ -74,46 +132,4 @@ namespace ikura::cmd
 
 		return interp::Value::of_list(list);
 	}
-
-
-#if 0
-
-	std::optional<interp::Value> Macro::run(InterpState* fs, CmdContext& cs) const
-	{
-		// just echo words wholesale until we get to a '$'
-		std::vector<interp::Value> list;
-
-		for(const auto& x : this->code)
-		{
-			if(x.empty())
-				continue;
-
-			auto a = ikura::str_view(x);
-
-			// syntax is :NAME for emotes
-			// but you can escape the : with \:
-			if(a[0] == '$')
-			{
-				auto v = fs->resolveVariable(a, cs);
-				if(v) msg.add(v->str());
-			}
-			else if(a[0] == ':')
-			{
-				// an emote.
-				msg.add(Emote(a.drop(1).str()));
-			}
-			else if(a[0] == '\\' && a.size() > 1 && a[1] == ':')
-			{
-				msg.add(a.drop(1).str());
-			}
-			else
-			{
-				msg.add(a);
-			}
-		}
-
-		// return msg;
-		return { };
-	}
-#endif
 }

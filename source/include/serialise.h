@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 
+#include <map>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -26,6 +27,12 @@ namespace ikura::serialise
 
 	template<typename T>
 	struct is_vector<std::vector<T>> : std::true_type { };
+
+	template<typename>
+	struct is_std_map : std::false_type { };
+
+	template<typename K, typename V>
+	struct is_std_map<std::map<K, V>> : std::true_type { };
 
 	template<typename>
 	struct is_tsl_hashmap : std::false_type { };
@@ -83,6 +90,15 @@ namespace ikura::serialise
 			auto sz = vec.size(); buffer.write(&sz, sizeof(uint64_t));
 			for(const auto& x : vec)
 				write(x);
+		}
+
+		template <typename K, typename V>
+		void write(const std::map<K, V>& map)
+		{
+			ensure(9); tag(TAG_STL_ORD_MAP);
+			auto sz = map.size(); buffer.write(&sz, sizeof(uint64_t));
+			for(const auto& [ k, v ] : map)
+				write(k), write(v);
 		}
 
 		template <typename K, typename V>
@@ -179,6 +195,7 @@ namespace ikura::serialise
 			else if constexpr (is_vector<T>::value)         { if(the_tag = tag(), the_tag != TAG_STL_VECTOR) return { }; }
 			else if constexpr (is_unordered_map<T>::value)  { if(the_tag = tag(), the_tag != TAG_STL_UNORD_MAP) return { }; }
 			else if constexpr (is_tsl_hashmap<T>::value)    { if(the_tag = tag(), the_tag != TAG_TSL_HASHMAP) return { }; }
+			else if constexpr (is_std_map<T>::value)        { if(the_tag = tag(), the_tag != TAG_STL_ORD_MAP) return { }; }
 			else if constexpr (is_pointer_v<T>)             { return std::decay_t<decltype(*declval<T>())>::deserialise(span); }
 			else if constexpr (is_same_v<T, bool>)          {
 				if(the_tag = tag(), the_tag != TAG_BOOL_TRUE && the_tag != TAG_BOOL_FALSE)
@@ -240,7 +257,7 @@ namespace ikura::serialise
 
 				return ret;
 			}
-			else if constexpr (is_unordered_map<T>::value)
+			else if constexpr (is_unordered_map<T>::value || is_std_map<T>::value)
 			{
 				using K = typename T::key_type;
 				using V = typename T::mapped_type;

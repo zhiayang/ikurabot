@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "tsl/robin_map.h"
+#include "tsl/robin_set.h"
 
 namespace ikura
 {
@@ -127,6 +128,8 @@ namespace ikura
 		};
 	}
 
+	using string_set = tsl::robin_set<std::string, __detail::hash_string, __detail::equal_string>;
+
 	template <typename T>
 	struct string_map : public tsl::robin_map<std::string, T, __detail::hash_string, __detail::equal_string>
 	{
@@ -158,6 +161,18 @@ namespace ikura
 		std::string_view sv() const   { return *this; }
 		str_view drop(size_t n) const { return (this->size() > n ? str_view(this->substr(n)) : ""); }
 		str_view take(size_t n) const { return (this->size() > n ? str_view(this->substr(0, n)) : *this); }
+		str_view substr(size_t pos = 0, size_t cnt = -1) const { return str_view(std::string_view::substr(pos, cnt)); }
+		str_view trim() const
+		{
+			auto ret = *this;
+			while(ret.size() > 0 && (ret[0] == ' ' || ret[0] == '\t'))
+				ret.remove_prefix(1);
+
+			while(ret.size() > 0 && (ret.back() == ' ' || ret.back() == '\t'))
+				ret.remove_suffix(1);
+
+			return ret;
+		}
 
 		std::string str() const { return std::string(*this); }
 	};

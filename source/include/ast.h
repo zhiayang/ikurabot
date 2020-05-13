@@ -162,6 +162,18 @@ namespace ikura::cmd
 			std::string name;
 		};
 
+		struct SubscriptOp : Expr
+		{
+			SubscriptOp(Expr* arr, Expr* idx) : list(arr), index(idx) { }
+			virtual ~SubscriptOp() override { }
+
+			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+
+		private:
+			Expr* list;
+			Expr* index;
+		};
+
 
 		struct UnaryOp : Expr
 		{
@@ -205,6 +217,11 @@ namespace ikura::cmd
 		};
 
 		Expr* parse(ikura::str_view src);
+		Expr* parseExpr(ikura::str_view src);
+
+		// this returns a value, but the interesting bits are just the type. fortunately, the returned
+		// value (if present) is a default-initialised value of that type.
+		std::optional<interp::Value> parseType(ikura::str_view str);
 	}
 }
 

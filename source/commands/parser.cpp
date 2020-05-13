@@ -282,7 +282,7 @@ namespace ikura::cmd::ast
 	static Result<Expr*> parseExpr(State& st);
 	static Result<Expr*> parseBool(State& st);
 
-	Expr* parse(ikura::str_view src)
+	Expr* parseExpr(ikura::str_view src)
 	{
 		auto tokens = lexer::lexString(src);
 		ikura::span span = tokens;
@@ -293,9 +293,15 @@ namespace ikura::cmd::ast
 		if(result)
 			return result.unwrap();
 
-		lg::error("cmd", "parse error: %s", result.error());
+		lg::error("parser", "error: %s", result.error());
 		return nullptr;
 	}
+
+	Expr* parse(ikura::str_view src)
+	{
+		return parseExpr(src);
+	}
+
 
 
 
@@ -485,10 +491,55 @@ namespace ikura::cmd::ast
 		return makeAST<VarRef>(name);
 	}
 
-
-
 	static Result<Expr*> parseStmt(State& st)
 	{
 		return parseExpr(st);
+	}
+
+
+	std::optional<interp::Value> parseType(ikura::str_view str)
+	{
+		using interp::Value;
+
+		if(str.empty())
+			return { };
+
+		if(str == "int")        return Value::of_integer(0);
+		else if(str == "dbl")   return Value::of_double(0.0);
+		else if(str == "bool")  return Value::of_bool(false);
+		else if(str == "str")   return Value::of_string("");
+		else if(str == "void")  return Value::of_void();
+		else if(str[0] != '[')  return { };
+
+		str.remove_prefix(1);
+		auto tmp = str.find_first_of("[]:");
+		auto k = str.take(tmp);
+		str = str.drop(tmp);
+
+		auto key = parseType(k);
+		if(!key || str.empty())
+			return { };
+
+		if(str[0] == ':')
+		{
+			str.remove_prefix(1);
+			auto tmp = str.find_first_of("[]:");
+			auto e = str.take(tmp);
+			str = str.drop(tmp);
+
+			auto elm = parseType(e);
+			if(!elm || str.empty() || str[0] != ']')
+				return { };
+
+			return Value::of_map(key->type(), elm->type(), { });
+		}
+		else if(str[0] == ']')
+		{
+			return Value::of_list(key->type(), { });
+		}
+		else
+		{
+			return { };
+		}
 	}
 }

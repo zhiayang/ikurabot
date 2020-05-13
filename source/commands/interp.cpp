@@ -3,9 +3,12 @@
 // Licensed under the Apache License Version 2.0.
 
 #include "db.h"
+#include "ast.h"
 #include "cmd.h"
 #include "zfu.h"
 #include "serialise.h"
+
+#include "tsl/robin_set.h"
 
 namespace ikura::cmd
 {
@@ -91,7 +94,7 @@ namespace ikura::cmd
 				}
 
 				if(auto it = this->globals.find(name); it != this->globals.end())
-					return &it.value();
+					return it.value();
 			}
 		}
 
@@ -111,20 +114,18 @@ namespace ikura::cmd
 
 		if(name[0] == '$')
 		{
-			name.remove_prefix(1);
-
-			if(name.empty())
+			if(name.size() < 2)
 				return INVALID();
 
-			if('0' <= name[0] && name[0] <= '9')
+			if('0' <= name[1] && name[1] <= '9')
 			{
-				if(size_t idx = parse_number_arg(name, cs); idx != (size_t) -1)
+				if(size_t idx = parse_number_arg(name.drop(1), cs); idx != (size_t) -1)
 					return Value::of_string(cs.macro_args[idx].str());
 			}
 			else
 			{
 				// check for builtins
-				if(auto b = get_builtin_var(name, cs); b.has_value())
+				if(auto b = get_builtin_var(name.drop(1), cs); b.has_value())
 					return b.value();
 
 				auto var = this->resolveAddressOf(name, cs);
@@ -141,23 +142,34 @@ namespace ikura::cmd
 	{
 		if(is_builtin_var(name) || name.find_first_of("0123456789") == 0)
 		{
-			lg::error("interp", "builtin vars cannot be used as lvalues");
+			lg::error("interp", "'%s' is a builtin global", name);
 			return;
 		}
 
 		if(auto it = this->globals.find(name); it != this->globals.end())
 		{
-			lg::error("interp", "redefinition of variable '%s'");
+			lg::error("interp", "redefinition of global '%s'", name);
 			return;
 		}
 
-		this->globals[name] = std::move(val);
+		this->globals[name] = new Value(val);
+		lg::log("interp", "added global '%s'", name);
 	}
 
+	std::optional<interp::Value> InterpState::evaluateExpr(ikura::str_view expr, CmdContext& cs)
+	{
+		auto exp = ast::parseExpr(expr);
+		if(!exp) return { };
+
+		return exp->evaluate(this, cs);
+	}
 
 
 	const Command* InterpState::findCommand(ikura::str_view name) const
 	{
+		ikura::string_set seen;
+
+		// you can chain aliases, so we need to loop.
 		const Command* command = nullptr;
 		while(!command)
 		{
@@ -169,7 +181,16 @@ namespace ikura::cmd
 
 			if(auto it = this->aliases.find(name); it != this->aliases.end())
 			{
-				name = it->second;
+				auto next = it->second;
+				if(seen.find(next) != seen.end())
+				{
+					lg::error("cmd", "circular aliases: %s -> %s", name, next);
+					return nullptr;
+				}
+
+				name = next;
+				seen.insert(next);
+
 				continue;
 			}
 
@@ -179,6 +200,22 @@ namespace ikura::cmd
 		return command;
 	}
 
+	bool InterpState::removeCommandOrAlias(ikura::str_view name)
+	{
+		if(auto it = this->commands.find(name); it != this->commands.end())
+		{
+			this->commands.erase(it);
+			return true;
+		}
+		else if(auto it = this->aliases.find(name); it != this->aliases.end())
+		{
+			this->aliases.erase(it);
+			return true;
+		}
+
+		return false;
+	}
+
 	void InterpState::serialise(Buffer& buf) const
 	{
 		auto wr = serialise::Writer(buf);
@@ -186,7 +223,12 @@ namespace ikura::cmd
 
 		wr.write(this->commands);
 		wr.write(this->aliases);
-		wr.write(this->globals);
+
+		ikura::string_map<interp::Value> globs;
+		for(const auto& [ k, v ] : this->globals)
+			globs[k] = *v;
+
+		wr.write(globs);
 	}
 
 	std::optional<InterpState> InterpState::deserialise(Span& buf)
@@ -205,8 +247,12 @@ namespace ikura::cmd
 		if(!rd.read(&interp.aliases))
 			return { };
 
-		if(!rd.read(&interp.globals))
+		ikura::string_map<interp::Value> globals;
+		if(!rd.read(&globals))
 			return { };
+
+		for(const auto& [ k, v ] : globals)
+			interp.globals[k] = new Value(v);
 
 		return interp;
 	}

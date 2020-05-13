@@ -4,8 +4,9 @@
 
 #include <chrono>
 
-#include "cmd.h"
 #include "zfu.h"
+#include "cmd.h"
+#include "ast.h"
 
 struct timer
 {
@@ -63,6 +64,8 @@ namespace ikura::cmd
 				auto s = v.get_string();
 				auto sv = ikura::str_view(s);
 
+				// syntax is :NAME for emotes
+				// but you can escape the : with \:
 				if(sv.find("\\:") == 0)     m.add(sv.drop(1));
 				else if(sv.find(':') == 0)  m.add(Emote(sv.drop(1).str()));
 				else                        m.add(sv);
@@ -79,23 +82,24 @@ namespace ikura::cmd
 
 
 
-	static void processCommand(str_view user, const Channel* chan, str_view cmd)
+	static void processCommand(str_view user, const Channel* chan, str_view input)
 	{
 		CmdContext cs;
 		cs.caller = user;
 		cs.channel = chan;
 
-		// split by words
-		auto split = util::split(cmd, ' ');
+		auto cmd_str = input.substr(0, input.find(' ')).trim();
+		auto arg_str = input.drop(cmd_str.size()).trim();
 
-		auto command = interpreter().rlock()->findCommand(split[0]);
+		auto command = interpreter().rlock()->findCommand(cmd_str);
 
 		if(command)
 		{
 			auto t = timer();
-			auto args = zfu::map(split, [](const auto& x) -> auto { return interp::Value::of_string(x.str()); });
+			auto arg_split = util::split(arg_str, ' ');
+			auto args = zfu::map(arg_split, [](const auto& x) -> auto { return interp::Value::of_string(x.str()); });
 
-			cs.macro_args = ikura::span(args).drop(1);
+			cs.macro_args = ikura::span(args);
 			auto ret = interpreter().map_write([&](auto& fs) {
 				return command->run(&fs, cs);
 			});
@@ -103,36 +107,69 @@ namespace ikura::cmd
 			lg::log("interp", "command took %.3f ms to execute", t.measure());
 			if(ret) chan->sendMessage(messageFromValue(ret.value()));
 		}
-		else if(split[0] == "macro")
+		else if(cmd_str == "global")
 		{
-			if(split.size() < 3)
+			// syntax: global <name> <type>
+			auto name = arg_str.substr(0, arg_str.find(' ')).trim();
+			auto type_str = arg_str.drop(name.size()).trim();
+
+			if(name.empty() || type_str.empty())
 			{
-				chan->sendMessage(Message().add("not enough arguments to macro"));
+				chan->sendMessage(Message("not enough arguments to global"));
 				return;
 			}
 
-			auto name = split[1];
+			auto value = ast::parseType(type_str);
+			if(!value)
+			{
+				lg::error("interp", "invalid type '%s'", type_str);
+			}
+			else
+			{
+				interpreter().wlock()->addGlobal(name, value.value());
+				chan->sendMessage(Message(zpr::sprint("added global '%s' with type '%s'", name, value->type_str())));
+			}
+		}
+		else if(cmd_str == "def")
+		{
+			// syntax: def <name> expansion...
+			auto name = arg_str.substr(0, arg_str.find(' ')).trim();
+			auto expansion = arg_str.drop(name.size()).trim();
+
+			if(name.empty()) { chan->sendMessage(Message("not enough arguments to 'def'")); return; }
+			if(expansion.empty()) { chan->sendMessage(Message("'def' expansion cannot be empty")); return; }
+
 			if(interpreter().rlock()->findCommand(name) != nullptr)
 			{
-				chan->sendMessage(Message().add(zpr::sprint("macro or alias '%s' already exists", name)));
+				chan->sendMessage(Message(zpr::sprint("'%s' is already defined", name)));
 				return;
 			}
 
-			// drop the first two
-			auto code = util::join(ikura::span(split).drop(2), " ");
-			interpreter().wlock()->commands.emplace(name, new Macro(name.str(), code));
+			interpreter().wlock()->commands.emplace(name, new Macro(name.str(), expansion));
+			chan->sendMessage(Message(zpr::sprint("defined '%s'", name)));
+		}
+		else if(cmd_str == "undef")
+		{
+			// syntax: undef <name>
+			if(arg_str.find(' ') != std::string::npos)
+			{
+				chan->sendMessage(Message("'undef' takes exactly 1 argument"));
+				return;
+			}
 
-			chan->sendMessage(Message().add(zpr::sprint("added command '%s'", name)));
+			auto done = interpreter().wlock()->removeCommandOrAlias(arg_str);
+			if(done) chan->sendMessage(Message(zpr::sprint("removed '%s'", arg_str)));
+			else     chan->sendMessage(Message(zpr::sprint("'%s' does not exist", arg_str)));
 		}
 		else
 		{
-			lg::warn("cmd", "user '%s' tried non-existent command '%s'", user, split[0]);
+			lg::warn("cmd", "user '%s' tried non-existent command '%s'", user, cmd_str);
 		}
 	}
 
 	static Message generateResponse(str_view user, const Channel* chan, str_view msg)
 	{
-		return Message().add(zpr::sprint("%s AYAYA /", user));
+		return Message(zpr::sprint("%s AYAYA /", user));
 	}
 
 

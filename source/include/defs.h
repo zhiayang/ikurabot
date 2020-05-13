@@ -37,6 +37,7 @@ namespace ikura
 		constexpr uint8_t TAG_BOOL_TRUE     = 0x0E;
 		constexpr uint8_t TAG_BOOL_FALSE    = 0x0F;
 		constexpr uint8_t TAG_STL_VECTOR    = 0x10;
+		constexpr uint8_t TAG_STL_ORD_MAP   = 0x11;
 
 		constexpr uint8_t TAG_TWITCH_DB     = 0x81;
 		constexpr uint8_t TAG_COMMAND_DB    = 0x82;
@@ -250,6 +251,9 @@ namespace ikura
 				Emote emote;
 			};
 		};
+
+		Message() { }
+		Message(ikura::str_view sv) { this->add(sv); }
 
 		std::vector<Fragment> fragments;
 

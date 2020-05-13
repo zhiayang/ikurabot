@@ -75,7 +75,7 @@ namespace ikura::cmd::ast
 			this->op_str, e.type_str(), this->op_str, e.str());
 	}
 
-	static std::optional<Value> perform_binop(InterpState* fs, TT op, ikura::str_view op_str, const Value& lhs, const Value& rhs)
+	static std::optional<Value> perform_binop(InterpState* fs, TT op, ikura::str_view op_str, Value& lhs, const Value& rhs)
 	{
 		auto rep_str = [](int64_t n, const std::string& s) -> std::string {
 			std::string ret; ret.reserve(n * s.size());
@@ -90,6 +90,45 @@ namespace ikura::cmd::ast
 			else if(lhs.is_double() && rhs.is_integer())    return make_int(lhs.get_double() + rhs.get_integer());
 			else if(lhs.is_double() && rhs.is_double())     return make_flt(lhs.get_double() + rhs.get_double());
 			else if(lhs.is_string() && rhs.is_string())     return make_str(lhs.get_string() + rhs.get_string());
+			if(lhs.is_list())
+			{
+				if(rhs.is_list())
+				{
+					if(lhs.elm_type() != rhs.elm_type())
+						return error("cannot concatenate lists of type '%s' and '%s'", lhs.type_str(), rhs.type_str());
+
+					auto rl = rhs.get_list();
+
+					// plus equals will modify, plus will make a new temporary.
+					if(op == TT::Plus)
+					{
+						auto tmp = lhs.get_list(); tmp.insert(tmp.end(), rl.begin(), rl.end());
+						return Value::of_list(tmp);
+					}
+					else
+					{
+						auto& tmp = lhs.get_list(); tmp.insert(tmp.end(), rl.begin(), rl.end());
+						return lhs;
+					}
+				}
+				else
+				{
+					if(lhs.elm_type() != rhs.type())
+						return error("cannot append value of type '%s' to a list of type '%s'", rhs.type_str(), lhs.type_str());
+
+					// plus equals will modify, plus will make a new temporary.
+					if(op == TT::Plus)
+					{
+						auto tmp = lhs.get_list(); tmp.push_back(rhs);
+						return Value::of_list(tmp);
+					}
+					else
+					{
+						auto& tmp = lhs.get_list(); tmp.push_back(rhs);
+						return lhs;
+					}
+				}
+			}
 		}
 		else if(op == TT::Minus || op == TT::MinusEquals)
 		{
@@ -199,7 +238,7 @@ namespace ikura::cmd::ast
 
 		// ok
 		*lval = rhs.value();
-		return Value::of_void();
+		return lhs;
 	}
 
 
