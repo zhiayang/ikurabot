@@ -51,7 +51,11 @@ namespace ikura
 		this->is_connected = this->socket.connect();
 
 		if(!this->is_connected)
+		{
+			this->socket.close();
+			lg::error("socket", "connection failed");
 			return false;
+		}
 
 		// make sure there is some timeout, so that the socket can be disconnected externally
 		// and the thread will be able to respond and break out of its loop. this timeout is
@@ -61,6 +65,7 @@ namespace ikura
 		this->thread = std::thread([this]() {
 			while(true)
 			{
+				// fprintf(stderr, ".");
 				if(!this->is_connected)
 					break;
 

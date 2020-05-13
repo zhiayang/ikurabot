@@ -21,6 +21,8 @@ namespace ikura::twitch
 		if(parts.empty())
 			return;
 
+		// lg::log("twitch", "<< %s", msg);
+
 		// :<user>!<user>@<user>.tmi.twitch.tv PRIVMSG #<channel> :This is a sample message
 
 		if(parts[0] == "PING")
@@ -58,7 +60,7 @@ namespace ikura::twitch
 		if(user == this->username)
 			return;
 
-		log("message from '%s' in #%s: '%s'", user, channel, message);
+		lg::log("msg", "twitch/#%s: <%s>  %s", channel, user, message);
 
 		if(this->channels[channel].lurk)
 			return;
@@ -73,6 +75,7 @@ namespace ikura::twitch
 		if(!chan.empty() && this->channels[chan].mod)
 			mod = true;
 
+		// log("queued msg at %d", std::chrono::system_clock::now().time_since_epoch().count());
 		this->sendQueue.wlock()->emplace_back(zpr::sprint("%s\r\n", msg), mod);
 		this->haveQueued.set(true);
 	}

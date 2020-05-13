@@ -3,6 +3,7 @@
 // Licensed under the Apache License Version 2.0.
 
 #include "ast.h"
+#include "utils.h"
 
 #include <tuple>
 #include <utility>
@@ -177,6 +178,12 @@ namespace ikura::cmd::ast
 	}
 
 
+	static bool is_assignment(TT op)
+	{
+		return ::util::match(op, TT::Equal, TT::PlusEquals, TT::MinusEquals, TT::TimesEquals,
+			TT::DivideEquals, TT::RemainderEquals, TT::ShiftLeftEquals, TT::ShiftRightEquals,
+			TT::BitwiseAndEquals, TT::BitwiseOrEquals, TT::BitwiseXorEquals);
+	}
 
 	static bool is_right_associative(TT op)
 	{
@@ -216,6 +223,7 @@ namespace ikura::cmd::ast
 
 			case TT::LogicalOr:         return 400;
 
+			case TT::Equal:             return 200;
 			case TT::PlusEquals:        return 200;
 			case TT::MinusEquals:       return 200;
 			case TT::TimesEquals:       return 200;
@@ -265,6 +273,7 @@ namespace ikura::cmd::ast
 
 
 	static Result<Expr*> parseParenthesised(State& st);
+	static Result<Expr*> parseIdentifier(State& st);
 	static Result<Expr*> parsePrimary(State& st);
 	static Result<Expr*> parseNumber(State& st);
 	static Result<Expr*> parseString(State& st);
@@ -320,6 +329,10 @@ namespace ikura::cmd::ast
 			case TT::LParen:
 				return parseParenthesised(st);
 
+			case TT::Dollar:
+			case TT::Identifier:
+				return parseIdentifier(st);
+
 			default:
 				return zpr::sprint("unexpected token '%s'", st.peek().str());
 		}
@@ -358,7 +371,11 @@ namespace ikura::cmd::ast
 			if(next > prec || is_right_associative(st.peek()))
 				rhs = parseRhs(st, rhs, prec + 1);
 
-			lhs = makeAST<BinaryOp>(oper.type, oper.str().str(), lhs, rhs);;
+			if(is_assignment(oper.type))
+				lhs = makeAST<AssignOp>(oper.type, oper.str().str(), lhs, rhs);
+
+			else
+				lhs = makeAST<BinaryOp>(oper.type, oper.str().str(), lhs, rhs);
 		}
 	}
 
@@ -437,6 +454,38 @@ namespace ikura::cmd::ast
 
 		return makeAST<LitBoolean>(x == "true");
 	}
+
+	static Result<Expr*> parseIdentifier(State& st)
+	{
+		std::string name = st.peek().str().str();
+		st.pop();
+
+		if(name == "$")
+		{
+			// the next thing must be either a number or an identifier.
+			if(st.peek() == TT::Identifier)
+				name += st.peek().str();
+
+			else if(st.peek() == TT::NumberLit)
+			{
+				auto tmp = st.peek().str();
+				if(tmp.find_first_not_of("0123456789") != std::string::npos)
+					return zpr::sprint("invalid numeric literal after '$'", tmp);
+
+				name += tmp.str();
+			}
+			else
+			{
+				return zpr::sprint("invalid token '%s' after '$'", st.peek().str());
+			}
+
+			st.pop();
+		}
+
+		return makeAST<VarRef>(name);
+	}
+
+
 
 	static Result<Expr*> parseStmt(State& st)
 	{

@@ -34,6 +34,9 @@ namespace ikura::twitch
 			backoff *= 2;
 		}
 
+		if(!this->ws.connected())
+			lg::error("twitch", "connection failed");
+
 		this->username = std::move(user);
 		for(const auto& cfg : config::twitch::getJoinChannels())
 			this->channels.emplace(cfg.name, TwitchChannel(this, cfg.name, cfg.lurk, cfg.mod, cfg.respondToPings));
@@ -41,6 +44,9 @@ namespace ikura::twitch
 
 	void TwitchState::connect()
 	{
+		if(!this->ws.connected())
+			return;
+
 		condvar<bool> didcon;
 		this->ws.onReceiveText([&didcon, this](bool, ikura::str_view msg) {
 			if(msg.find(":tmi.twitch.tv 001") == 0)
@@ -59,7 +65,12 @@ namespace ikura::twitch
 		this->ws.send(zpr::sprint("PASS oauth:%s\r\n", config::twitch::getOAuthToken()));
 		this->ws.send(zpr::sprint("NICK %s\r\n", config::twitch::getUsername()));
 
-		didcon.wait(true);
+		if(!didcon.wait(true, 2000ms))
+		{
+			lg::error("twitch", "connection failed");
+			return;
+		}
+
 		lg::log("twitch", "connected");
 
 		this->connected = true;
@@ -87,7 +98,8 @@ namespace ikura::twitch
 						}
 
 						state->ws.send(msg);
-						lg::log("twitch", ">> %s", msg.substr(0, msg.size() - 2));
+						// lg::log("twitch", "sent msg at   %d", std::chrono::system_clock::now().time_since_epoch().count());
+						// lg::log("twitch", ">> %s", msg.substr(0, msg.size() - 2));
 					}
 
 					queue.clear();
@@ -128,7 +140,7 @@ namespace ikura::twitch
 		if(!config::haveTwitch())
 			return;
 
-		state = new TwitchState(URL(TWITCH_WSS_URL), 2000ms, config::twitch::getUsername(), config::twitch::getJoinChannels());
+		state = new TwitchState(URL(TWITCH_WSS_URL), 5000ms, config::twitch::getUsername(), config::twitch::getJoinChannels());
 		state->connect();
 	}
 

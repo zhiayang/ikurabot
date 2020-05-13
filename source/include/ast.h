@@ -151,6 +151,18 @@ namespace ikura::cmd
 			bool value;
 		};
 
+		struct VarRef : Expr
+		{
+			VarRef(std::string name) : name(std::move(name)) { }
+			virtual ~VarRef() override { }
+
+			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+
+		private:
+			std::string name;
+		};
+
+
 		struct UnaryOp : Expr
 		{
 			UnaryOp(lexer::TokenType op, std::string s, Expr* e) : op(op), op_str(std::move(s)), expr(e) { }
@@ -178,6 +190,19 @@ namespace ikura::cmd
 			Expr* rhs;
 		};
 
+		struct AssignOp : Expr
+		{
+			AssignOp(lexer::TokenType op, std::string s, Expr* l, Expr* r) : op(op), op_str(std::move(s)), lhs(l), rhs(r) { }
+			virtual ~AssignOp() override { }
+
+			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+
+		private:
+			lexer::TokenType op;
+			std::string op_str;
+			Expr* lhs;
+			Expr* rhs;
+		};
 
 		Expr* parse(ikura::str_view src);
 	}

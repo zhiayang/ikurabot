@@ -15,6 +15,7 @@ namespace ikura::cmd::interp
 			case TYPE_INTEGER:  return zpr::sprint("%d", this->v_integer);
 			case TYPE_FLOATING: return zpr::sprint("%.3f", this->v_floating);
 			case TYPE_STRING:   return zpr::sprint("%s", this->v_string);
+			case TYPE_LVALUE:   return zpr::sprint("%s", this->v_lvalue->str());
 			default:            return "??";
 		}
 	}
@@ -60,6 +61,15 @@ namespace ikura::cmd::interp
 		return ret;
 	}
 
+	Value Value::of_lvalue(Value* v)
+	{
+		Value ret;
+		ret.v_type = TYPE_LVALUE;
+		ret.v_lvalue = v;
+
+		return ret;
+	}
+
 	std::string Value::type_str() const
 	{
 		switch(this->v_type)
@@ -69,6 +79,7 @@ namespace ikura::cmd::interp
 			case TYPE_INTEGER:  return "int";
 			case TYPE_FLOATING: return "dbl";
 			case TYPE_STRING:   return "str";
+			case TYPE_LVALUE:   return "&" + this->v_lvalue->type_str();
 			default:            return "??";
 		}
 	}
@@ -92,6 +103,7 @@ namespace ikura::cmd::interp
 			case TYPE_FLOATING: wr.write(this->v_floating); break;
 
 			case TYPE_VOID:     break;
+			case TYPE_LVALUE:   lg::error("db/interp", "cannot serialise lvalues"); break;
 			default:            lg::error("db/interp", "invalid value type"); break;
 		}
 	}
@@ -109,6 +121,7 @@ namespace ikura::cmd::interp
 		auto type = buf.peek();
 		buf.remove_prefix(1);
 
+
 		switch(type)
 		{
 			case TYPE_BOOLEAN:  { auto x = rd.read<bool>(); if(!x) return { }; return Value::of_bool(x.value()); }
@@ -116,6 +129,10 @@ namespace ikura::cmd::interp
 			case TYPE_INTEGER:  { auto x = rd.read<int64_t>(); if(!x) return { }; return Value::of_integer(x.value()); }
 			case TYPE_STRING:   { auto x = rd.read<std::string>(); if(!x) return { }; return Value::of_string(x.value()); }
 			case TYPE_VOID:     return Value::of_void();
+
+			case TYPE_LVALUE:
+				lg::error("db/interp", "cannot deserialise lvalues");
+				return { };
 
 			default:
 				lg::error("db/interp", "invalid value type");

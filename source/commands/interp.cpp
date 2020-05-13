@@ -3,9 +3,12 @@
 // Licensed under the Apache License Version 2.0.
 
 #include "cmd.h"
+#include "utils.h"
 
 namespace ikura::cmd
 {
+	using interp::Value;
+
 	static Synchronised<InterpState, std::shared_mutex> TheInterpreter;
 
 	Synchronised<InterpState, std::shared_mutex>& interpreter()
@@ -13,10 +16,90 @@ namespace ikura::cmd
 		return TheInterpreter;
 	}
 
-
-	std::optional<interp::Value> InterpState::resolveVariable(ikura::str_view name, CmdContext& cs) const
+	static size_t parse_number_arg(ikura::str_view name, CmdContext& cs)
 	{
-		auto INVALID = [name](ikura::str_view s = "") -> std::optional<interp::Value> {
+		if('0' <= name[0] && name[0] <= '9')
+		{
+			size_t idx = name[0] - '0';
+			name.remove_prefix(1);
+
+			while('0' <= name[0] && name[0] <= '9')
+			{
+				idx = (10 * idx) + (name[0] - '0');
+				name.remove_prefix(1);
+			}
+
+			if(name.size() != 0)
+				return -1;
+
+			if(idx >= cs.macro_args.size())
+			{
+				lg::error("interp", "argument index out of bounds (want %zu, have %zu)", idx, cs.macro_args.size());
+				return -1;
+			}
+
+			return idx;
+		}
+
+		return -1;
+	}
+
+	static bool is_builtin_var(ikura::str_view name)
+	{
+		return ::util::match(name, "user", "self", "args", "channel");
+	}
+
+	static std::optional<Value> get_builtin_var(ikura::str_view name, CmdContext& cs)
+	{
+		if(name == "user")      return Value::of_string(cs.caller.str());
+		if(name == "self")      return Value::of_string(cs.channel->getUsername());
+		if(name == "channel")   return Value::of_string(cs.channel->getName());
+
+		return { };
+	}
+
+	Value* InterpState::resolveAddressOf(ikura::str_view name, CmdContext& cs)
+	{
+		auto INVALID = [name](ikura::str_view s = "") -> Value* {
+			lg::error("interp", "variable '%s' not found%s", name, s);
+			return nullptr;
+		};
+
+		if(name.empty())
+			return INVALID();
+
+		if(name[0] == '$')
+		{
+			name.remove_prefix(1);
+
+			if(name.empty())
+				return INVALID();
+
+			if('0' <= name[0] && name[0] <= '9')
+			{
+				lg::error("interp", "argument values cannot be used as lvalues");
+				return nullptr;
+			}
+			else
+			{
+				if(is_builtin_var(name))
+				{
+					lg::error("interp", "builtin vars cannot be used as lvalues");
+					return nullptr;
+				}
+
+				if(auto it = this->globals.find(name); it != this->globals.end())
+					return &it.value();
+			}
+		}
+
+		// for now, nothing
+		return INVALID();
+	}
+
+	std::optional<Value> InterpState::resolveVariable(ikura::str_view name, CmdContext& cs)
+	{
+		auto INVALID = [name](ikura::str_view s = "") -> std::optional<Value> {
 			lg::error("interp", "variable '%s' not found%s", name, s);
 			return { };
 		};
@@ -33,33 +116,18 @@ namespace ikura::cmd
 
 			if('0' <= name[0] && name[0] <= '9')
 			{
-				size_t idx = name[0] - '0';
-				name.remove_prefix(1);
-
-				while('0' <= name[0] && name[0] <= '9')
-				{
-					idx = (10 * idx) + (name[0] - '0');
-					name.remove_prefix(1);
-				}
-
-				if(name.size() != 0)
-					return INVALID(zpr::sprint(" (junk '%s' at end)", name));
-
-				if(idx >= cs.macro_args.size())
-				{
-					lg::error("interp", "argument index out of bounds (want %zu, have %zu)",
-						idx, cs.macro_args.size());
-					return { };
-				}
-
-				// macro args are always strings
-				return interp::Value::of_string(cs.macro_args[idx].str());
+				if(size_t idx = parse_number_arg(name, cs); idx != (size_t) -1)
+					return Value::of_string(cs.macro_args[idx].str());
 			}
 			else
 			{
-				if(name == "user")      return interp::Value::of_string(cs.caller.str());
-				if(name == "self")      return interp::Value::of_string(cs.channel->getUsername());
-				if(name == "channel")   return interp::Value::of_string(cs.channel->getName());
+				// check for builtins
+				if(auto b = get_builtin_var(name, cs); b.has_value())
+					return b.value();
+
+				auto var = this->resolveAddressOf(name, cs);
+				if(var) return *var;
+				else    return { };
 			}
 		}
 
@@ -67,30 +135,43 @@ namespace ikura::cmd
 		return INVALID();
 	}
 
+	void InterpState::addGlobal(ikura::str_view name, Value val)
+	{
+		if(is_builtin_var(name) || name.find_first_of("0123456789") == 0)
+		{
+			lg::error("interp", "builtin vars cannot be used as lvalues");
+			return;
+		}
+
+		if(auto it = this->globals.find(name); it != this->globals.end())
+		{
+			lg::error("interp", "redefinition of variable '%s'");
+			return;
+		}
+
+		this->globals[name] = std::move(val);
+	}
+
+
+
 	const Command* InterpState::findCommand(ikura::str_view name) const
 	{
 		const Command* command = nullptr;
 		while(!command)
 		{
-			bool action = interpreter().map_read([&name, &command](auto& interp) {
+			if(auto it = this->commands.find(name); it != this->commands.end())
+			{
+				command = it->second;
+				break;
+			}
 
-				if(auto it = interp.commands.find(name); it != interp.commands.end())
-				{
-					command = it->second;
-					return true;
-				}
+			if(auto it = this->aliases.find(name); it != this->aliases.end())
+			{
+				name = it->second;
+				continue;
+			}
 
-				if(auto it = interp.aliases.find(name); it != interp.aliases.end())
-				{
-					name = it->second;
-					return false;
-				}
-
-				return true;
-			});
-
-			if(action)  break;
-			else        continue;
+			break;
 		}
 
 		return command;
@@ -103,6 +184,7 @@ namespace ikura::cmd
 
 		wr.write(this->commands);
 		wr.write(this->aliases);
+		wr.write(this->globals);
 	}
 
 	std::optional<InterpState> InterpState::deserialise(Span& buf)
@@ -119,6 +201,9 @@ namespace ikura::cmd
 			return { };
 
 		if(!rd.read(&interp.aliases))
+			return { };
+
+		if(!rd.read(&interp.globals))
 			return { };
 
 		return interp;

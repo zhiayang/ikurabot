@@ -26,6 +26,7 @@ all: build
 build: build/ikurabot
 
 build/ikurabot: $(CXXOBJ)
+	@echo "  linking..."
 	@$(CXX) $(CXXFLAGS) -o $@ $^ $(shell pkg-config --libs openssl)
 
 %.cpp.o: %.cpp makefile

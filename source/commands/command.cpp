@@ -2,7 +2,23 @@
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
 
+#include <chrono>
+
 #include "cmd.h"
+
+struct timer
+{
+	using hrc = std::chrono::high_resolution_clock;
+
+	timer() : out(nullptr)              { start = hrc::now(); }
+	explicit timer(double* t) : out(t)  { start = hrc::now(); }
+	~timer()                            { if(out) *out = static_cast<double>((hrc::now() - start).count()) / 1000000.0; }
+	double measure()                    { return static_cast<double>((hrc::now() - start).count()) / 1000000.0; }
+
+	double* out = 0;
+	std::chrono::time_point<hrc> start;
+};
+
 
 namespace ikura::cmd
 {
@@ -37,10 +53,13 @@ namespace ikura::cmd
 
 		if(command)
 		{
+			auto t = timer();
+			cs.macro_args = ikura::span(split).drop(1);
 			auto msg = interpreter().map_write([&](auto& fs) {
 				return command->run(&fs, cs);
 			});
 
+			lg::log("interp", "command took %.3f ms to execute", t.measure());
 			if(msg) chan->sendMessage(msg.value());
 		}
 		else if(split[0] == "macro")

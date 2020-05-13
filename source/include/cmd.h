@@ -9,21 +9,10 @@
 
 #include "defs.h"
 #include "interp.h"
-#include "synchro.h"
-#include "serialise.h"
 
 namespace ikura::cmd
 {
 	struct InterpState;
-
-	struct CmdContext
-	{
-		ikura::str_view caller;
-		const Channel* channel = nullptr;
-
-		ikura::span<ikura::str_view> macro_args;
-	};
-
 
 	namespace properties
 	{
@@ -96,31 +85,9 @@ namespace ikura::cmd
 	void init();
 	void processMessage(ikura::str_view user, const Channel* channel, ikura::str_view message);
 
-	// ugh, too many layers. the idea behind this is that we want the command interpreter
-	// to be available under its own lock without needing to lock the database.
-	struct InterpState : serialise::Serialisable
-	{
-		ikura::string_map<Command*> commands;
-		ikura::string_map<std::string> aliases;
-
-		const Command* findCommand(ikura::str_view name) const;
-		std::optional<interp::Value> resolveVariable(ikura::str_view name, CmdContext& cs) const;
-
-		virtual void serialise(Buffer& buf) const override;
-		static std::optional<InterpState> deserialise(Span& buf);
-
-		static constexpr uint8_t TYPE_TAG = serialise::TAG_INTERP_STATE;
-
-	private:
-		ikura::string_map<interp::Value> globals;
-	};
-
 	struct DbInterpState : serialise::Serialisable
 	{
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<DbInterpState> deserialise(Span& buf);
 	};
-
-
-	Synchronised<InterpState, std::shared_mutex>& interpreter();
 }

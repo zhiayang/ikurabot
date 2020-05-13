@@ -40,7 +40,7 @@ namespace ikura
 	constexpr uint8_t OP_PING           = 0x9;
 	constexpr uint8_t OP_PONG           = 0xA;
 
-	constexpr auto DEFAULT_TIMEOUT      = 300ms;
+	constexpr auto DEFAULT_TIMEOUT      = 2000ms;
 
 
 	WebSocket::WebSocket(std::string_view host, uint16_t port, bool ssl, std::chrono::nanoseconds timeout)
@@ -83,7 +83,10 @@ namespace ikura
 	bool WebSocket::connect()
 	{
 		if(!this->conn.connect())
+		{
+			lg::error("ws", "connection failed (underlying socket)");
 			return false;
+		}
 
 		auto http = HttpHeaders("GET / HTTP/1.1")
 						.add("Host", this->conn.host())
@@ -104,7 +107,7 @@ namespace ikura
 			// if the response is invalid (ie. there's no \r\n on the last line), then we get
 			// an empty status.
 			if(!_hdrs.has_value())
-				return;
+				{ lg::warn("ws", "invalid response header\n"); return; }
 
 			success = true;
 
@@ -135,7 +138,10 @@ namespace ikura
 
 		this->conn.send(Span::fromString(http.bytes()));
 		if(!cv.wait(true, DEFAULT_TIMEOUT))
-			return lg::error("ws", "connection timed out");
+		{
+			this->conn.disconnect();
+			return lg::error("ws", "connection timed out (while waiting for websocket upgrade reply)");
+		}
 
 		if(!success)
 			return false;

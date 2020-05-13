@@ -27,6 +27,21 @@ int main(int argc, char** argv)
 	if(!ikura::db::load(argv[2], (argc > 3 && std::string(argv[3]) == "--create")))
 		ikura::lg::fatal("db", "failed to load database '%s'", argv[2]);
 
+
+	// ikura::cmd::interpreter().wlock()->addGlobal("asdf", ikura::cmd::interp::Value::of_integer(77));
+
+	auto expr = ikura::cmd::ast::parse("$asdf");
+	ikura::cmd::CmdContext cs;
+	auto ret = expr->evaluate(ikura::cmd::interpreter().wlock().get(), cs);
+	zpr::println("> %s", ret->str());
+
+	ikura::database().rlock()->sync();
+	return 0;
+
+
+
+
+
 	if(ikura::config::haveTwitch())
 		ikura::twitch::init();
 
@@ -38,7 +53,10 @@ int main(int argc, char** argv)
 				continue;
 
 			if(ch == 'q')
+			{
+				ikura::lg::log("ikura", "stopping...");
 				break;
+			}
 		}
 	});
 
