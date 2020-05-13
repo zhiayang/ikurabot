@@ -29,18 +29,15 @@ int main(int argc, char** argv)
 		ikura::lg::fatal("db", "failed to load database '%s'", argv[2]);
 
 
-	// ikura::cmd::interpreter().wlock()->addGlobal("asdf", ikura::cmd::interp::Value::of_integer(77));
+	ikura::cmd::CmdContext cs;
 
-	// ikura::cmd::CmdContext cs;
-	// // auto expr = ikura::cmd::ast::parse("$asdf /= 41");
-	// // expr->evaluate(ikura::cmd::interpreter().wlock().get(), cs);
+	// auto expr = ikura::cmd::ast::parse("false ? 7 : true ? 1 : 9");
+	auto expr = ikura::cmd::ast::parse("1 < 2 < 3 < 4 < 5 == 5 > 4 > 3 > 2 > 1");
+	auto ret = expr->evaluate(ikura::cmd::interpreter().wlock().get(), cs);
+	zpr::println("> %s", ret->str());
 
-	// auto expr = ikura::cmd::ast::parse("$asdf");
-	// auto ret = expr->evaluate(ikura::cmd::interpreter().wlock().get(), cs);
-	// zpr::println("> %s", ret->str());
-
-	// ikura::database().rlock()->sync();
-	// return 0;
+	ikura::database().rlock()->sync();
+	return 0;
 
 
 

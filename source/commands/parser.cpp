@@ -178,7 +178,13 @@ namespace ikura::cmd::ast
 	}
 
 
-	static bool is_assignment(TT op)
+	static bool is_comparison_op(TT op)
+	{
+		return zfu::match(op, TT::EqualTo, TT::NotEqual, TT::LAngle, TT::LessThanEqual,
+			TT::RAngle, TT::GreaterThanEqual);
+	}
+
+	static bool is_assignment_op(TT op)
 	{
 		return zfu::match(op, TT::Equal, TT::PlusEquals, TT::MinusEquals, TT::TimesEquals,
 			TT::DivideEquals, TT::RemainderEquals, TT::ShiftLeftEquals, TT::ShiftRightEquals,
@@ -187,7 +193,7 @@ namespace ikura::cmd::ast
 
 	static bool is_right_associative(TT op)
 	{
-		return op == TT::Caret;
+		return op == TT::Caret || op == TT::Question;
 	}
 
 	static int get_binary_precedence(TT op)
@@ -235,6 +241,8 @@ namespace ikura::cmd::ast
 			case TT::BitwiseOrEquals:   return 200;
 			case TT::ExponentEquals:    return 200;
 
+			case TT::Question:          return 10;
+
 			case TT::Pipeline:          return 1;
 
 			default:
@@ -248,7 +256,11 @@ namespace ikura::cmd::ast
 
 		bool match(TT t)
 		{
-			return tokens.size() > 0 && tokens.front() == t;
+			if(tokens.size() == 0 || tokens.front() != t)
+				return false;
+
+			this->pop();
+			return true;
 		}
 
 		const lexer::Token& peek()
@@ -378,11 +390,42 @@ namespace ikura::cmd::ast
 			if(next > prec || is_right_associative(st.peek()))
 				rhs = parseRhs(st, rhs, prec + 1);
 
-			if(is_assignment(oper.type))
-				lhs = makeAST<AssignOp>(oper.type, oper.str().str(), lhs, rhs);
+			if(!rhs) return rhs;
 
+			if(is_assignment_op(oper.type))
+			{
+				lhs = makeAST<AssignOp>(oper.type, oper.str().str(), lhs, rhs);
+			}
+			else if(oper.type == TT::Question)
+			{
+				if(!st.match(TT::Colon))
+					return zpr::sprint("expected ':' after '?'");
+
+				lhs = makeAST<TernaryOp>(oper.type, oper.str().str(), lhs, rhs, parseExpr(st));
+			}
+			else if(is_comparison_op(oper.type))
+			{
+				if(auto cmp = dynamic_cast<ComparisonOp*>(lhs.unwrap()); cmp)
+				{
+					cmp->addExpr(rhs.unwrap());
+					cmp->addOp(oper.type, oper.str().str());
+
+					lhs = cmp;
+				}
+				else
+				{
+					auto tmp = new ComparisonOp();
+					tmp->addExpr(lhs.unwrap());
+					tmp->addExpr(rhs.unwrap());
+					tmp->addOp(oper.type, oper.str().str());
+
+					lhs = Result<Expr*>(tmp);
+				}
+			}
 			else
+			{
 				lhs = makeAST<BinaryOp>(oper.type, oper.str().str(), lhs, rhs);
+			}
 		}
 	}
 
@@ -455,7 +498,7 @@ namespace ikura::cmd::ast
 
 	static Result<Expr*> parseBool(State& st)
 	{
-		assert(st.peek() == TT::NumberLit);
+		assert(st.peek() == TT::BooleanLit);
 		auto x = st.peek().str();
 		st.pop();
 

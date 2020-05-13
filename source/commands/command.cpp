@@ -107,6 +107,16 @@ namespace ikura::cmd
 			lg::log("interp", "command took %.3f ms to execute", t.measure());
 			if(ret) chan->sendMessage(messageFromValue(ret.value()));
 		}
+		else if(cmd_str == "eval")
+		{
+			// syntax: eval <expr>
+			auto t = timer();
+
+			auto ret = interpreter().wlock()->evaluateExpr(arg_str, cs);
+			lg::log("interp", "command took %.3f ms to execute", t.measure());
+
+			if(ret) chan->sendMessage(messageFromValue(ret.value()));
+		}
 		else if(cmd_str == "global")
 		{
 			// syntax: global <name> <type>

@@ -203,6 +203,36 @@ namespace ikura::cmd
 			Expr* rhs;
 		};
 
+		struct TernaryOp : Expr
+		{
+			TernaryOp(lexer::TokenType op, std::string s, Expr* a, Expr* b, Expr* c) : op(op), op_str(std::move(s)),
+				op1(a), op2(b), op3(c) { }
+			virtual ~TernaryOp() override { }
+			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+
+		private:
+			lexer::TokenType op;
+			std::string op_str;
+			Expr* op1;
+			Expr* op2;
+			Expr* op3;
+		};
+
+		struct ComparisonOp : Expr
+		{
+			ComparisonOp() { }
+			virtual ~ComparisonOp() override { }
+
+			void addExpr(Expr* e) { this->exprs.push_back(e); }
+			void addOp(lexer::TokenType t, std::string s) { this->ops.push_back({ t, s }); }
+
+			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+
+		private:
+			std::vector<Expr*> exprs;
+			std::vector<std::pair<lexer::TokenType, std::string>> ops;
+		};
+
 		struct AssignOp : Expr
 		{
 			AssignOp(lexer::TokenType op, std::string s, Expr* l, Expr* r) : op(op), op_str(std::move(s)), lhs(l), rhs(r) { }

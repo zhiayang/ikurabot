@@ -23,26 +23,6 @@ namespace ikura::cmd::ast
 	auto make_bool = Value::of_bool;
 	auto make_void = Value::of_void;
 
-	std::optional<Value> LitString::evaluate(InterpState* fs, CmdContext& cs) const
-	{
-		return make_str(this->value);
-	}
-
-	std::optional<Value> LitInteger::evaluate(InterpState* fs, CmdContext& cs) const
-	{
-		return make_int(this->value);
-	}
-
-	std::optional<Value> LitDouble::evaluate(InterpState* fs, CmdContext& cs) const
-	{
-		return make_flt(this->value);
-	}
-
-	std::optional<Value> LitBoolean::evaluate(InterpState* fs, CmdContext& cs) const
-	{
-		return make_bool(this->value);
-	}
-
 	std::optional<Value> UnaryOp::evaluate(InterpState* fs, CmdContext& cs) const
 	{
 		auto _e = this->expr->evaluate(fs, cs);
@@ -202,6 +182,24 @@ namespace ikura::cmd::ast
 		return perform_binop(fs, this->op, this->op_str, lhs, rhs);
 	}
 
+	std::optional<Value> TernaryOp::evaluate(InterpState* fs, CmdContext& cs) const
+	{
+		if(this->op != TT::Question)
+			return { };
+
+		auto cond = this->op1->evaluate(fs, cs);
+		if(!cond) return { };
+
+		if(!cond->is_bool())
+			return error("invalid use of ?: with type '%s' as first operand", cond->type_str());
+
+		auto tmp = cond->get_bool();
+		if(tmp) return this->op2->evaluate(fs, cs);
+		else    return this->op3->evaluate(fs, cs);
+	}
+
+
+
 
 	std::optional<Value> AssignOp::evaluate(InterpState* fs, CmdContext& cs) const
 	{
@@ -242,10 +240,109 @@ namespace ikura::cmd::ast
 	}
 
 
+
+	std::optional<Value> ComparisonOp::evaluate(InterpState* fs, CmdContext& cs) const
+	{
+		if(this->exprs.size() != this->ops.size() + 1 || this->exprs.size() < 2)
+			return error("operand count mismatch");
+
+		/*
+			basically, we transform us into a series of chained "&&" binops.
+			10 < 20 < 30 > 25 > 15   =>   (10 < 20) && (20 < 30) && (30 > 25) && (25 > 15)
+		*/
+
+		auto compare = [](TT op, std::string op_str, const Value& lhs, const Value& rhs) -> std::optional<bool> {
+			if(op == TT::EqualTo || op == TT::NotEqual)
+			{
+				auto foozle = [](const Value& lhs, const Value& rhs) -> std::optional<bool> {
+
+					if(lhs.is_integer() && rhs.is_integer())    return lhs.get_integer() == rhs.get_integer();
+					if(lhs.is_double() && rhs.is_integer())     return lhs.get_double() == (double) rhs.get_integer();
+					if(lhs.is_integer() && rhs.is_double())     return (double) lhs.get_integer() == rhs.get_double();
+					if(lhs.is_double() && rhs.is_double())      return lhs.get_double() == rhs.get_double();
+					if(lhs.is_string() && rhs.is_string())      return lhs.get_string() == rhs.get_string();
+					if(lhs.is_list() && rhs.is_list())          return lhs.get_list() == rhs.get_list();
+					if(lhs.is_bool() && rhs.is_bool())          return lhs.get_bool() == rhs.get_bool();
+					if(lhs.is_map() && rhs.is_map())            return lhs.get_map() == rhs.get_map();
+					if(lhs.is_void() && rhs.is_void())          return true;
+
+					return { };
+				};
+
+				auto ret = foozle(lhs, rhs);
+				if(!ret.has_value())
+					goto fail;
+
+				if(op == TT::NotEqual)  return !ret.value();
+				else                    return ret.value();
+			}
+			else
+			{
+				auto foozle = [](TT op, auto lhs, auto rhs) -> bool {
+					switch(op)
+					{
+						case TT::LAngle:            return lhs < rhs;
+						case TT::RAngle:            return lhs > rhs;
+						case TT::LessThanEqual:     return lhs <= rhs;
+						case TT::GreaterThanEqual:  return lhs >= rhs;
+
+						default: return false;
+					}
+				};
+
+				if(lhs.is_integer() && rhs.is_integer())    return foozle(op, lhs.get_integer(), rhs.get_integer());
+				if(lhs.is_double() && rhs.is_integer())     return foozle(op, lhs.get_double(), rhs.get_integer());
+				if(lhs.is_integer() && rhs.is_double())     return foozle(op, lhs.get_integer(), rhs.get_double());
+				if(lhs.is_double() && rhs.is_double())      return foozle(op, lhs.get_double(), rhs.get_double());
+				if(lhs.is_string() && rhs.is_string())      return foozle(op, lhs.get_string(), rhs.get_string());
+				if(lhs.is_list() && rhs.is_list())          return foozle(op, lhs.get_list(), rhs.get_list());
+				if(lhs.is_map() && rhs.is_map())            return foozle(op, lhs.get_map(), rhs.get_map());
+			}
+
+		fail:
+			return error("invalid comparison '%s' between types '%s' and '%s'", op_str, lhs.type_str(), rhs.type_str());
+		};
+
+		for(size_t i = 0; i < this->exprs.size() - 1; i++)
+		{
+			auto left = this->exprs[i]->evaluate(fs, cs);
+			if(!left) return { };
+
+			auto right = this->exprs[i + 1]->evaluate(fs, cs);
+			if(!right) return { };
+
+			auto [ op, op_str ] = this->ops[i];
+
+			auto res = compare(op, op_str, left.value(), right.value());
+			if(!res.has_value())
+				return { };
+
+			else if(!res.value())
+				return Value::of_bool(false);
+		}
+
+		return Value::of_bool(true);
+	}
+
+
+
+
+
+
+
 	std::optional<Value> VarRef::evaluate(InterpState* fs, CmdContext& cs) const
 	{
 		auto [ val, ref ] = fs->resolveVariable(this->name, cs);
 		if(ref) return Value::of_lvalue(ref);
 		else    return val;
 	}
+
+
+
+
+
+	std::optional<Value> LitString::evaluate(InterpState* fs, CmdContext& cs) const     { return make_str(this->value); }
+	std::optional<Value> LitInteger::evaluate(InterpState* fs, CmdContext& cs) const    { return make_int(this->value); }
+	std::optional<Value> LitDouble::evaluate(InterpState* fs, CmdContext& cs) const     { return make_flt(this->value); }
+	std::optional<Value> LitBoolean::evaluate(InterpState* fs, CmdContext& cs) const    { return make_bool(this->value); }
 }

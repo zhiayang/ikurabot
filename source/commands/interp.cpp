@@ -59,6 +59,7 @@ namespace ikura::cmd
 		if(name == "user")      return Value::of_string(cs.caller.str());
 		if(name == "self")      return Value::of_string(cs.channel->getUsername());
 		if(name == "channel")   return Value::of_string(cs.channel->getName());
+		if(name == "args")      return Value::of_list(Value::TYPE_STRING, cs.macro_args.vec());
 
 		return { };
 	}
