@@ -175,5 +175,5 @@ namespace ikura::cmd
 		ikura::string_map<interp::Value*> globals;
 	};
 
-	Synchronised<InterpState, std::shared_mutex>& interpreter();
+	Synchronised<InterpState>& interpreter();
 }

@@ -33,7 +33,7 @@ namespace ikura::db
 	constexpr uint64_t DB_VERSION   = 1;
 	constexpr auto SYNC_INTERVAL    = 60s;
 
-	static Synchronised<Database, std::shared_mutex> TheDatabase;
+	static Synchronised<Database> TheDatabase;
 	static std::fs::path databasePath;
 
 	// just a simple wrapper
@@ -232,6 +232,7 @@ namespace ikura::db
 		wr.write(this->id);
 		wr.write(this->username);
 		wr.write(this->displayname);
+		wr.write(this->credentials);
 	}
 
 	std::optional<TwitchUser> TwitchUser::deserialise(Span& buf)
@@ -250,13 +251,42 @@ namespace ikura::db
 		if(!rd.read(&ret.displayname))
 			return { };
 
+		if(!rd.read(&ret.credentials))
+			return { };
+
+		return ret;
+	}
+
+
+	void TwitchUserCredentials::serialise(Buffer& buf) const
+	{
+		auto wr = serialise::Writer(buf);
+		wr.tag(TYPE_TAG);
+
+		wr.write(this->permissions);
+		wr.write(this->subscriptionMonths);
+	}
+
+	std::optional<TwitchUserCredentials> TwitchUserCredentials::deserialise(Span& buf)
+	{
+		auto rd = serialise::Reader(buf);
+		if(auto t = rd.tag(); t != TYPE_TAG)
+			return error("type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+
+		TwitchUserCredentials ret;
+		if(!rd.read(&ret.permissions))
+			return { };
+
+		if(!rd.read(&ret.subscriptionMonths))
+			return { };
+
 		return ret;
 	}
 }
 
 namespace ikura
 {
-	Synchronised<db::Database, std::shared_mutex>& database()
+	Synchronised<db::Database>& database()
 	{
 		return db::TheDatabase;
 	}

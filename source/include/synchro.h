@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <deque>
+#include <atomic>
 #include <thread>
 #include <chrono>
 #include <shared_mutex>
@@ -48,7 +50,7 @@ namespace ikura
 		}
 
 		template <typename Predicate>
-		bool wait_pred(const T& x, Predicate p)
+		bool wait_pred(Predicate p)
 		{
 			auto lk = std::unique_lock<std::mutex>(this->mtx);
 			this->cv.wait(lk, p);
@@ -57,7 +59,7 @@ namespace ikura
 
 		// returns true only if the value was set; if we timed out, it returns false.
 		template <typename Predicate>
-		bool wait_pred(const T& x, std::chrono::nanoseconds timeout, Predicate p)
+		bool wait_pred(std::chrono::nanoseconds timeout, Predicate p)
 		{
 			auto lk = std::unique_lock<std::mutex>(this->mtx);
 			return this->cv.wait_for(lk, timeout, p);
@@ -70,9 +72,127 @@ namespace ikura
 		T value;
 		std::mutex mtx;
 		std::condition_variable cv;
+
+		friend struct semaphore;
 	};
 
-	template <typename T, typename Lk>
+	struct semaphore
+	{
+		semaphore(int64_t x) : cv(x) { }
+
+		void post(int64_t num = 1)
+		{
+			{
+				auto lk = std::unique_lock<std::mutex>(this->cv.mtx);
+				this->cv.value += num;
+			}
+			if(num > 1) this->cv.notify_all();
+			else        this->cv.notify_one();
+		}
+
+		void wait()
+		{
+			this->cv.wait_pred([this]() -> bool { return this->cv.value != 0; });
+			this->cv.value -= 1;
+		}
+
+		bool wait(std::chrono::nanoseconds timeout)
+		{
+			if(!this->cv.wait_pred(timeout, [this]() -> bool { return this->cv.value != 0; }))
+				return false;
+
+			this->cv.value -= 1;
+			return true;
+		}
+
+	private:
+		condvar<int64_t> cv;
+	};
+
+	template <typename T>
+	struct wait_queue
+	{
+		wait_queue() : sem(0) { }
+
+		void push(T x)
+		{
+			{
+				auto lk = std::unique_lock<std::mutex>(this->mtx);
+				this->queue.push_back(std::move(x));
+			}
+			this->sem.post();
+		}
+
+		template <typename... Args>
+		void emplace(Args&&... xs)
+		{
+			{
+				auto lk = std::unique_lock<std::mutex>(this->mtx);
+				this->queue.emplace_back(std::forward<Args&&>(xs)...);
+			}
+			this->sem.post();
+		}
+
+		void push_quiet(T x)
+		{
+			{
+				this->queue.push_back(std::move(x));
+				auto lk = std::unique_lock<std::mutex>(this->mtx);
+			}
+			this->pending_notifies++;
+		}
+
+		template <typename... Args>
+		void emplace_quiet(Args&&... xs)
+		{
+			{
+				auto lk = std::unique_lock<std::mutex>(this->mtx);
+				this->queue.emplace_back(std::forward<Args&&>(xs)...);
+			}
+			this->pending_notifies++;
+		}
+
+		void notify_pending()
+		{
+			auto tmp = this->pending_notifies.exchange(0);
+			this->sem.post(tmp);
+		}
+
+		T pop()
+		{
+			this->sem.wait();
+
+			{
+				auto lk = std::unique_lock<std::mutex>(this->mtx);
+				auto ret = this->queue.front();
+				this->queue.pop_front();
+
+				return ret;
+			}
+		}
+
+		size_t size() const
+		{
+			return this->queue.size();
+		}
+
+	private:
+		std::atomic<int64_t> pending_notifies = 0;
+		std::deque<T> queue;
+		std::mutex mtx;     // mtx is for protecting the queue during push/pop
+		semaphore sem;      // sem is for signalling when the queue has stuff (or not)
+	};
+
+
+
+
+
+
+
+
+
+
+	template <typename T, typename Lk = std::shared_mutex>
 	struct Synchronised
 	{
 	private:
@@ -83,16 +203,16 @@ namespace ikura
 		T value;
 
 	public:
+		Synchronised() { }
 		~Synchronised() { }
 
-		template <typename = std::enable_if_t<std::is_default_constructible_v<T>>>
-		Synchronised() { }
-
-		template <typename = std::enable_if_t<std::is_copy_constructible_v<T>>>
 		Synchronised(const T& x) : value(x) { }
-
-		template <typename = std::enable_if_t<std::is_move_constructible_v<T>>>
 		Synchronised(T&& x) : value(std::move(x)) { }
+
+		template <typename... Args>
+		Synchronised(Args&&... xs) : value(std::forward<Args&&>(xs)...) { }
+
+
 
 		Synchronised(Synchronised&&) = delete;
 		Synchronised(const Synchronised&) = delete;

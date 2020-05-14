@@ -118,10 +118,11 @@ namespace ikura
 				success = false;
 				lg::error("ws", "unexpected http status '%s' (expected 101)", hdrs.status());
 			}
-			else if(hdrs.get("Upgrade") != "websocket" || hdrs.get("Connection") != "Upgrade")
+			else if((hdrs.get("Upgrade") != "websocket" && hdrs.get("Upgrade") != "Websocket")
+				|| (hdrs.get("Connection") != "upgrade" && hdrs.get("Connection") != "Upgrade"))
 			{
 				success = false;
-				lg::error("ws", "no upgrade header");
+				lg::error("ws", "no upgrade header: %s", hdrs.bytes());
 			}
 			else if(auto key = hdrs.get("Sec-WebSocket-Accept"); key != "BIrH2fXtdYwV1IU9u+MiGYCsuTA=")
 			{
@@ -242,7 +243,7 @@ namespace ikura
 
 		// we don't really care whether this times out or not, we just don't want this to
 		// hang forever here.
-		cv.wait(true, DEFAULT_TIMEOUT);
+		cv.wait(true, 500ms);
 
 		this->conn.disconnect();
 	}

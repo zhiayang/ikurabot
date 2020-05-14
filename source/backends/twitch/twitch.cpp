@@ -4,6 +4,7 @@
 
 #include "db.h"
 #include "rate.h"
+#include "timer.h"
 #include "twitch.h"
 #include "network.h"
 
@@ -14,8 +15,60 @@ namespace ikura::twitch
 	constexpr int CONNECT_RETRIES           = 5;
 	constexpr const char* TWITCH_WSS_URL    = "wss://irc-ws.chat.twitch.tv";
 
-	// this does not need to be synchronised, because we will only touch this from one thread.
-	static TwitchState* state = nullptr;
+	static Synchronised<TwitchState>* _state = nullptr;
+	static Synchronised<TwitchState>& state() { return *_state; }
+
+	static MessageQueue<twitch::QueuedMsg> msg_queue;
+	MessageQueue<twitch::QueuedMsg>& message_queue() { return msg_queue; }
+
+
+	void send_worker()
+	{
+		// twitch says 20 messages every 30 seconds, so set it a little lower.
+		// for channels that it moderates, the bot gets 100 every 30s.
+		auto pleb_rate = new RateLimit(18, 30s);
+		auto mod_rate  = new RateLimit(90, 30s);
+
+		while(true)
+		{
+			auto msg = message_queue().pop_send();
+			if(msg.disconnected)
+				break;
+
+			auto rate = (msg.is_moderator ? mod_rate : pleb_rate);
+			if(!rate->attempt())
+			{
+				lg::warn("twitch", "exceeded rate limit");
+				std::this_thread::sleep_until(rate->next());
+			}
+
+			state().wlock()->ws.send(msg.msg);
+		}
+
+		lg::log("twitch", "send worker exited");
+	}
+
+	void recv_worker()
+	{
+		while(true)
+		{
+			auto msg = message_queue().pop_receive();
+			if(msg.disconnected)
+				break;
+
+			auto t = timer();
+			state().wlock()->processMessage(msg.msg);
+
+			lg::log("twitch", "processed message in %.3f ms", t.measure());
+		}
+
+		lg::log("twitch", "receive worker exited");
+	}
+
+
+
+
+
 
 	TwitchState::TwitchState(URL url, std::chrono::nanoseconds timeout,
 		std::string&& user, std::vector<config::twitch::Chan>&& chans) : ws(url, timeout)
@@ -48,17 +101,13 @@ namespace ikura::twitch
 			return;
 
 		condvar<bool> didcon;
-		this->ws.onReceiveText([&didcon, this](bool, ikura::str_view msg) {
+		this->ws.onReceiveText([&didcon](bool, ikura::str_view msg) {
 			if(msg.find(":tmi.twitch.tv 001") == 0)
 				didcon.set(true);
-
-			while(msg.size() > 0)
-			{
-				auto i = msg.find("\r\n");
-				this->processMessage(msg.substr(0, i));
-				msg.remove_prefix(i + 2);
-			}
 		});
+
+		this->tx_thread = std::thread(send_worker);
+		this->rx_thread = std::thread(recv_worker);
 
 		// startup
 		lg::log("twitch", "authenticating...");
@@ -68,71 +117,59 @@ namespace ikura::twitch
 		if(!didcon.wait(true, 2000ms))
 		{
 			lg::error("twitch", "connection failed");
+			this->ws.onReceiveText([](bool, ikura::str_view) { });
+			this->ws.disconnect();
 			return;
 		}
 
 		lg::log("twitch", "connected");
-
 		this->connected = true;
-		this->sender = std::thread([]() {
-			// twitch says 20 messages every 30 seconds, so set it a little lower.
-			// for channels that it moderates, the bot gets 100 every 30s.
-			auto pleb_rate = new RateLimit(18, 30s);
-			auto mod_rate  = new RateLimit(90, 30s);
 
-			while(true)
+		// install the real handler now.
+		this->ws.onReceiveText([](bool, ikura::str_view msg) {
+			while(msg.size() > 0)
 			{
-				state->haveQueued.wait(true);
-				if(!state->connected)
-					break;
+				auto x = msg.take(msg.find("\r\n")).str();
+				msg.remove_prefix(x.size() + 2);
 
-				state->sendQueue.perform_write([&](auto& queue) {
-					for(const auto& [ msg, mod ] : queue)
-					{
-						auto rate = (mod ? mod_rate : pleb_rate);
-
-						if(!rate->attempt())
-						{
-							lg::warn("twitch", "exceeded rate limit");
-							std::this_thread::sleep_until(rate->next());
-						}
-
-						state->ws.send(msg);
-						// lg::log("twitch", "sent msg at   %d", std::chrono::system_clock::now().time_since_epoch().count());
-						// lg::log("twitch", ">> %s", msg.substr(0, msg.size() - 2));
-					}
-
-					queue.clear();
-				});
-
-				state->haveQueued.set_quiet(false);
+				message_queue().emplace_receive_quiet(std::move(x));
 			}
 
-			lg::log("twitch", "sender thread exited");
+			message_queue().notify_pending_receives();
 		});
+
+		// request tags
+		this->ws.send("CAP REQ :twitch.tv/tags");
 
 		// join channels
 		for(auto [ _, chan ] : this->channels)
-		{
 			this->ws.send(zpr::sprint("JOIN #%s\r\n", chan.name));
-			lg::log("twitch", "joined #%s", chan.name);
-		}
 	}
 
 	void TwitchState::disconnect()
 	{
 		lg::log("twitch", "leaving channels...");
 
-		// part from channels
-		for(auto& [ name, chan ] : state->channels)
+		// we must kill the threads now, because we have the writelock on the state.
+		// if they (the receiver thread) attempts to process an incoming message now,
+		// it will deadlock because it also wants the writelock for the state.
+		message_queue().push_send(QueuedMsg::disconnect());
+		message_queue().push_receive(QueuedMsg::disconnect());
+
+		// part from channels. we don't particularly care about the response anyway.
+		for(auto& [ name, chan ] : this->channels)
 			this->ws.send(zpr::sprint("PART #%s\r\n", chan.name));
 
-		std::this_thread::sleep_for(1s);
+		std::this_thread::sleep_for(350ms);
 		this->ws.disconnect();
 
 		this->connected = false;
-		this->haveQueued.set(true);
-		this->sender.join();
+
+		// wait for the workers to finish.
+		this->tx_thread.join();
+		this->rx_thread.join();
+
+		lg::log("twitch", "disconnected");
 	}
 
 	void init()
@@ -140,15 +177,18 @@ namespace ikura::twitch
 		if(!config::haveTwitch())
 			return;
 
-		state = new TwitchState(URL(TWITCH_WSS_URL), 5000ms, config::twitch::getUsername(), config::twitch::getJoinChannels());
-		state->connect();
+		_state = new Synchronised<TwitchState>(URL(TWITCH_WSS_URL), 5000ms,
+			config::twitch::getUsername(), config::twitch::getJoinChannels()
+		);
+
+		state().wlock()->connect();
 	}
 
 	void shutdown()
 	{
-		if(!config::haveTwitch() || !state->connected)
+		if(!config::haveTwitch() || !state().rlock()->connected)
 			return;
 
-		state->disconnect();
+		state().wlock()->disconnect();
 	}
 }

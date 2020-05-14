@@ -15,11 +15,24 @@ namespace ikura
 {
 	namespace db
 	{
+		struct TwitchUserCredentials : Serialisable
+		{
+			uint32_t permissions;       // see defs.h/ikura::permissions
+			uint32_t subscriptionMonths;
+
+			virtual void serialise(Buffer& buf) const override;
+			static std::optional<TwitchUserCredentials> deserialise(Span& buf);
+
+			static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_USER_CREDS;
+		};
+
 		struct TwitchUser : Serialisable
 		{
 			std::string id;
 			std::string username;
 			std::string displayname;
+
+			TwitchUserCredentials credentials;
 
 			virtual void serialise(Buffer& buf) const override;
 			static std::optional<TwitchUser> deserialise(Span& buf);
@@ -69,5 +82,5 @@ namespace ikura
 		bool load(ikura::str_view path, bool create);
 	}
 
-	Synchronised<db::Database, std::shared_mutex>& database();
+	Synchronised<db::Database>& database();
 }

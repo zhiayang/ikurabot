@@ -21,34 +21,48 @@ namespace ikura
 
 	namespace serialise
 	{
-		constexpr uint8_t TAG_U8            = 0x01;
-		constexpr uint8_t TAG_U16           = 0x02;
-		constexpr uint8_t TAG_U32           = 0x03;
-		constexpr uint8_t TAG_U64           = 0x04;
-		constexpr uint8_t TAG_S8            = 0x05;
-		constexpr uint8_t TAG_S16           = 0x06;
-		constexpr uint8_t TAG_S32           = 0x07;
-		constexpr uint8_t TAG_S64           = 0x08;
-		constexpr uint8_t TAG_STRING        = 0x09;
-		constexpr uint8_t TAG_STL_UNORD_MAP = 0x0A;
-		constexpr uint8_t TAG_TSL_HASHMAP   = 0x0B;
-		constexpr uint8_t TAG_F32           = 0x0C;
-		constexpr uint8_t TAG_F64           = 0x0D;
-		constexpr uint8_t TAG_BOOL_TRUE     = 0x0E;
-		constexpr uint8_t TAG_BOOL_FALSE    = 0x0F;
-		constexpr uint8_t TAG_STL_VECTOR    = 0x10;
-		constexpr uint8_t TAG_STL_ORD_MAP   = 0x11;
+		constexpr uint8_t TAG_U8                = 0x01;
+		constexpr uint8_t TAG_U16               = 0x02;
+		constexpr uint8_t TAG_U32               = 0x03;
+		constexpr uint8_t TAG_U64               = 0x04;
+		constexpr uint8_t TAG_S8                = 0x05;
+		constexpr uint8_t TAG_S16               = 0x06;
+		constexpr uint8_t TAG_S32               = 0x07;
+		constexpr uint8_t TAG_S64               = 0x08;
+		constexpr uint8_t TAG_STRING            = 0x09;
+		constexpr uint8_t TAG_STL_UNORD_MAP     = 0x0A;
+		constexpr uint8_t TAG_TSL_HASHMAP       = 0x0B;
+		constexpr uint8_t TAG_F32               = 0x0C;
+		constexpr uint8_t TAG_F64               = 0x0D;
+		constexpr uint8_t TAG_BOOL_TRUE         = 0x0E;
+		constexpr uint8_t TAG_BOOL_FALSE        = 0x0F;
+		constexpr uint8_t TAG_STL_VECTOR        = 0x10;
+		constexpr uint8_t TAG_STL_ORD_MAP       = 0x11;
 
-		constexpr uint8_t TAG_TWITCH_DB     = 0x81;
-		constexpr uint8_t TAG_COMMAND_DB    = 0x82;
-		constexpr uint8_t TAG_TWITCH_USER   = 0x83;
-		constexpr uint8_t TAG_COMMAND       = 0x84;
-		constexpr uint8_t TAG_INTERP_STATE  = 0x85;
-		constexpr uint8_t TAG_MACRO         = 0x86;
-		constexpr uint8_t TAG_FUNCTION      = 0x87;
-		constexpr uint8_t TAG_INTERP_VALUE  = 0x88;
+		constexpr uint8_t TAG_TWITCH_DB         = 0x81;
+		constexpr uint8_t TAG_COMMAND_DB        = 0x82;
+		constexpr uint8_t TAG_TWITCH_USER       = 0x83;
+		constexpr uint8_t TAG_COMMAND           = 0x84;
+		constexpr uint8_t TAG_INTERP_STATE      = 0x85;
+		constexpr uint8_t TAG_MACRO             = 0x86;
+		constexpr uint8_t TAG_FUNCTION          = 0x87;
+		constexpr uint8_t TAG_INTERP_VALUE      = 0x88;
+		constexpr uint8_t TAG_TWITCH_USER_CREDS = 0x89;
 	}
 
+	namespace permissions
+	{
+		constexpr uint32_t EVERYONE         = 0x001;
+		constexpr uint32_t FOLLOWER         = 0x002;
+		constexpr uint32_t TRUSTED          = 0x004;
+		constexpr uint32_t VIP              = 0x008;
+		constexpr uint32_t SUBSCRIBER       = 0x010;
+		constexpr uint32_t MODERATOR        = 0x020;
+		constexpr uint32_t BROADCASTER      = 0x040;
+		constexpr uint32_t OWNER            = 0x080;
+		constexpr uint32_t WHITELIST        = 0x100;
+		constexpr uint32_t WHITELIST_ONLY   = 0x200;
+	}
 
 	namespace twitch
 	{

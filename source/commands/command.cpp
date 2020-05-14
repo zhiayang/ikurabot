@@ -7,20 +7,7 @@
 #include "zfu.h"
 #include "cmd.h"
 #include "ast.h"
-
-struct timer
-{
-	using hrc = std::chrono::high_resolution_clock;
-
-	timer() : out(nullptr)              { start = hrc::now(); }
-	explicit timer(double* t) : out(t)  { start = hrc::now(); }
-	~timer()                            { if(out) *out = static_cast<double>((hrc::now() - start).count()) / 1000000.0; }
-	double measure()                    { return static_cast<double>((hrc::now() - start).count()) / 1000000.0; }
-
-	double* out = 0;
-	std::chrono::time_point<hrc> start;
-};
-
+#include "timer.h"
 
 namespace ikura::cmd
 {
@@ -95,7 +82,7 @@ namespace ikura::cmd
 
 		if(command)
 		{
-			auto t = timer();
+			auto t = ikura::timer();
 			auto arg_split = util::split(arg_str, ' ');
 			auto args = zfu::map(arg_split, [](const auto& x) -> auto { return interp::Value::of_string(x.str()); });
 
@@ -110,7 +97,7 @@ namespace ikura::cmd
 		else if(cmd_str == "eval")
 		{
 			// syntax: eval <expr>
-			auto t = timer();
+			auto t = ikura::timer();
 
 			auto ret = interpreter().wlock()->evaluateExpr(arg_str, cs);
 			lg::log("interp", "command took %.3f ms to execute", t.measure());

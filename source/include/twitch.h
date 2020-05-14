@@ -9,6 +9,7 @@
 
 #include "synchro.h"
 #include "network.h"
+#include "msgqueue.h"
 
 namespace ikura::twitch
 {
@@ -49,12 +50,15 @@ namespace ikura::twitch
 
 	private:
 		WebSocket ws;
-		std::thread sender;
-		condvar<bool> haveQueued;
-		Synchronised<std::vector<std::pair<std::string, bool>>, std::shared_mutex> sendQueue;
+
+		std::thread tx_thread;
+		std::thread rx_thread;
 
 		void connect();
 		void disconnect();
+
+		friend void send_worker();
+		friend void recv_worker();
 
 		friend void init();
 		friend void shutdown();
@@ -62,6 +66,21 @@ namespace ikura::twitch
 		friend struct TwitchChannel;
 	};
 
+	struct QueuedMsg
+	{
+		QueuedMsg(std::string msg) : msg(std::move(msg)), is_moderator(false), disconnected(false) { }
+		QueuedMsg(std::string msg, bool mod) : msg(std::move(msg)), is_moderator(mod), disconnected(false) { }
+		QueuedMsg(std::string msg, bool mod, bool discon) : msg(std::move(msg)), is_moderator(mod), disconnected(discon) { }
+
+		static QueuedMsg disconnect() { return QueuedMsg("__disconnect__", false, true); }
+
+		std::string msg;
+		bool is_moderator;
+		bool disconnected;
+	};
+
 	void init();
 	void shutdown();
+
+	MessageQueue<twitch::QueuedMsg>& message_queue();
 }
