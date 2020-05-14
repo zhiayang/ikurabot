@@ -157,7 +157,9 @@ namespace ikura::cmd
 		ikura::string_map<Command*> commands;
 		ikura::string_map<std::string> aliases;
 
-		const Command* findCommand(ikura::str_view name) const;
+		ikura::string_map<uint32_t> builtinCommandPermissions;
+
+		Command* findCommand(ikura::str_view name) const;
 		bool removeCommandOrAlias(ikura::str_view name);
 
 		std::pair<std::optional<interp::Value>, interp::Value*> resolveVariable(ikura::str_view name, CmdContext& cs);

@@ -128,12 +128,12 @@ namespace ikura::cmd
 	}
 
 
-	const Command* InterpState::findCommand(ikura::str_view name) const
+	Command* InterpState::findCommand(ikura::str_view name) const
 	{
 		ikura::string_set seen;
 
 		// you can chain aliases, so we need to loop.
-		const Command* command = nullptr;
+		Command* command = nullptr;
 		while(!command)
 		{
 			if(auto it = this->commands.find(name); it != this->commands.end())
@@ -186,6 +186,7 @@ namespace ikura::cmd
 
 		wr.write(this->commands);
 		wr.write(this->aliases);
+		wr.write(this->builtinCommandPermissions);
 
 		ikura::string_map<interp::Value> globs;
 		for(const auto& [ k, v ] : this->globals)
@@ -210,6 +211,11 @@ namespace ikura::cmd
 		if(!rd.read(&interp.aliases))
 			return { };
 
+		ikura::string_map<uint32_t> builtinPerms;
+
+		if(!rd.read(&builtinPerms))
+			return { };
+
 		ikura::string_map<interp::Value> globals;
 		if(!rd.read(&globals))
 			return { };
@@ -217,6 +223,10 @@ namespace ikura::cmd
 		for(const auto& [ k, v ] : globals)
 			interp.globals[k] = new Value(v);
 
+		if(builtinPerms.empty())
+			builtinPerms = cmd::getDefaultBuiltinPermissions();
+
+		interp.builtinCommandPermissions = builtinPerms;
 		return interp;
 	}
 }

@@ -32,6 +32,7 @@ namespace ikura::irc
 
 		// this expects only the tags part -- from '@' inclusive to 'SPACE' exclusive.
 		assert(tags[0] == '@');
+		tags.remove_prefix(1);
 
 		while(tags.size() > 0)
 		{

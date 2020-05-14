@@ -18,7 +18,7 @@ namespace ikura
 		struct TwitchUserCredentials : Serialisable
 		{
 			uint32_t permissions;       // see defs.h/ikura::permissions
-			uint32_t subscriptionMonths;
+			uint32_t subscribedMonths;
 
 			virtual void serialise(Buffer& buf) const override;
 			static std::optional<TwitchUserCredentials> deserialise(Span& buf);
@@ -32,21 +32,29 @@ namespace ikura
 			std::string username;
 			std::string displayname;
 
-			TwitchUserCredentials credentials;
-
 			virtual void serialise(Buffer& buf) const override;
 			static std::optional<TwitchUser> deserialise(Span& buf);
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_USER;
 		};
 
-		struct TwitchDB : Serialisable
+		struct TwitchChannel : Serialisable
 		{
 			// map from userid to user.
-			ikura::string_map<TwitchUser> knownTwitchUsers;
+			ikura::string_map<TwitchUser> knownUsers;
 
-			// cache of known username -> userids
-			ikura::string_map<std::string> knownTwitchIdMappings;
+			// map from userid to creds.
+			ikura::string_map<TwitchUserCredentials> userCredentials;
+
+			virtual void serialise(Buffer& buf) const override;
+			static std::optional<TwitchChannel> deserialise(Span& buf);
+
+			static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_CHANNEL;
+		};
+
+		struct TwitchDB : Serialisable
+		{
+			ikura::string_map<TwitchChannel> channels;
 
 			virtual void serialise(Buffer& buf) const override;
 			static std::optional<TwitchDB> deserialise(Span& buf);

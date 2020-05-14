@@ -2,6 +2,7 @@
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
 
+#include "db.h"
 #include "cmd.h"
 #include "irc.h"
 #include "defs.h"
@@ -13,9 +14,96 @@ namespace ikura::twitch
 	template <typename... Args> void warn(const std::string& fmt, Args&&... args) { lg::warn("twitch", fmt, args...); }
 	template <typename... Args> void error(const std::string& fmt, Args&&... args) { lg::error("twitch", fmt, args...); }
 
-	static void update_user_creds(const ikura::string_map<std::string>& tags)
+	static void update_user_creds(ikura::str_view user, ikura::str_view channel, const ikura::string_map<std::string>& tags)
 	{
+		// all users get the everyone credential.
+		uint32_t perms = permissions::EVERYONE;
+		uint32_t sublen = 0;
 
+		std::string userid;
+		std::string displayname;
+
+		if(config::twitch::getOwner() == user)
+			perms |= permissions::OWNER;
+
+		// see https://dev.twitch.tv/docs/irc/tags. we are primarily interested in badges, badge-info, user-id, and display-name
+		for(const auto& [ key, val ] : tags)
+		{
+			if(key == "user-id")
+			{
+				userid = val;
+			}
+			else if(key == "display-name")
+			{
+				displayname = val;
+			}
+			else if(key == "badges")
+			{
+				auto badges = util::split(val, ',');
+				for(const auto& badge : badges)
+				{
+					// founder is a special kind of subscriber.
+					if(badge.find("subscriber") == 0 || badge.find("founder") == 0)
+						perms |= permissions::SUBSCRIBER;
+
+					else if(badge.find("vip") == 0)
+						perms |= permissions::VIP;
+
+					else if(badge.find("moderator") == 0)
+						perms |= permissions::MODERATOR;
+
+					else if(badge.find("broadcaster") == 0)
+						perms |= permissions::BROADCASTER;
+				}
+			}
+			else if(key == "badge-info")
+			{
+				// we're only here to get the number of subscribed months.
+				auto badges = util::split(val, ',');
+				for(const auto& badge : badges)
+				{
+					// only care about this
+					if(badge.find("subscriber") == 0 || badge.find("founder") == 0)
+						sublen = std::stoi(badge.drop(badge.find('/') + 1).str());
+				}
+			}
+		}
+
+		if(userid.empty())
+			return warn("message from '%s' contained no user id", user);
+
+		// acquire a big lock.
+		database().perform_write([&](auto& db) {
+
+			// no need to check for existence; just use operator[] and create things as we go along.
+			// update the user:
+			{
+				auto& tchan = db.twitchData.channels[channel];
+				auto& tuser = tchan.knownUsers[user];
+
+				tuser.username = user.str();
+				tuser.displayname = displayname;
+
+				const auto& existing_id = tuser.id;
+				if(existing_id.empty())
+				{
+					log("adding user '%s'/'%s' to channel #%s", user, userid, channel);
+					tuser.id = userid;
+				}
+				else if(existing_id != userid)
+				{
+					warn("user '%s' changed id from '%s' to '%s'", user, existing_id, userid);
+					tuser.id = userid;
+				}
+			}
+
+			// update the credentials:
+			{
+				auto& creds = db.twitchData.channels[channel].userCredentials[userid];
+				creds.permissions = perms;
+				creds.subscribedMonths = sublen;
+			}
+		});
 	}
 
 	void TwitchState::processMessage(ikura::str_view input)
@@ -24,6 +112,7 @@ namespace ikura::twitch
 		if(!m) return error("malformed: '%s'", input);
 
 		auto msg = m.value();
+		// zpr::println("(%zu) %s", input.size(), input);
 
 		if(msg.command == "PING")
 		{
@@ -75,8 +164,8 @@ namespace ikura::twitch
 			auto message = msg.params[1];
 			lg::log("msg", "twitch/#%s: <%s>  %s", channel, user, message);
 
-			// update the credentials of the user.
-			update_user_creds(msg.tags);
+			// update the credentials of the user (for the channel)
+			update_user_creds(user, channel, msg.tags);
 
 			if(this->channels[channel].lurk)
 				return;
@@ -90,8 +179,8 @@ namespace ikura::twitch
 		else
 		{
 			warn("ignoring unhandled irc command '%s'", msg.command);
-			for(size_t i = 0; i < msg.command.size(); i++)
-				printf(" %02x", msg.command[i]);
+			for(size_t i = 0; i < input.size(); i++)
+				printf(" %02x (%c)", input[i], input[i]);
 
 			zpr::println("\n");
 		}
@@ -130,6 +219,25 @@ namespace ikura::twitch
 	std::string TwitchChannel::getName() const
 	{
 		return this->name;
+	}
+
+	uint32_t TwitchChannel::getUserPermissions(ikura::str_view user) const
+	{
+		// mfw "const correctness", so we can't use operator[]
+		return database().map_read([&](auto& db) -> uint32_t {
+			if(auto it = db.twitchData.channels.find(this->name); it != db.twitchData.channels.end())
+			{
+				auto& chan = it.value();
+				if(auto it = chan.knownUsers.find(user); it != chan.knownUsers.end())
+				{
+					auto userid = it->second.id;
+					if(auto it = chan.userCredentials.find(userid); it != chan.userCredentials.end())
+						return it->second.permissions;
+				}
+			}
+
+			return 0;
+		});
 	}
 
 	bool TwitchChannel::shouldReplyMentions() const

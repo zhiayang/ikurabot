@@ -155,59 +155,71 @@ namespace ikura
 
 			this->buffer.write(data);
 
-			// check the thing.
-			if(this->buffer.size() < sizeof(raw_frame_t))
-				return;
+			auto the_buffer = this->buffer.span();
 
-			auto frame = this->buffer.as<raw_frame_t>();
-
-			// insta-reject nonsensical things:
-			if(frame->mask || frame->opcode >= 0x0B)
+			// note that we must do 'return' here, because breaking out of the loop normally will
+			// clear the buffer; if we detect incomplete data, we must leave it in the buffer until
+			// we get more data to parse it fully.
+			while(the_buffer.size() >= sizeof(raw_frame_t))
 			{
-				this->buffer.clear();
-				return;
+				// we need to loop here, because we might end up getting multiple websocket frames
+				// in one TCP frame. so, just keep going; note that the second packet might not be
+				// complete, so we cannot discard the data until we read complete packets.
+
+				auto frame = the_buffer.as<raw_frame_t>();
+
+				// insta-reject nonsensical things:
+				if(frame->mask || frame->opcode >= 0x0B)
+				{
+					this->buffer.clear();
+					return;
+				}
+
+				// most importantly we need the length. see if we even have enough bytes for it
+				// 16-bit length has 2 bytes, making 4 bytes total
+				if(frame->len1 == 126 && the_buffer.size() < 4)
+					return;
+
+				// 64-bit length has 8 bytes, making 10 bytes total
+				else if(frame->len1 == 127 && the_buffer.size() < 10)
+					return;
+
+				// ok, now we at least know the length of the frame.
+				size_t payloadLen = 0;
+				size_t totalLen = sizeof(raw_frame_t);
+				if(frame->len1 == 126)
+				{
+					uint16_t tmp = 0;
+					memcpy(&tmp, the_buffer.data() + sizeof(raw_frame_t), sizeof(uint16_t));
+
+					totalLen += sizeof(uint16_t);
+					payloadLen = value::to_native<uint16_t>(tmp);
+				}
+				else if(frame->len1 == 127)
+				{
+					uint64_t tmp = 0;
+					memcpy(&tmp, the_buffer.data() + sizeof(raw_frame_t), sizeof(uint64_t));
+
+					totalLen += sizeof(uint64_t);
+					payloadLen = value::to_native<uint64_t>(tmp);
+				}
+				else
+				{
+					payloadLen = frame->len1;
+				}
+
+				totalLen += payloadLen;
+
+				if(the_buffer.size() < totalLen)
+					return;
+
+				// ok, we have the entire packet. get it (limiting the length), then remove it from the tmp buffer
+				auto msg = the_buffer.drop(totalLen - payloadLen).take(payloadLen);
+				the_buffer.remove_prefix(totalLen);
+
+				// run the callback
+				this->handle_frame(frame->opcode, frame->fin, msg);
 			}
-
-			// most importantly we need the length. see if we even have enough bytes for it
-			// 16-bit length has 2 bytes, making 4 bytes total
-			if(frame->len1 == 126 && this->buffer.size() < 4)
-				return;
-
-			// 64-bit length has 8 bytes, making 10 bytes total
-			else if(frame->len1 == 127 && this->buffer.size() < 10)
-				return;
-
-			// ok, now we at least know the length of the frame.
-			size_t payloadLen = 0;
-			size_t totalLen = sizeof(raw_frame_t);
-			if(frame->len1 == 126)
-			{
-				uint16_t tmp = 0;
-				memcpy(&tmp, this->buffer.data() + sizeof(raw_frame_t), sizeof(uint16_t));
-
-				totalLen += sizeof(uint16_t);
-				payloadLen = value::to_native<uint16_t>(tmp);
-			}
-			else if(frame->len1 == 127)
-			{
-				uint64_t tmp = 0;
-				memcpy(&tmp, this->buffer.data() + sizeof(raw_frame_t), sizeof(uint64_t));
-
-				totalLen += sizeof(uint64_t);
-				payloadLen = value::to_native<uint64_t>(tmp);
-			}
-			else
-			{
-				payloadLen = frame->len1;
-			}
-
-			totalLen += payloadLen;
-
-			if(this->buffer.size() < totalLen)
-				return;
-
-			// ok, we have the entire packet.
-			this->handle_frame(frame->opcode, frame->fin, this->buffer.span().remove_prefix(totalLen - payloadLen));
 
 			// discard the frame now.
 			this->buffer.clear();

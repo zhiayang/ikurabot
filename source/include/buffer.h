@@ -78,6 +78,9 @@ namespace ikura
 		Span& remove_prefix(size_t n) { n = std::min(n, this->len); this->ptr += n; this->len -= n; return *this; }
 		Span& remove_suffix(size_t n) { n = std::min(n, this->len); this->len -= n; return *this; }
 
+		Span drop(size_t n) const { auto copy = *this; return copy.remove_prefix(n); }
+		Span take(size_t n) const { auto copy = *this; return copy.remove_suffix(this->len > n ? this->len - n : 0); }
+
 		template <typename T> T* as() { return (T*) this->ptr; }
 		template <typename T> const T* as() const { return (T*) this->ptr; }
 

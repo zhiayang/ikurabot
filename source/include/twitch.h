@@ -29,6 +29,7 @@ namespace ikura::twitch
 		virtual std::string getUsername() const override;
 		virtual std::string getCommandPrefix() const override;
 		virtual bool shouldReplyMentions() const override;
+		virtual uint32_t getUserPermissions(ikura::str_view user) const override;
 
 		virtual void sendMessage(const Message& msg) const override;
 

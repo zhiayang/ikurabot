@@ -38,6 +38,7 @@ namespace ikura
 		constexpr uint8_t TAG_BOOL_FALSE        = 0x0F;
 		constexpr uint8_t TAG_STL_VECTOR        = 0x10;
 		constexpr uint8_t TAG_STL_ORD_MAP       = 0x11;
+		constexpr uint8_t TAG_SMALL_U64         = 0x12;
 
 		constexpr uint8_t TAG_TWITCH_DB         = 0x81;
 		constexpr uint8_t TAG_COMMAND_DB        = 0x82;
@@ -48,6 +49,7 @@ namespace ikura
 		constexpr uint8_t TAG_FUNCTION          = 0x87;
 		constexpr uint8_t TAG_INTERP_VALUE      = 0x88;
 		constexpr uint8_t TAG_TWITCH_USER_CREDS = 0x89;
+		constexpr uint8_t TAG_TWITCH_CHANNEL    = 0x8A;
 	}
 
 	namespace permissions
@@ -61,7 +63,6 @@ namespace ikura
 		constexpr uint32_t BROADCASTER      = 0x040;
 		constexpr uint32_t OWNER            = 0x080;
 		constexpr uint32_t WHITELIST        = 0x100;
-		constexpr uint32_t WHITELIST_ONLY   = 0x200;
 	}
 
 	namespace twitch
@@ -87,6 +88,7 @@ namespace ikura
 				bool respondToPings;
 			};
 
+			std::string getOwner();
 			std::string getUsername();
 			std::string getOAuthToken();
 			std::string getCommandPrefix();
@@ -283,6 +285,7 @@ namespace ikura
 		virtual std::string getName() const = 0;
 		virtual std::string getUsername() const = 0;
 		virtual std::string getCommandPrefix() const = 0;
+		virtual uint32_t getUserPermissions(ikura::str_view user) const = 0;
 
 		virtual void sendMessage(const Message& msg) const = 0;
 	};

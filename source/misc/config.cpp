@@ -19,6 +19,7 @@ namespace ikura::config
 
 		bool present = false;
 
+		std::string owner;
 		std::string username;
 		std::string oauthToken;
 		std::string commandPrefix;
@@ -28,6 +29,7 @@ namespace ikura::config
 
 	namespace twitch
 	{
+		std::string getOwner()          { return TwitchConfig.owner; }
 		std::string getUsername()       { return TwitchConfig.username; }
 		std::string getOAuthToken()     { return TwitchConfig.oauthToken; }
 		std::string getCommandPrefix()  { return TwitchConfig.commandPrefix; }
@@ -96,6 +98,10 @@ namespace ikura::config
 		if(username.empty())
 			return lg::error("cfg/twitch", "username cannot be empty");
 
+		auto owner = get_string(twitch, "owner", "");
+		if(owner.empty())
+			return lg::error("cfg/twitch", "owner cannot be empty");
+
 		auto oauthToken = get_string(twitch, "oauth_token", "");
 		if(oauthToken.empty())
 			return lg::error("cfg/twitch", "oauth_token cannot be empty");
@@ -104,6 +110,7 @@ namespace ikura::config
 		if(commandPrefix.empty())
 			return lg::error("cfg/twitch", "command_prefix cannot be empty");
 
+		TwitchConfig.owner = owner;
 		TwitchConfig.username = username;
 		TwitchConfig.oauthToken = oauthToken;
 		TwitchConfig.commandPrefix = commandPrefix;

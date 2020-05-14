@@ -69,6 +69,11 @@ namespace ikura::cmd
 			this->code.push_back(code.take(end).str());
 	}
 
+	const std::vector<std::string>& Macro::getCode() const
+	{
+		return this->code;
+	}
+
 	Macro::Macro(std::string name, std::vector<std::string> words) : Command(std::move(name)), code(std::move(words))
 	{
 	}
@@ -78,8 +83,10 @@ namespace ikura::cmd
 		auto wr = serialise::Writer(buf);
 		wr.tag(TYPE_TAG);
 
-		// just write the name and the source code.
+		// these come from the superclass
 		wr.write(this->name);
+		wr.write(this->permissions);
+
 		wr.write(this->code);
 	}
 
@@ -93,15 +100,21 @@ namespace ikura::cmd
 		}
 
 		std::string name;
+		uint32_t permissions = 0;
 		std::vector<std::string> code;
 
 		if(!rd.read(&name))
 			return { };
 
+		if(!rd.read(&permissions))
+			return { };
+
 		if(!rd.read(&code))
 			return { };
 
-		return new Macro(name, code);
+		auto ret = new Macro(name, code);
+		ret->permissions = permissions;
+		return ret;
 	}
 
 

@@ -27,6 +27,9 @@ namespace ikura::cmd
 		virtual ~Command() { }
 
 		std::string getName() const { return this->name; }
+		uint32_t getPermissions() const { return this->permissions; }
+		void setPermissions(uint32_t p) { this->permissions = p; }
+
 		virtual std::optional<interp::Value> run(InterpState* fs, CmdContext& cs) const = 0;
 
 		// because this is static, it needs to exist in the abstract base class too
@@ -48,6 +51,8 @@ namespace ikura::cmd
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<Macro*> deserialise(Span& buf);
 
+		const std::vector<std::string>& getCode() const;
+
 		static constexpr uint8_t TYPE_TAG = serialise::TAG_MACRO;
 
 	private:
@@ -58,6 +63,9 @@ namespace ikura::cmd
 	};
 
 
+	ikura::string_map<uint32_t> getDefaultBuiltinPermissions();
+
 	void init();
+	bool verifyPermissions(uint32_t required, uint32_t given);
 	void processMessage(ikura::str_view user, const Channel* channel, ikura::str_view message);
 }

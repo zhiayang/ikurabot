@@ -29,12 +29,20 @@ namespace ikura::db
 
 	static_assert(sizeof(Superblock) == 24);
 
+	constexpr uint64_t DB_VERSION   = 3;
 	constexpr const char* DB_MAGIC  = "ikura_db";
-	constexpr uint64_t DB_VERSION   = 1;
+
 	constexpr auto SYNC_INTERVAL    = 60s;
 
 	static Synchronised<Database> TheDatabase;
 	static std::fs::path databasePath;
+
+	// this is kind of a dirty hack, but whatever. it's not like we'll have more than 1 database instance
+	// per program. what this stores is the version of the database that we read from disk; this lets
+	// us selectively read fields when we add/remove stuff. this is only set in Database::deserialise,
+	// immediately after it reads the superblock.
+	static uint32_t currentDatabaseVersion = 0;
+
 
 	// just a simple wrapper
 	template <typename... Args>
@@ -104,9 +112,9 @@ namespace ikura::db
 			});
 
 			thr.detach();
+			lg::log("db", "database loaded");
 		}
 
-		lg::log("db", "database loaded");
 		return succ;
 	}
 
@@ -119,6 +127,8 @@ namespace ikura::db
 		sb.flags = this->flags;
 		sb.version = this->version;
 		sb.timestamp = util::getMillisecondTimestamp();
+
+		currentDatabaseVersion = this->version;
 
 		buf.write(&sb, sizeof(Superblock));
 
@@ -137,8 +147,8 @@ namespace ikura::db
 		if(strncmp(sb->magic, DB_MAGIC, 8) != 0)
 			return error("invalid database identifier (expected '%s', got '%.*s')", DB_MAGIC, 8, sb->magic);
 
-		if(sb->version != DB_VERSION)
-			return error("invalid version %lu (expected %lu)", sb->version, DB_VERSION);
+		if(sb->version > DB_VERSION)
+			return error("invalid version %lu (expected <= %lu)", sb->version, DB_VERSION);
 
 		Database db;
 		memcpy(db.magic, sb->magic, 8);
@@ -148,11 +158,20 @@ namespace ikura::db
 
 		buf.remove_prefix(sizeof(Superblock));
 
+		currentDatabaseVersion = db.version;
+		if(currentDatabaseVersion < DB_VERSION)
+			lg::log("db", "upgrading database from version %d to %d", currentDatabaseVersion, DB_VERSION);
+
+
 		if(!rd.read(&db.twitchData))
 			return error("failed to read twitch data");
 
 		if(!rd.read(&db.interpState))
 			return error("failed to read command interpreter state");
+
+		// once we are done reading the database from disk, the in-memory state is considered gospel.
+		// thus, we can "upgrade" the version.
+		db.version = DB_VERSION;
 
 		return db;
 	}
@@ -196,8 +215,7 @@ namespace ikura::db
 		auto wr = serialise::Writer(buf);
 		wr.tag(TYPE_TAG);
 
-		wr.write(this->knownTwitchUsers);
-		wr.write(this->knownTwitchIdMappings);
+		wr.write(this->channels);
 	}
 
 	std::optional<TwitchDB> TwitchDB::deserialise(Span& buf)
@@ -208,11 +226,8 @@ namespace ikura::db
 
 		TwitchDB ret;
 
-		if(!rd.read(&ret.knownTwitchUsers))
-			return error("failed to read twitch users");
-
-		if(!rd.read(&ret.knownTwitchIdMappings))
-			return error("failed to read twitch ids");
+		if(!rd.read(&ret.channels))
+			return error("failed to read twitch channels");
 
 		return ret;
 	}
@@ -221,7 +236,30 @@ namespace ikura::db
 
 
 
+	void TwitchChannel::serialise(Buffer& buf) const
+	{
+		auto wr = serialise::Writer(buf);
+		wr.tag(TYPE_TAG);
 
+		wr.write(this->knownUsers);
+		wr.write(this->userCredentials);
+	}
+
+	std::optional<TwitchChannel> TwitchChannel::deserialise(Span& buf)
+	{
+		auto rd = serialise::Reader(buf);
+		if(auto t = rd.tag(); t != TYPE_TAG)
+			return error("type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+
+		TwitchChannel ret;
+		if(!rd.read(&ret.knownUsers))
+			return { };
+
+		if(!rd.read(&ret.userCredentials))
+			return { };
+
+		return ret;
+	}
 
 
 	void TwitchUser::serialise(Buffer& buf) const
@@ -232,7 +270,6 @@ namespace ikura::db
 		wr.write(this->id);
 		wr.write(this->username);
 		wr.write(this->displayname);
-		wr.write(this->credentials);
 	}
 
 	std::optional<TwitchUser> TwitchUser::deserialise(Span& buf)
@@ -251,9 +288,6 @@ namespace ikura::db
 		if(!rd.read(&ret.displayname))
 			return { };
 
-		if(!rd.read(&ret.credentials))
-			return { };
-
 		return ret;
 	}
 
@@ -264,7 +298,7 @@ namespace ikura::db
 		wr.tag(TYPE_TAG);
 
 		wr.write(this->permissions);
-		wr.write(this->subscriptionMonths);
+		wr.write(this->subscribedMonths);
 	}
 
 	std::optional<TwitchUserCredentials> TwitchUserCredentials::deserialise(Span& buf)
@@ -277,7 +311,7 @@ namespace ikura::db
 		if(!rd.read(&ret.permissions))
 			return { };
 
-		if(!rd.read(&ret.subscriptionMonths))
+		if(!rd.read(&ret.subscribedMonths))
 			return { };
 
 		return ret;

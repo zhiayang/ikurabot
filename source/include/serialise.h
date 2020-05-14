@@ -58,7 +58,21 @@ namespace ikura::serialise
 		void write(uint8_t x)   { ensure(1); tag(TAG_U8);  buffer.write(&x, 1); }
 		void write(uint16_t x)  { ensure(2); tag(TAG_U16); buffer.write(&x, 2); }
 		void write(uint32_t x)  { ensure(4); tag(TAG_U32); buffer.write(&x, 4); }
-		void write(uint64_t x)  { ensure(8); tag(TAG_U64); buffer.write(&x, 4); }
+		void write(uint64_t x)
+		{
+			ensure(8);
+			if(x < 0x10000)
+			{
+				tag(TAG_SMALL_U64);
+				auto tmp = (uint16_t) x;
+				buffer.write(&tmp, 2);
+			}
+			else
+			{
+				tag(TAG_U64);
+				buffer.write(&x, 8);
+			}
+		}
 
 		void write(int8_t x)    { ensure(1); tag(TAG_S8);  buffer.write(&x, 1); }
 		void write(int16_t x)   { ensure(2); tag(TAG_S16); buffer.write(&x, 2); }
@@ -78,7 +92,7 @@ namespace ikura::serialise
 		void write(std::string_view sv)
 		{
 			ensure(8 + sv.size()); tag(TAG_STRING);
-			auto sz = sv.size(); buffer.write(&sz, sizeof(uint64_t));
+			auto sz = sv.size(); write((uint64_t) sz);
 			for(size_t i = 0; i < sz; i++)
 				buffer.write(&sv[i], 1);
 		}
@@ -87,7 +101,7 @@ namespace ikura::serialise
 		void write(const std::vector<T>& vec)
 		{
 			ensure(9); tag(TAG_STL_VECTOR);
-			auto sz = vec.size(); buffer.write(&sz, sizeof(uint64_t));
+			auto sz = vec.size(); write((uint64_t) sz);
 			for(const auto& x : vec)
 				write(x);
 		}
@@ -96,7 +110,7 @@ namespace ikura::serialise
 		void write(const std::map<K, V>& map)
 		{
 			ensure(9); tag(TAG_STL_ORD_MAP);
-			auto sz = map.size(); buffer.write(&sz, sizeof(uint64_t));
+			auto sz = map.size(); write((uint64_t) sz);
 			for(const auto& [ k, v ] : map)
 				write(k), write(v);
 		}
@@ -105,7 +119,7 @@ namespace ikura::serialise
 		void write(const std::unordered_map<K, V>& map)
 		{
 			ensure(9); tag(TAG_STL_UNORD_MAP);
-			auto sz = map.size(); buffer.write(&sz, sizeof(uint64_t));
+			auto sz = map.size(); write((uint64_t) sz);
 			for(const auto& [ k, v ] : map)
 				write(k), write(v);
 		}
@@ -114,7 +128,7 @@ namespace ikura::serialise
 		void write(const tsl::robin_map<K, V>& map)
 		{
 			ensure(9); tag(TAG_TSL_HASHMAP);
-			auto sz = map.size(); buffer.write(&sz, sizeof(uint64_t));
+			auto sz = map.size(); write((uint64_t) sz);
 			for(const auto& [ k, v ] : map)
 				write(k), write(v);
 		}
@@ -123,7 +137,7 @@ namespace ikura::serialise
 		void write(const ikura::string_map<V>& map)
 		{
 			ensure(9); tag(TAG_TSL_HASHMAP);
-			auto sz = map.size(); buffer.write(&sz, sizeof(uint64_t));
+			auto sz = map.size(); write((uint64_t) sz);
 			for(const auto& [ k, v ] : map)
 				write(k), write(v);
 		}
@@ -183,7 +197,6 @@ namespace ikura::serialise
 			if constexpr (is_same_v<T, uint8_t>)            { if(the_tag = tag(), the_tag != TAG_U8)  return { }; }
 			else if constexpr (is_same_v<T, uint16_t>)      { if(the_tag = tag(), the_tag != TAG_U16) return { }; }
 			else if constexpr (is_same_v<T, uint32_t>)      { if(the_tag = tag(), the_tag != TAG_U32) return { }; }
-			else if constexpr (is_same_v<T, uint64_t>)      { if(the_tag = tag(), the_tag != TAG_U64) return { }; }
 			else if constexpr (is_same_v<T, int8_t>)        { if(the_tag = tag(), the_tag != TAG_S8)  return { }; }
 			else if constexpr (is_same_v<T, int16_t>)       { if(the_tag = tag(), the_tag != TAG_S16) return { }; }
 			else if constexpr (is_same_v<T, int32_t>)       { if(the_tag = tag(), the_tag != TAG_S32) return { }; }
@@ -198,19 +211,38 @@ namespace ikura::serialise
 			else if constexpr (is_std_map<T>::value)        { if(the_tag = tag(), the_tag != TAG_STL_ORD_MAP) return { }; }
 			else if constexpr (is_pointer_v<T>)             { return std::decay_t<decltype(*declval<T>())>::deserialise(span); }
 			else if constexpr (is_same_v<T, bool>)          {
-				if(the_tag = tag(), the_tag != TAG_BOOL_TRUE && the_tag != TAG_BOOL_FALSE)
+				if(the_tag = tag(), (the_tag != TAG_BOOL_TRUE && the_tag != TAG_BOOL_FALSE))
 					return { };
 			}
-			else                                            { return T::deserialise(span); }
+			else if constexpr (is_same_v<T, uint64_t>)
+			{
+				if(the_tag = tag(), (the_tag != TAG_U64 && the_tag != TAG_SMALL_U64))
+					return { };
+			}
+			else
+			{
+				return T::deserialise(span);
+			}
 
 			if constexpr (is_same_v<T, uint8_t> || is_same_v<T, uint16_t> || is_same_v<T, uint32_t> || is_same_v<T, uint64_t>
 						|| is_same_v<T, int8_t> || is_same_v<T, int16_t> || is_same_v<T, int32_t> || is_same_v<T, int64_t>
 						|| is_same_v<T, float> || is_same_v<T, double>)
 			{
 				T ret = 0;
-				// use memcpy to circumvent alignment
-				memcpy(&ret, span.as<T>(), sizeof(T));
-				span.remove_prefix(sizeof(T));
+				if(the_tag == TAG_SMALL_U64)
+				{
+					uint16_t tmp = 0;
+					memcpy(&tmp, span.as<uint16_t>(), sizeof(uint16_t));
+					span.remove_prefix(sizeof(uint16_t));
+					ret = tmp;
+				}
+				else
+				{
+					// use memcpy to circumvent alignment
+					memcpy(&ret, span.as<T>(), sizeof(T));
+					span.remove_prefix(sizeof(T));
+				}
+
 				return ret;
 			}
 			else if constexpr (is_same_v<T, bool>)
@@ -219,12 +251,7 @@ namespace ikura::serialise
 			}
 			else if constexpr (is_same_v<T, std::string>)
 			{
-				// tag already verified. get size
-				if(!ensure(sizeof(uint64_t)))
-					return { };
-
-				auto sz = *span.as<uint64_t>();
-				span.remove_prefix(sizeof(uint64_t));
+				auto sz = read<uint64_t>().value();
 
 				if(!ensure(sz))
 					return { };
@@ -238,12 +265,7 @@ namespace ikura::serialise
 			{
 				using V = typename T::value_type;
 
-				// tag already verified. get size
-				if(!ensure(sizeof(uint64_t)))
-					return { };
-
-				auto sz = *span.as<uint64_t>();
-				span.remove_prefix(sizeof(uint64_t));
+				auto sz = read<uint64_t>().value();
 
 				T ret;
 				for(size_t i = 0; i < sz; i++)
@@ -262,12 +284,7 @@ namespace ikura::serialise
 				using K = typename T::key_type;
 				using V = typename T::mapped_type;
 
-				// tag already verified. get size
-				if(!ensure(sizeof(uint64_t)))
-					return { };
-
-				auto sz = *span.as<uint64_t>();
-				span.remove_prefix(sizeof(uint64_t));
+				auto sz = read<uint64_t>().value();
 
 				T ret;
 				for(size_t i = 0; i < sz; i++)
@@ -288,12 +305,7 @@ namespace ikura::serialise
 				using K = typename T::key_type;
 				using V = typename T::mapped_type;
 
-				// tag already verified. get size
-				if(!ensure(sizeof(uint64_t)))
-					return { };
-
-				auto sz = *span.as<uint64_t>();
-				span.remove_prefix(sizeof(uint64_t));
+				auto sz = read<uint64_t>().value();
 
 				T ret;
 				for(size_t i = 0; i < sz; i++)
