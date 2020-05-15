@@ -7,7 +7,6 @@
 #include <chrono>
 #include <thread>
 #include <string>
-#include <optional>
 
 #include "types.h"
 #include "buffer.h"

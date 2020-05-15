@@ -11,24 +11,17 @@ namespace ikura::interp::ast
 	using TT = lexer::TokenType;
 	using interp::Value;
 
-	template <typename... Args>
-	std::nullopt_t error(const std::string& fmt, Args&&... args)
-	{
-		lg::error("interp", fmt, args...);
-		return std::nullopt;
-	}
-
 	auto make_int = Value::of_integer;
 	auto make_flt = Value::of_double;
 	auto make_bool = Value::of_bool;
 	auto make_void = Value::of_void;
 
-	std::optional<Value> UnaryOp::evaluate(InterpState* fs, CmdContext& cs) const
+	Result<Value> UnaryOp::evaluate(InterpState* fs, CmdContext& cs) const
 	{
 		auto _e = this->expr->evaluate(fs, cs);
-		if(!_e) return { };
+		if(!_e) return _e;
 
-		auto e = _e.value();
+		auto e = _e.unwrap();
 
 		if(this->op == TT::Plus)
 		{
@@ -51,11 +44,11 @@ namespace ikura::interp::ast
 				return make_int(~e.get_integer());
 		}
 
-		return error("invalid unary '%s' on type '%s'  --  (in expr %s%s)",
+		return zpr::sprint("invalid unary '%s' on type '%s'  --  (in expr %s%s)",
 			this->op_str, e.type()->str(), this->op_str, e.str());
 	}
 
-	static std::optional<Value> perform_binop(InterpState* fs, TT op, ikura::str_view op_str,
+	static Result<Value> perform_binop(InterpState* fs, TT op, ikura::str_view op_str,
 		Value& lhs, const Value& rhs, bool* didAppend = nullptr)
 	{
 		// auto rep_str = [](int64_t n, const std::string& s) -> std::string {
@@ -76,16 +69,23 @@ namespace ikura::interp::ast
 				if(op == TT::PlusEquals)
 				{
 					if(!lhs.is_lvalue())
-						return error("cannot append to rvalue");
+						return zpr::sprint("cannot append to rvalue");
 
 					left = lhs.get_lvalue();
 					assert(left);
+				}
+				else
+				{
+					left = &lhs;
 				}
 
 				if(rhs.is_list())
 				{
 					if(left->type()->elm_type() != rhs.type()->elm_type())
-						return error("cannot concatenate lists of type '%s' and '%s'", left->type()->str(), rhs.type()->str());
+					{
+						return zpr::sprint("cannot concatenate lists of type '%s' and '%s'",
+							left->type()->str(), rhs.type()->str());
+					}
 
 					auto rl = rhs.get_list();
 
@@ -106,7 +106,10 @@ namespace ikura::interp::ast
 				else
 				{
 					if(left->type()->elm_type() != rhs.type())
-						return error("cannot append value of type '%s' to a list of type '%s'", rhs.type()->str(), left->type()->str());
+					{
+						return zpr::sprint("cannot append value of type '%s' to a list of type '%s'",
+							rhs.type()->str(), left->type()->str());
+					}
 
 					// plus equals will modify, plus will make a new temporary.
 					if(op == TT::Plus)
@@ -176,50 +179,47 @@ namespace ikura::interp::ast
 			return make_int(lhs.get_integer() | rhs.get_integer());
 		}
 
-		return error("invalid binary '%s' between types '%s' and '%s' -- in expr (%s %s %s)",
+		return zpr::sprint("invalid binary '%s' between types '%s' and '%s' -- in expr (%s %s %s)",
 			op_str, lhs.type()->str(), rhs.type()->str(), lhs.str(), op_str, rhs.str());
 	}
 
-	std::optional<Value> BinaryOp::evaluate(InterpState* fs, CmdContext& cs) const
+	Result<Value> BinaryOp::evaluate(InterpState* fs, CmdContext& cs) const
 	{
-		auto _lhs = this->lhs->evaluate(fs, cs);
-		auto _rhs = this->rhs->evaluate(fs, cs);
+		auto lhs = this->lhs->evaluate(fs, cs);
+		auto rhs = this->rhs->evaluate(fs, cs);
 
-		if(!_lhs || !_rhs)
-			return { };
+		if(!lhs) return lhs;
+		if(!rhs) return rhs;
 
-		auto lhs = _lhs.value();
-		auto rhs = _rhs.value();
-
-		return perform_binop(fs, this->op, this->op_str, lhs, rhs);
+		return perform_binop(fs, this->op, this->op_str, lhs.unwrap(), rhs.unwrap());
 	}
 
-	std::optional<Value> TernaryOp::evaluate(InterpState* fs, CmdContext& cs) const
+	Result<Value> TernaryOp::evaluate(InterpState* fs, CmdContext& cs) const
 	{
 		if(this->op != TT::Question)
-			return { };
+			return zpr::sprint("unsupported '%s'", this->op_str);
 
 		auto cond = this->op1->evaluate(fs, cs);
-		if(!cond) return { };
+		if(!cond) return cond;
 
 		if(!cond->is_bool())
-			return error("invalid use of ?: with type '%s' as first operand", cond->type()->str());
+			return zpr::sprint("invalid use of ?: with type '%s' as first operand", cond->type()->str());
 
 		auto tmp = cond->get_bool();
 		if(tmp) return this->op2->evaluate(fs, cs);
 		else    return this->op3->evaluate(fs, cs);
 	}
 
-	std::optional<Value> AssignOp::evaluate(InterpState* fs, CmdContext& cs) const
+	Result<Value> AssignOp::evaluate(InterpState* fs, CmdContext& cs) const
 	{
 		auto lhs = this->lhs->evaluate(fs, cs);
-		if(!lhs) return { };
+		if(!lhs) return lhs;
 
 		auto rhs = this->rhs->evaluate(fs, cs);
-		if(!rhs) return { };
+		if(!rhs) return rhs;
 
 		if(!lhs->is_lvalue())
-			return error("cannot assign to rvalue");
+			return zpr::sprint("cannot assign to rvalue");
 
 		auto ltyp = lhs->type();
 		auto rtyp = rhs->type();
@@ -227,7 +227,7 @@ namespace ikura::interp::ast
 		if(this->op != TT::Equal)
 		{
 			bool didAppend = false;
-			auto ret = perform_binop(fs, this->op, this->op_str, lhs.value(), rhs.value(), &didAppend);
+			auto ret = perform_binop(fs, this->op, this->op_str, lhs.unwrap(), rhs.unwrap(), &didAppend);
 
 			if(didAppend) return ret;
 			else          rhs = ret;
@@ -236,26 +236,26 @@ namespace ikura::interp::ast
 		// check if they're assignable.
 		if(!ltyp->is_same(rhs->type()))
 		{
-			return error("cannot assign value of type '%s' to variable of type '%s'",
+			return zpr::sprint("cannot assign value of type '%s' to variable of type '%s'",
 				rhs->type()->str(), ltyp->str());
 		}
 
 		// ok
-		*lhs->get_lvalue() = rhs.value();
+		*lhs->get_lvalue() = rhs.unwrap();
 		return lhs;
 	}
 
-	std::optional<Value> ComparisonOp::evaluate(InterpState* fs, CmdContext& cs) const
+	Result<Value> ComparisonOp::evaluate(InterpState* fs, CmdContext& cs) const
 	{
 		if(this->exprs.size() != this->ops.size() + 1 || this->exprs.size() < 2)
-			return error("operand count mismatch");
+			return zpr::sprint("operand count mismatch");
 
 		/*
 			basically, we transform us into a series of chained "&&" binops.
 			10 < 20 < 30 > 25 > 15   =>   (10 < 20) && (20 < 30) && (30 > 25) && (25 > 15)
 		*/
 
-		auto compare = [](TT op, std::string op_str, const Value& lhs, const Value& rhs) -> std::optional<bool> {
+		auto compare = [](TT op, std::string op_str, const Value& lhs, const Value& rhs) -> Result<bool> {
 			if(op == TT::EqualTo || op == TT::NotEqual)
 			{
 				auto foozle = [](const Value& lhs, const Value& rhs) -> std::optional<bool> {
@@ -302,47 +302,46 @@ namespace ikura::interp::ast
 			}
 
 		fail:
-			return error("invalid comparison '%s' between types '%s' and '%s'", op_str, lhs.type()->str(), rhs.type()->str());
+			return zpr::sprint("invalid comparison '%s' between types '%s' and '%s'", op_str, lhs.type()->str(), rhs.type()->str());
 		};
 
 		for(size_t i = 0; i < this->exprs.size() - 1; i++)
 		{
 			auto left = this->exprs[i]->evaluate(fs, cs);
-			if(!left) return { };
+			if(!left) return left;
 
 			auto right = this->exprs[i + 1]->evaluate(fs, cs);
-			if(!right) return { };
+			if(!right) return right;
 
 			auto [ op, op_str ] = this->ops[i];
 
-			auto res = compare(op, op_str, left.value(), right.value());
+			auto res = compare(op, op_str, left.unwrap(), right.unwrap());
 			if(!res.has_value())
-				return { };
+				return res.error();
 
-			else if(!res.value())
+			else if(!res.unwrap())
 				return Value::of_bool(false);
 		}
 
 		return Value::of_bool(true);
 	}
 
-	std::optional<Value> SubscriptOp::evaluate(InterpState* fs, CmdContext& cs) const
+	Result<Value> SubscriptOp::evaluate(InterpState* fs, CmdContext& cs) const
 	{
 		auto base = this->list->evaluate(fs, cs);
-		if(!base) return { };
+		if(!base) return base;
 
 		auto idx = this->index->evaluate(fs, cs);
-		if(!idx) return { };
+		if(!idx) return idx;
 
-		auto out_of_range = []() -> auto {
-			error("index out of range");
-			return Value::of_void();
+		auto out_of_range = []() -> Result<Value> {
+			return zpr::sprint("index out of range");
 		};
 
 		if(base->is_list())
 		{
 			if(!idx->is_integer())
-				return error("index on a list must be an integer");
+				return zpr::sprint("index on a list must be an integer");
 
 			auto i = idx->get_integer();
 			auto* list = &base->get_list();
@@ -365,16 +364,16 @@ namespace ikura::interp::ast
 		{
 			auto* map = &base->get_map();
 			if(base->type()->key_type() != idx->type())
-				return error("cannot index '%s' with key '%s'", base->type()->str(), idx->type()->str());
+				return zpr::sprint("cannot index '%s' with key '%s'", base->type()->str(), idx->type()->str());
 
-			if(auto it = map->find(idx.value()); it != map->end())
+			if(auto it = map->find(idx.unwrap()); it != map->end())
 			{
 				if(base->is_lvalue())   return Value::of_lvalue(&it->second);
 				else                    return it->second;
 			}
 			else
 			{
-				std::tie(it, std::ignore) = map->insert({ idx.value(), Value::default_of(base->type()->elm_type()) });
+				std::tie(it, std::ignore) = map->insert({ idx.unwrap(), Value::default_of(base->type()->elm_type()) });
 
 				if(base->is_lvalue())   return Value::of_lvalue(&it->second);
 				else                    return it->second;
@@ -382,14 +381,14 @@ namespace ikura::interp::ast
 		}
 		else
 		{
-			return error("type '%s' cannot be indexed", base->type()->str());
+			return zpr::sprint("type '%s' cannot be indexed", base->type()->str());
 		}
 	}
 
-	std::optional<Value> SliceOp::evaluate(InterpState* fs, CmdContext& cs) const
+	Result<Value> SliceOp::evaluate(InterpState* fs, CmdContext& cs) const
 	{
 		auto base = this->list->evaluate(fs, cs);
-		if(!base) return { };
+		if(!base) return base;
 
 		if(base->is_list())
 		{
@@ -409,10 +408,10 @@ namespace ikura::interp::ast
 			if(this->start)
 			{
 				auto beg = this->start->evaluate(fs, cs);
-				if(!beg) return { };
+				if(!beg) return beg;
 
 				if(!beg->is_integer())
-					return error("slice indices must be integers");
+					return zpr::sprint("slice indices must be integers");
 
 				auto tmp = beg->get_integer();
 				if(tmp < 0)
@@ -434,10 +433,10 @@ namespace ikura::interp::ast
 			if(this->end)
 			{
 				auto end = this->end->evaluate(fs, cs);
-				if(!end) return { };
+				if(!end) return end;
 
 				if(!end->is_integer())
-					return error("slice indices must be integers");
+					return zpr::sprint("slice indices must be integers");
 
 				auto tmp = end->get_integer();
 				if(tmp < 0)
@@ -475,30 +474,30 @@ namespace ikura::interp::ast
 		}
 		else
 		{
-			return error("type '%s' cannot be sliced", base->type()->str());
+			return zpr::sprint("type '%s' cannot be sliced", base->type()->str());
 		}
 	}
 
 
 
-	std::optional<Value> VarRef::evaluate(InterpState* fs, CmdContext& cs) const
+	Result<Value> VarRef::evaluate(InterpState* fs, CmdContext& cs) const
 	{
 		auto [ val, ref ] = fs->resolveVariable(this->name, cs);
 		if(ref) return Value::of_lvalue(ref);
-		else    return val;
+		else    return Result<Value>::of(val, zpr::sprint("'%s' not found", this->name));
 	}
 
 
-	std::optional<Value> FunctionCall::evaluate(InterpState* fs, CmdContext& cs) const
+	Result<Value> FunctionCall::evaluate(InterpState* fs, CmdContext& cs) const
 	{
 		auto target = this->callee->evaluate(fs, cs);
-		if(!target) return { };
+		if(!target) return target;
 
 		if(!target->type()->is_function())
-			return error("type '%s' is not callable", target->type()->str());
+			return zpr::sprint("type '%s' is not callable", target->type()->str());
 
 		Command* function = target->get_function();
-		if(!function) return { };
+		if(!function) return zpr::sprint("error retrieving function");
 
 		// special handling for macros.
 		if(auto macro = dynamic_cast<Macro*>(function))
@@ -510,7 +509,7 @@ namespace ikura::interp::ast
 			for(Expr* e : this->arguments)
 			{
 				auto res = e->evaluate(fs, cs);
-				if(!res) return { };
+				if(!res) return res;
 
 				args.push_back(Value::of_string(res->raw_str()));
 			}
@@ -528,9 +527,9 @@ namespace ikura::interp::ast
 			for(Expr* e : this->arguments)
 			{
 				auto res = e->evaluate(fs, cs);
-				if(!res) return { };
+				if(!res) return res;
 
-				args.push_back(res.value());
+				args.push_back(res.unwrap());
 			}
 
 			CmdContext params = cs;
@@ -544,8 +543,8 @@ namespace ikura::interp::ast
 
 
 
-	std::optional<Value> LitString::evaluate(InterpState* fs, CmdContext& cs) const     { return Value::of_string(this->value); }
-	std::optional<Value> LitInteger::evaluate(InterpState* fs, CmdContext& cs) const    { return make_int(this->value); }
-	std::optional<Value> LitDouble::evaluate(InterpState* fs, CmdContext& cs) const     { return make_flt(this->value); }
-	std::optional<Value> LitBoolean::evaluate(InterpState* fs, CmdContext& cs) const    { return make_bool(this->value); }
+	Result<Value> LitString::evaluate(InterpState* fs, CmdContext& cs) const     { return Value::of_string(this->value); }
+	Result<Value> LitInteger::evaluate(InterpState* fs, CmdContext& cs) const    { return make_int(this->value); }
+	Result<Value> LitDouble::evaluate(InterpState* fs, CmdContext& cs) const     { return make_flt(this->value); }
+	Result<Value> LitBoolean::evaluate(InterpState* fs, CmdContext& cs) const    { return make_bool(this->value); }
 }

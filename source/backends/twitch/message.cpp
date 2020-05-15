@@ -17,8 +17,8 @@ namespace ikura::twitch
 	static void update_user_creds(ikura::str_view user, ikura::str_view channel, const ikura::string_map<std::string>& tags)
 	{
 		// all users get the everyone credential.
-		uint32_t perms = permissions::EVERYONE;
-		uint32_t sublen = 0;
+		uint64_t perms = permissions::EVERYONE;
+		uint64_t sublen = 0;
 
 		std::string userid;
 		std::string displayname;
@@ -208,7 +208,7 @@ namespace ikura::twitch
 
 	std::string TwitchChannel::getCommandPrefix() const
 	{
-		return config::twitch::getCommandPrefix();
+		return this->commandPrefix;
 	}
 
 	std::string TwitchChannel::getUsername() const
@@ -221,10 +221,10 @@ namespace ikura::twitch
 		return this->name;
 	}
 
-	uint32_t TwitchChannel::getUserPermissions(ikura::str_view user) const
+	uint64_t TwitchChannel::getUserPermissions(ikura::str_view user) const
 	{
 		// mfw "const correctness", so we can't use operator[]
-		return database().map_read([&](auto& db) -> uint32_t {
+		return database().map_read([&](auto& db) -> uint64_t {
 			if(auto it = db.twitchData.channels.find(this->name); it != db.twitchData.channels.end())
 			{
 				auto& chan = it.value();
@@ -238,6 +238,11 @@ namespace ikura::twitch
 
 			return 0;
 		});
+	}
+
+	bool TwitchChannel::shouldPrintInterpErrors() const
+	{
+		return !this->silentInterpErrors;
 	}
 
 	bool TwitchChannel::shouldReplyMentions() const

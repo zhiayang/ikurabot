@@ -40,29 +40,33 @@ namespace ikura
 		constexpr uint8_t TAG_STL_ORD_MAP       = 0x11;
 		constexpr uint8_t TAG_SMALL_U64         = 0x12;
 
-		constexpr uint8_t TAG_TWITCH_DB         = 0x81;
-		constexpr uint8_t TAG_COMMAND_DB        = 0x82;
-		constexpr uint8_t TAG_TWITCH_USER       = 0x83;
-		constexpr uint8_t TAG_COMMAND           = 0x84;
-		constexpr uint8_t TAG_INTERP_STATE      = 0x85;
-		constexpr uint8_t TAG_MACRO             = 0x86;
-		constexpr uint8_t TAG_FUNCTION          = 0x87;
-		constexpr uint8_t TAG_INTERP_VALUE      = 0x88;
-		constexpr uint8_t TAG_TWITCH_USER_CREDS = 0x89;
-		constexpr uint8_t TAG_TWITCH_CHANNEL    = 0x8A;
+		constexpr uint8_t TAG_TWITCH_DB         = 0x41;
+		constexpr uint8_t TAG_COMMAND_DB        = 0x42;
+		constexpr uint8_t TAG_TWITCH_USER       = 0x43;
+		constexpr uint8_t TAG_COMMAND           = 0x44;
+		constexpr uint8_t TAG_INTERP_STATE      = 0x45;
+		constexpr uint8_t TAG_MACRO             = 0x46;
+		constexpr uint8_t TAG_FUNCTION          = 0x47;
+		constexpr uint8_t TAG_INTERP_VALUE      = 0x48;
+		constexpr uint8_t TAG_TWITCH_USER_CREDS = 0x49;
+		constexpr uint8_t TAG_TWITCH_CHANNEL    = 0x4A;
+
+		// if the byte has 0x80 set, then the lower 7 bits represents a truncated 64-bit number. it's a further
+		// extension of the SMALL_U64 thing, but literally only uses 1 byte for sizes between 0 - 127
+		constexpr uint8_t TAG_TINY_U64          = 0x80;
 	}
 
 	namespace permissions
 	{
-		constexpr uint32_t EVERYONE         = 0x001;
-		constexpr uint32_t FOLLOWER         = 0x002;
-		constexpr uint32_t TRUSTED          = 0x004;
-		constexpr uint32_t VIP              = 0x008;
-		constexpr uint32_t SUBSCRIBER       = 0x010;
-		constexpr uint32_t MODERATOR        = 0x020;
-		constexpr uint32_t BROADCASTER      = 0x040;
-		constexpr uint32_t OWNER            = 0x080;
-		constexpr uint32_t WHITELIST        = 0x100;
+		constexpr uint64_t EVERYONE         = 0x001;
+		constexpr uint64_t FOLLOWER         = 0x002;
+		constexpr uint64_t TRUSTED          = 0x004;
+		constexpr uint64_t VIP              = 0x008;
+		constexpr uint64_t SUBSCRIBER       = 0x010;
+		constexpr uint64_t MODERATOR        = 0x020;
+		constexpr uint64_t BROADCASTER      = 0x040;
+		constexpr uint64_t OWNER            = 0x080;
+		constexpr uint64_t WHITELIST        = 0x100;
 	}
 
 	namespace twitch
@@ -86,12 +90,13 @@ namespace ikura
 				bool lurk;
 				bool mod;
 				bool respondToPings;
+				bool silentInterpErrors;
+				std::string commandPrefix;
 			};
 
 			std::string getOwner();
 			std::string getUsername();
 			std::string getOAuthToken();
-			std::string getCommandPrefix();
 			std::vector<Chan> getJoinChannels();
 		}
 	}
@@ -279,10 +284,11 @@ namespace ikura
 		virtual ~Channel() { }
 
 		virtual bool shouldReplyMentions() const = 0;
+		virtual bool shouldPrintInterpErrors() const = 0;
 		virtual std::string getName() const = 0;
 		virtual std::string getUsername() const = 0;
 		virtual std::string getCommandPrefix() const = 0;
-		virtual uint32_t getUserPermissions(ikura::str_view user) const = 0;
+		virtual uint64_t getUserPermissions(ikura::str_view user) const = 0;
 
 		virtual void sendMessage(const Message& msg) const = 0;
 	};

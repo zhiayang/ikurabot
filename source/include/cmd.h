@@ -5,8 +5,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <optional>
-
 #include "defs.h"
 #include "interp.h"
 
@@ -27,12 +25,12 @@ namespace ikura::interp
 		virtual ~Command() { }
 
 		std::string getName() const { return this->name; }
-		uint32_t getPermissions() const { return this->permissions; }
-		void setPermissions(uint32_t p) { this->permissions = p; }
+		uint64_t getPermissions() const { return this->permissions; }
+		void setPermissions(uint64_t p) { this->permissions = p; }
 
 		Type::Ptr getSignature() const { return this->signature; }
 
-		virtual std::optional<interp::Value> run(InterpState* fs, CmdContext& cs) const = 0;
+		virtual Result<interp::Value> run(InterpState* fs, CmdContext& cs) const = 0;
 
 		// because this is static, it needs to exist in the abstract base class too
 		static std::optional<Command*> deserialise(Span& buf);
@@ -42,14 +40,14 @@ namespace ikura::interp
 
 		std::string name;
 		Type::Ptr signature;
-		uint32_t permissions;       // see defs.h/ikura::permissions
+		uint64_t permissions;       // see defs.h/ikura::permissions
 	};
 
 	struct Macro : Command
 	{
 		Macro(std::string name, ikura::str_view raw_code);
 
-		virtual std::optional<interp::Value> run(InterpState* fs, CmdContext& cs) const override;
+		virtual Result<interp::Value> run(InterpState* fs, CmdContext& cs) const override;
 
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<Macro*> deserialise(Span& buf);
@@ -67,22 +65,22 @@ namespace ikura::interp
 
 	struct BuiltinFunction : Command
 	{
-		BuiltinFunction(std::string name, Type::Ptr type, std::optional<interp::Value> (*action)(InterpState*, CmdContext&));
+		BuiltinFunction(std::string name, Type::Ptr type, Result<interp::Value> (*action)(InterpState*, CmdContext&));
 
-		virtual std::optional<interp::Value> run(InterpState* fs, CmdContext& cs) const override;
+		virtual Result<interp::Value> run(InterpState* fs, CmdContext& cs) const override;
 
 		virtual void serialise(Buffer& buf) const override;
 		static void deserialise(Span& buf);
 
 	private:
-		std::optional<interp::Value> (*action)(InterpState*, CmdContext&);
+		Result<interp::Value> (*action)(InterpState*, CmdContext&);
 	};
 
 	struct FunctionOverloadSet : Command
 	{
 		FunctionOverloadSet(std::string name, std::vector<Command*> fns);
 
-		virtual std::optional<interp::Value> run(InterpState* fs, CmdContext& cs) const override;
+		virtual Result<interp::Value> run(InterpState* fs, CmdContext& cs) const override;
 
 		virtual void serialise(Buffer& buf) const override;
 		static void deserialise(Span& buf);
@@ -99,8 +97,8 @@ namespace ikura::interp
 
 namespace ikura::cmd
 {
-	ikura::string_map<uint32_t> getDefaultBuiltinPermissions();
+	ikura::string_map<uint64_t> getDefaultBuiltinPermissions();
 
-	bool verifyPermissions(uint32_t required, uint32_t given);
+	bool verifyPermissions(uint64_t required, uint64_t given);
 	void processMessage(ikura::str_view user, const Channel* channel, ikura::str_view message);
 }

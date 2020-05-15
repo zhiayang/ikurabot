@@ -20,16 +20,20 @@ namespace ikura::twitch
 		bool lurk;
 		bool mod;
 		bool respondToPings;
+		bool silentInterpErrors;
+		std::string commandPrefix;
 
 		TwitchChannel() : name(""), lurk(false), mod(false), respondToPings(false) { }
-		TwitchChannel(TwitchState* st, std::string n, bool l, bool m, bool p)
-			: name(std::move(n)), lurk(l), mod(m), respondToPings(p), state(st) { }
+		TwitchChannel(TwitchState* st, std::string n, bool l, bool m, bool p, bool si, std::string cp)
+			: name(std::move(n)), lurk(l), mod(m), respondToPings(p), silentInterpErrors(si),
+			  commandPrefix(std::move(cp)), state(st) { }
 
 		virtual std::string getName() const override;
 		virtual std::string getUsername() const override;
 		virtual std::string getCommandPrefix() const override;
 		virtual bool shouldReplyMentions() const override;
-		virtual uint32_t getUserPermissions(ikura::str_view user) const override;
+		virtual bool shouldPrintInterpErrors() const override;
+		virtual uint64_t getUserPermissions(ikura::str_view user) const override;
 
 		virtual void sendMessage(const Message& msg) const override;
 

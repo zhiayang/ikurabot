@@ -61,7 +61,12 @@ namespace ikura::serialise
 		void write(uint64_t x)
 		{
 			ensure(8);
-			if(x < 0x10000)
+			if(x < 0x80)
+			{
+				auto tmp = 0x80 | (((uint8_t) x) & 0x7F);
+				buffer.write(&tmp, 1);
+			}
+			else if(x < 0x10000)
 			{
 				tag(TAG_SMALL_U64);
 				auto tmp = (uint16_t) x;
@@ -216,7 +221,7 @@ namespace ikura::serialise
 			}
 			else if constexpr (is_same_v<T, uint64_t>)
 			{
-				if(the_tag = tag(), (the_tag != TAG_U64 && the_tag != TAG_SMALL_U64))
+				if(the_tag = tag(), (the_tag != TAG_U64 && the_tag != TAG_SMALL_U64 && !(the_tag & TAG_TINY_U64)))
 					return { };
 			}
 			else
@@ -229,7 +234,11 @@ namespace ikura::serialise
 						|| is_same_v<T, float> || is_same_v<T, double>)
 			{
 				T ret = 0;
-				if(the_tag == TAG_SMALL_U64)
+				if(the_tag & TAG_TINY_U64)
+				{
+					ret = the_tag & 0x7F;
+				}
+				else if(the_tag == TAG_SMALL_U64)
 				{
 					uint16_t tmp = 0;
 					memcpy(&tmp, span.as<uint16_t>(), sizeof(uint16_t));

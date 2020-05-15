@@ -92,7 +92,7 @@ namespace ikura::interp
 			else if(a[0] == '\\')
 			{
 				auto v = fs->evaluateExpr(a.drop(1), cs);
-				if(v) list.push_back(v.value());
+				if(v) list.push_back(v.unwrap());
 			}
 			else
 			{
@@ -115,7 +115,7 @@ namespace ikura::interp
 		this->code = performExpansion(code);
 	}
 
-	std::optional<interp::Value> Macro::run(InterpState* fs, CmdContext& cs) const
+	Result<interp::Value> Macro::run(InterpState* fs, CmdContext& cs) const
 	{
 		return interp::Value::of_list(Type::get_string(), evaluateMacro(fs, cs, this->code));
 	}
@@ -147,7 +147,7 @@ namespace ikura::interp
 		}
 
 		std::string name;
-		uint32_t permissions = 0;
+		uint64_t permissions = 0;
 		std::vector<std::string> code;
 
 		if(!rd.read(&name))

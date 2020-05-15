@@ -50,7 +50,7 @@ namespace ikura::interp
 			return true;
 		};
 
-		uint32_t perm = interpreter().map_read([&](auto& interp) -> uint32_t {
+		uint64_t perm = interpreter().map_read([&](auto& interp) -> uint64_t {
 			if(auto it = interp.builtinCommandPermissions.find(cmd_str); it != interp.builtinCommandPermissions.end())
 				return it->second;
 
@@ -83,7 +83,8 @@ namespace ikura::interp
 		auto ret = interpreter().wlock()->evaluateExpr(arg_str, cs);
 		lg::log("interp", "command took %.3f ms to execute", t.measure());
 
-		if(ret) chan->sendMessage(cmd::value_to_message(ret.value()));
+		if(ret) chan->sendMessage(cmd::value_to_message(ret.unwrap()));
+		else if(chan->shouldPrintInterpErrors()) chan->sendMessage(Message(ret.error()));
 	}
 
 	static void command_chmod(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
@@ -126,12 +127,12 @@ namespace ikura::interp
 		if(name.empty() || type_str.empty())
 			return chan->sendMessage(Message("not enough arguments to global"));
 
-		auto value = ast::parseType(type_str);
-		if(!value)
+		auto type = ast::parseType(type_str);
+		if(!type)
 			return chan->sendMessage(Message(zpr::sprint("invalid type '%s'", type_str)));
 
-		interpreter().wlock()->addGlobal(name, value.value());
-		chan->sendMessage(Message(zpr::sprint("added global '%s' with type '%s'", name, value->type()->str())));
+		interpreter().wlock()->addGlobal(name, Value::default_of(type.value()));
+		chan->sendMessage(Message(zpr::sprint("added global '%s' with type '%s'", name, type.value()->str())));
 	}
 
 	static void internal_def(const Channel* chan, bool redef, ikura::str_view name, ikura::str_view expansion)
@@ -234,11 +235,11 @@ namespace ikura::interp
 	static constexpr auto t_void = Type::get_void;
 	static constexpr auto t_list = Type::get_list;
 
-	static std::optional<interp::Value> fn_int_to_int(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_str_to_int(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_dbl_to_int(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_char_to_int(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_bool_to_int(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_int_to_int(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_str_to_int(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_dbl_to_int(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_char_to_int(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_bool_to_int(InterpState* fs, CmdContext& cs);
 
 	static auto bfn_int_to_int  = BuiltinFunction("int", t_fn(t_int(), { t_int() }), &fn_int_to_int);
 	static auto bfn_str_to_int  = BuiltinFunction("int", t_fn(t_int(), { t_str() }), &fn_str_to_int);
@@ -246,13 +247,13 @@ namespace ikura::interp
 	static auto bfn_char_to_int = BuiltinFunction("int", t_fn(t_int(), { t_char() }), &fn_char_to_int);
 	static auto bfn_bool_to_int = BuiltinFunction("int", t_fn(t_int(), { t_bool() }), &fn_bool_to_int);
 
-	static std::optional<interp::Value> fn_str_to_str(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_int_to_str(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_dbl_to_str(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_map_to_str(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_list_to_str(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_char_to_str(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_bool_to_str(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_str_to_str(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_int_to_str(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_dbl_to_str(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_map_to_str(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_list_to_str(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_char_to_str(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_bool_to_str(InterpState* fs, CmdContext& cs);
 
 	static auto bfn_str_to_str  = BuiltinFunction("str", t_fn(t_str(), { t_str() }), &fn_str_to_str);
 	static auto bfn_int_to_str  = BuiltinFunction("str", t_fn(t_str(), { t_int() }), &fn_int_to_str);
@@ -263,16 +264,16 @@ namespace ikura::interp
 	static auto bfn_map_to_str  = BuiltinFunction("str", t_fn(t_str(), { t_map(t_void(), t_void()) }), &fn_map_to_str);
 
 
-	static std::optional<interp::Value> fn_sin(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_cos(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_tan(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_asin(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_acos(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_atan(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_atan2(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_sqrt(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_rtod(InterpState* fs, CmdContext& cs);
-	static std::optional<interp::Value> fn_dtor(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_sin(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_cos(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_tan(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_asin(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_acos(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_atan(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_atan2(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_sqrt(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_rtod(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_dtor(InterpState* fs, CmdContext& cs);
 
 	static std::unordered_map<std::string, FunctionOverloadSet> builtin_overloaded_fns = {
 		{
@@ -317,14 +318,13 @@ namespace ikura::interp
 
 
 
-	std::optional<interp::Value> BuiltinFunction::run(InterpState* fs, CmdContext& cs) const
+	Result<interp::Value> BuiltinFunction::run(InterpState* fs, CmdContext& cs) const
 	{
 		auto sig_args = this->signature->arg_types();
 		if(sig_args.size() != cs.macro_args.size())
 		{
-			lg::error("interp", "calling function '%s' with wrong number of arguments (expected %zu, found %zu)",
+			return zpr::sprint("call to '%s' with wrong number of arguments (expected %zu, found %zu)",
 				this->name, sig_args.size(), cs.macro_args.size());
-			return { };
 		}
 
 		for(size_t i = 0; i < sig_args.size(); i++)
@@ -332,9 +332,8 @@ namespace ikura::interp
 			auto tmp = cs.macro_args[i].cast_to(sig_args[i]);
 			if(!tmp)
 			{
-				lg::error("interp", "argument %zu: type mismatch, expected '%s', found '%s'",
+				return zpr::sprint("argument %zu: type mismatch, expected '%s', found '%s'",
 					sig_args[i]->str(), cs.macro_args[i].type()->str());
-				return { };
 			}
 
 			cs.macro_args[i] = tmp.value();
@@ -343,7 +342,7 @@ namespace ikura::interp
 		return this->action(fs, cs);
 	}
 
-	std::optional<interp::Value> FunctionOverloadSet::run(InterpState* fs, CmdContext& cs) const
+	Result<interp::Value> FunctionOverloadSet::run(InterpState* fs, CmdContext& cs) const
 	{
 		int score = INT_MAX;
 		Command* best = 0;
@@ -378,8 +377,7 @@ namespace ikura::interp
 
 		if(!best)
 		{
-			lg::error("interp", "no matching function for call to '%s'", this->name);
-			return { };
+			return zpr::sprint("no matching function for call to '%s'", this->name);
 		}
 
 		// TODO: need to do casting here
@@ -387,83 +385,83 @@ namespace ikura::interp
 	}
 
 
-	static std::optional<interp::Value> fn_sin(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_sin(InterpState* fs, CmdContext& cs)
 	{
 		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_double(::sin(cs.macro_args[0].get_double()));
 	}
 
-	static std::optional<interp::Value> fn_cos(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_cos(InterpState* fs, CmdContext& cs)
 	{
 		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_double(::cos(cs.macro_args[0].get_double()));
 	}
 
-	static std::optional<interp::Value> fn_tan(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_tan(InterpState* fs, CmdContext& cs)
 	{
 		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_double(::tan(cs.macro_args[0].get_double()));
 	}
 
-	static std::optional<interp::Value> fn_asin(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_asin(InterpState* fs, CmdContext& cs)
 	{
 		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_double(::asin(cs.macro_args[0].get_double()));
 	}
 
-	static std::optional<interp::Value> fn_acos(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_acos(InterpState* fs, CmdContext& cs)
 	{
 		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_double(::acos(cs.macro_args[0].get_double()));
 	}
 
-	static std::optional<interp::Value> fn_atan(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_atan(InterpState* fs, CmdContext& cs)
 	{
 		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_double(::atan(cs.macro_args[0].get_double()));
 	}
 
-	static std::optional<interp::Value> fn_atan2(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_atan2(InterpState* fs, CmdContext& cs)
 	{
 		if(cs.macro_args.size() != 2 || !(cs.macro_args[0].is_double() && cs.macro_args[1].is_double()))
-			return { };
+			return zpr::sprint("invalid arguments");
 
 		return Value::of_double(::atan2(cs.macro_args[0].get_double(), cs.macro_args[1].get_double()));
 	}
 
-	static std::optional<interp::Value> fn_sqrt(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_sqrt(InterpState* fs, CmdContext& cs)
 	{
 		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_double(::sqrt(cs.macro_args[0].get_double()));
 	}
 
 	constexpr double PI = 3.14159265358979323846264338327950;
-	static std::optional<interp::Value> fn_rtod(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_rtod(InterpState* fs, CmdContext& cs)
 	{
 		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_double(180.0 * (cs.macro_args[0].get_double() / PI));
 	}
 
-	static std::optional<interp::Value> fn_dtor(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_dtor(InterpState* fs, CmdContext& cs)
 	{
 		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_double(PI * (cs.macro_args[0].get_double() / 180.0));
 	}
@@ -482,49 +480,49 @@ namespace ikura::interp
 
 
 
-	static std::optional<interp::Value> fn_int_to_int(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_int_to_int(InterpState* fs, CmdContext& cs)
 	{
 		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_integer())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return cs.macro_args[0];
 	}
 
-	static std::optional<interp::Value> fn_str_to_int(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_str_to_int(InterpState* fs, CmdContext& cs)
 	{
 		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_string())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		auto s = cs.macro_args[0].raw_str();
 
 		char* end = nullptr;
 		auto ret = strtoll(s.c_str(), &end, 10);
 		if(end != &s.back() + 1)
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_integer(ret);
 	}
 
-	static std::optional<interp::Value> fn_dbl_to_int(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_dbl_to_int(InterpState* fs, CmdContext& cs)
 	{
 		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_double())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_integer((int64_t) cs.macro_args[0].get_double());
 	}
 
-	static std::optional<interp::Value> fn_char_to_int(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_char_to_int(InterpState* fs, CmdContext& cs)
 	{
 		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_char())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_integer((int64_t) cs.macro_args[0].get_char());
 	}
 
-	static std::optional<interp::Value> fn_bool_to_int(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_bool_to_int(InterpState* fs, CmdContext& cs)
 	{
 		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_bool())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_integer(cs.macro_args[0].get_bool() ? 1 : 0);
 	}
@@ -532,64 +530,64 @@ namespace ikura::interp
 
 
 
-	static std::optional<interp::Value> fn_str_to_str(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_str_to_str(InterpState* fs, CmdContext& cs)
 	{
 		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_string())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return cs.macro_args[0];
 	}
 
-	static std::optional<interp::Value> fn_int_to_str(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_int_to_str(InterpState* fs, CmdContext& cs)
 	{
 
 		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_integer())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_string(cs.macro_args[0].str());
 	}
 
-	static std::optional<interp::Value> fn_dbl_to_str(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_dbl_to_str(InterpState* fs, CmdContext& cs)
 	{
 
 		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_double())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_string(cs.macro_args[0].str());
 	}
 
-	static std::optional<interp::Value> fn_map_to_str(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_map_to_str(InterpState* fs, CmdContext& cs)
 	{
 
 		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_map())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_string(cs.macro_args[0].str());
 	}
 
-	static std::optional<interp::Value> fn_list_to_str(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_list_to_str(InterpState* fs, CmdContext& cs)
 	{
 
 		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_list())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_string(cs.macro_args[0].str());
 	}
 
-	static std::optional<interp::Value> fn_char_to_str(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_char_to_str(InterpState* fs, CmdContext& cs)
 	{
 
 		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_char())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_string(cs.macro_args[0].str());
 	}
 
-	static std::optional<interp::Value> fn_bool_to_str(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_bool_to_str(InterpState* fs, CmdContext& cs)
 	{
 
 		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_bool())
-			return { };
+			return zpr::sprint("invalid argument");
 
 		return Value::of_string(cs.macro_args[0].str());
 	}
@@ -630,7 +628,7 @@ namespace ikura::interp
 
 
 	BuiltinFunction::BuiltinFunction(std::string name, Type::Ptr type,
-		std::optional<interp::Value> (*action)(InterpState*, CmdContext&)) : Command(std::move(name), std::move(type)), action(action) { }
+		Result<interp::Value> (*action)(InterpState*, CmdContext&)) : Command(std::move(name), std::move(type)), action(action) { }
 
 	void BuiltinFunction::serialise(Buffer& buf) const { assert(!"not supported"); }
 	void BuiltinFunction::deserialise(Span& buf) { assert(!"not supported"); }

@@ -5,12 +5,113 @@
 #pragma once
 
 #include <vector>
+#include <optional>
 
 #include "tsl/robin_map.h"
 #include "tsl/robin_set.h"
 
 namespace ikura
 {
+	template <typename T, typename E = std::string>
+	struct Result
+	{
+	private:
+		static constexpr int STATE_NONE = 0;
+		static constexpr int STATE_VAL  = 1;
+		static constexpr int STATE_ERR  = 2;
+
+	public:
+		// Result() : state(0) { }
+		~Result()
+		{
+			if(state == STATE_VAL) this->val.~T();
+			if(state == STATE_ERR) this->err.~E();
+		}
+
+		Result(const T& x) : state(STATE_VAL), val(x) { }
+		Result(T&& x)      : state(STATE_VAL), val(std::move(x)) { }
+
+		Result(const E& e) : state(STATE_ERR), err(e) { }
+		Result(E&& e)      : state(STATE_ERR), err(std::move(e)) { }
+
+		Result(const Result& other)
+		{
+			this->state = other.state;
+			if(this->state == STATE_VAL) new(&this->val) T(other.val);
+			if(this->state == STATE_ERR) new(&this->err) E(other.err);
+		}
+
+		Result(Result&& other)
+		{
+			this->state = other.state;
+			other.state = STATE_NONE;
+
+			if(this->state == STATE_VAL) new(&this->val) T(std::move(other.val));
+			if(this->state == STATE_ERR) new(&this->err) E(std::move(other.err));
+		}
+
+		Result& operator=(const Result& other)
+		{
+			if(this != &other)
+			{
+				if(this->state == STATE_VAL) this->val.~T();
+				if(this->state == STATE_ERR) this->err.~E();
+
+				this->state = other.state;
+				if(this->state == STATE_VAL) new(&this->val) T(other.val);
+				if(this->state == STATE_ERR) new(&this->err) E(other.err);
+			}
+			return *this;
+		}
+
+		Result& operator=(Result&& other)
+		{
+			if(this != &other)
+			{
+				if(this->state == STATE_VAL) this->val.~T();
+				if(this->state == STATE_ERR) this->err.~E();
+
+				this->state = other.state;
+				other.state = STATE_NONE;
+
+				if(this->state == STATE_VAL) new(&this->val) T(std::move(other.val));
+				if(this->state == STATE_ERR) new(&this->err) E(std::move(other.err));
+			}
+			return *this;
+		}
+
+		T* operator -> () { assert(this->state == STATE_VAL); return &this->val; }
+		const T* operator -> () const { assert(this->state == STATE_VAL); return &this->val; }
+
+		operator bool() const { return this->state == STATE_VAL; }
+		bool has_value() const { return this->state == STATE_VAL; }
+
+		const T& unwrap() const { assert(this->state == STATE_VAL); return this->val; }
+		const E& error() const { assert(this->state == STATE_ERR); return this->err; }
+
+		T& unwrap() { assert(this->state == STATE_VAL); return this->val; }
+		E& error() { assert(this->state == STATE_ERR); return this->err; }
+
+		using result_type = T;
+		using error_type = E;
+
+		static Result of(std::optional<T> opt, const E& err)
+		{
+			if(opt.has_value()) return Result<T, E>(opt.value());
+			else                return Result<T, E>(err);
+		}
+
+	private:
+		// 0 = schrodinger -- no error, no value.
+		// 1 = valid
+		// 2 = error
+		int state = 0;
+		union {
+			T val;
+			E err;
+		};
+	};
+
 	template <typename T>
 	struct span
 	{

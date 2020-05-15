@@ -4,8 +4,6 @@
 
 #pragma once
 
-#include <optional>
-
 #include "irc.h"
 #include "types.h"
 

@@ -107,7 +107,7 @@ namespace ikura::interp
 			Expr() { }
 			virtual ~Expr() { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const = 0;
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const = 0;
 		};
 
 		struct LitString : Expr
@@ -115,7 +115,7 @@ namespace ikura::interp
 			LitString(std::string s) : value(std::move(s)) { }
 			virtual ~LitString() override { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			std::string value;
@@ -126,7 +126,7 @@ namespace ikura::interp
 			LitInteger(int64_t v) : value(v) { }
 			virtual ~LitInteger() override { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			int64_t value;
@@ -137,7 +137,7 @@ namespace ikura::interp
 			LitDouble(double v) : value(v) { }
 			virtual ~LitDouble() override { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			double value;
@@ -148,7 +148,7 @@ namespace ikura::interp
 			LitBoolean(bool v) : value(v) { }
 			virtual ~LitBoolean() override { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			bool value;
@@ -159,7 +159,7 @@ namespace ikura::interp
 			VarRef(std::string name) : name(std::move(name)) { }
 			virtual ~VarRef() override { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			std::string name;
@@ -170,7 +170,7 @@ namespace ikura::interp
 			SubscriptOp(Expr* arr, Expr* idx) : list(arr), index(idx) { }
 			virtual ~SubscriptOp() override { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			Expr* list;
@@ -182,7 +182,7 @@ namespace ikura::interp
 			SliceOp(Expr* arr, Expr* start, Expr* end) : list(arr), start(start), end(end) { }
 			virtual ~SliceOp() override { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			Expr* list;
@@ -195,7 +195,7 @@ namespace ikura::interp
 			UnaryOp(lexer::TokenType op, std::string s, Expr* e) : op(op), op_str(std::move(s)), expr(e) { }
 			virtual ~UnaryOp() override { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			lexer::TokenType op;
@@ -208,7 +208,7 @@ namespace ikura::interp
 			BinaryOp(lexer::TokenType op, std::string s, Expr* l, Expr* r) : op(op), op_str(std::move(s)), lhs(l), rhs(r) { }
 			virtual ~BinaryOp() override { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			lexer::TokenType op;
@@ -222,7 +222,7 @@ namespace ikura::interp
 			TernaryOp(lexer::TokenType op, std::string s, Expr* a, Expr* b, Expr* c) : op(op), op_str(std::move(s)),
 				op1(a), op2(b), op3(c) { }
 			virtual ~TernaryOp() override { }
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			lexer::TokenType op;
@@ -240,7 +240,7 @@ namespace ikura::interp
 			void addExpr(Expr* e) { this->exprs.push_back(e); }
 			void addOp(lexer::TokenType t, std::string s) { this->ops.push_back({ t, s }); }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			std::vector<Expr*> exprs;
@@ -252,7 +252,7 @@ namespace ikura::interp
 			AssignOp(lexer::TokenType op, std::string s, Expr* l, Expr* r) : op(op), op_str(std::move(s)), lhs(l), rhs(r) { }
 			virtual ~AssignOp() override { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			lexer::TokenType op;
@@ -266,7 +266,7 @@ namespace ikura::interp
 			FunctionCall(Expr* fn, std::vector<Expr*> args) : callee(fn), arguments(std::move(args)) { }
 			virtual ~FunctionCall() override { }
 
-			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			Expr* callee;
@@ -274,12 +274,12 @@ namespace ikura::interp
 		};
 
 
-		Expr* parse(ikura::str_view src);
-		Expr* parseExpr(ikura::str_view src);
+		Result<Expr*> parse(ikura::str_view src);
+		Result<Expr*> parseExpr(ikura::str_view src);
 
 		// this returns a value, but the interesting bits are just the type. fortunately, the returned
 		// value (if present) is a default-initialised value of that type.
-		std::optional<interp::Value> parseType(ikura::str_view str);
+		std::optional<interp::Type::Ptr> parseType(ikura::str_view str);
 	}
 }
 

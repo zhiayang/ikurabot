@@ -233,11 +233,15 @@ namespace ikura::interp
 		wr.tag(TYPE_TAG);
 		this->type()->serialise(buf);
 
+		//* we write the integer as uint64_t even though they're signed; this is to take
+		//* advantage of the SMALL_U64/TINY_U64 serialisation space-saving optimisations.
+		//* when deserialising, we must convert it.
+
 		if(this->_type->is_void())          ;
 		else if(this->_type->is_bool())     wr.write(this->v_bool);
 		else if(this->_type->is_char())     wr.write(this->v_char);
 		else if(this->_type->is_double())   wr.write(this->v_double);
-		else if(this->_type->is_integer())  wr.write(this->v_integer);
+		else if(this->_type->is_integer())  wr.write((uint64_t) this->v_integer);
 		else if(this->_type->is_map())      wr.write(this->v_map);
 		else if(this->_type->is_list())     wr.write(this->v_list);
 		else if(this->_type->is_function()) wr.write(this->v_function->getName());
@@ -285,10 +289,11 @@ namespace ikura::interp
 		}
 		else if(type->is_integer())
 		{
-			auto x = rd.read<int64_t>();
+			//* read as u64, then cast to i64 for the value.
+			auto x = rd.read<uint64_t>();
 			if(!x) return { };
 
-			return Value::of_integer(x.value());
+			return Value::of_integer((int64_t) x.value());
 		}
 		else if(type->is_list())
 		{

@@ -59,20 +59,15 @@ namespace ikura::interp
 
 	std::pair<std::optional<Value>, Value*> InterpState::resolveVariable(ikura::str_view name, CmdContext& cs)
 	{
-		auto INVALID = [name](ikura::str_view s = "") -> std::pair<std::optional<Value>, Value*> {
-			lg::error("interp", "variable '%s' not found%s", name, s);
-			return { std::nullopt, nullptr };
-		};
-
 		if(name.empty())
-			return INVALID();
+			return { std::nullopt, nullptr };
 
 		if(name[0] == '$')
 		{
 			name.remove_prefix(1);
 
 			if(name.empty())
-				return INVALID();
+				return { std::nullopt, nullptr };
 
 			if('0' <= name[0] && name[0] <= '9')
 			{
@@ -101,7 +96,7 @@ namespace ikura::interp
 		}
 
 		// for now, nothing
-		return INVALID();
+		return { std::nullopt, nullptr };
 	}
 
 	void InterpState::addGlobal(ikura::str_view name, Value val)
@@ -122,12 +117,12 @@ namespace ikura::interp
 		lg::log("interp", "added global '%s'", name);
 	}
 
-	std::optional<Value> InterpState::evaluateExpr(ikura::str_view expr, CmdContext& cs)
+	Result<Value> InterpState::evaluateExpr(ikura::str_view expr, CmdContext& cs)
 	{
 		auto exp = ast::parseExpr(expr);
-		if(!exp) return { };
+		if(!exp) return exp.error();
 
-		return exp->evaluate(this, cs);
+		return exp.unwrap()->evaluate(this, cs);
 	}
 
 
@@ -186,6 +181,23 @@ namespace ikura::interp
 		return false;
 	}
 
+	bool is_builtin_global(ikura::str_view name)
+	{
+		return name == "e" || name == "pi" || name == "tau";
+	}
+
+	static auto const_e   = Value::of_double(2.71828182845904523536028747135266);
+	static auto const_pi  = Value::of_double(3.14159265358979323846264338327950);
+	static auto const_tau = Value::of_double(6.28318530717958647692528676655900);
+
+	InterpState::InterpState()
+	{
+		// setup some globals.
+		this->globals["e"]   = &const_e;
+		this->globals["pi"]  = &const_pi;
+		this->globals["tau"] = &const_tau;
+	}
+
 	void InterpState::serialise(Buffer& buf) const
 	{
 		auto wr = serialise::Writer(buf);
@@ -201,7 +213,11 @@ namespace ikura::interp
 
 		ikura::string_map<interp::Value> globs;
 		for(const auto& [ k, v ] : this->globals)
-			globs.insert({ k, *v });
+		{
+			// skip the builtin globals.
+			if(!is_builtin_global(k))
+				globs.insert({ k, *v });
+		}
 
 		wr.write(globs);
 	}
@@ -222,7 +238,7 @@ namespace ikura::interp
 		if(!rd.read(&interp.aliases))
 			return { };
 
-		ikura::string_map<uint32_t> builtinPerms;
+		ikura::string_map<uint64_t> builtinPerms;
 
 		if(!rd.read(&builtinPerms))
 			return { };
@@ -241,17 +257,6 @@ namespace ikura::interp
 		return interp;
 	}
 
-	static auto const_e   = Value::of_double(2.71828182845904523536028747135266);
-	static auto const_pi  = Value::of_double(3.14159265358979323846264338327950);
-	static auto const_tau = Value::of_double(6.28318530717958647692528676655900);
-
-	InterpState::InterpState()
-	{
-		// setup some globals.
-		this->globals["e"]   = &const_e;
-		this->globals["pi"]  = &const_pi;
-		this->globals["tau"] = &const_tau;
-	}
 }
 
 namespace ikura::db

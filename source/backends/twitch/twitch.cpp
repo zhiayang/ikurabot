@@ -92,7 +92,10 @@ namespace ikura::twitch
 
 		this->username = std::move(user);
 		for(const auto& cfg : config::twitch::getJoinChannels())
-			this->channels.emplace(cfg.name, TwitchChannel(this, cfg.name, cfg.lurk, cfg.mod, cfg.respondToPings));
+		{
+			this->channels.emplace(cfg.name, TwitchChannel(this, cfg.name, cfg.lurk,
+				cfg.mod, cfg.respondToPings, cfg.silentInterpErrors, cfg.commandPrefix));
+		}
 	}
 
 	void TwitchState::connect()

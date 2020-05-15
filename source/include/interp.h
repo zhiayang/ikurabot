@@ -7,7 +7,6 @@
 #include <map>
 #include <string>
 #include <memory>
-#include <optional>
 
 #include "buffer.h"
 #include "synchro.h"
@@ -205,14 +204,14 @@ namespace ikura::interp
 		ikura::string_map<Command*> commands;
 		ikura::string_map<std::string> aliases;
 
-		ikura::string_map<uint32_t> builtinCommandPermissions;
+		ikura::string_map<uint64_t> builtinCommandPermissions;
 
 		Command* findCommand(ikura::str_view name) const;
 		bool removeCommandOrAlias(ikura::str_view name);
 
 		std::pair<std::optional<interp::Value>, interp::Value*> resolveVariable(ikura::str_view name, CmdContext& cs);
 
-		std::optional<interp::Value> evaluateExpr(ikura::str_view expr, CmdContext& cs);
+		Result<interp::Value> evaluateExpr(ikura::str_view expr, CmdContext& cs);
 
 		void addGlobal(ikura::str_view name, interp::Value val);
 

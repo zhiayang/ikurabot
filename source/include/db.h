@@ -4,9 +4,6 @@
 
 #pragma once
 
-#include <string>
-#include <optional>
-
 #include "defs.h"
 #include "buffer.h"
 #include "synchro.h"
@@ -17,8 +14,8 @@ namespace ikura
 	{
 		struct TwitchUserCredentials : Serialisable
 		{
-			uint32_t permissions;       // see defs.h/ikura::permissions
-			uint32_t subscribedMonths;
+			uint64_t permissions;       // see defs.h/ikura::permissions
+			uint64_t subscribedMonths;
 
 			virtual void serialise(Buffer& buf) const override;
 			static std::optional<TwitchUserCredentials> deserialise(Span& buf);

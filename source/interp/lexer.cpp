@@ -10,7 +10,7 @@ namespace ikura::interp::lexer
 
 	static Token INVALID = Token(TT::Invalid, "");
 	static bool is_digit(char c) { return '0' <= c && c <= '9'; }
-	static bool is_letter(char c) { return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'A'); }
+	static bool is_letter(char c) { return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z'); }
 
 	static ikura::string_map<TT> keywordMap;
 	static void initKeywordMap()

@@ -21,7 +21,7 @@ namespace ikura::cmd
 	void processMessage(str_view user, const Channel* chan, str_view message)
 	{
 		auto pref = chan->getCommandPrefix();
-		if(message.find(pref) == 0)
+		if(!pref.empty() && message.find(pref) == 0)
 		{
 			process_command(user, chan, message.drop(pref.size()));
 		}
@@ -111,19 +111,19 @@ namespace ikura::cmd
 			});
 
 			lg::log("interp", "command took %.3f ms to execute", t.measure());
-			if(ret) chan->sendMessage(value_to_message(ret.value()));
+			if(ret) chan->sendMessage(cmd::value_to_message(ret.unwrap()));
+			else if(chan->shouldPrintInterpErrors()) chan->sendMessage(Message(ret.error()));
 		}
 		else
 		{
 			auto found = run_builtin_command(cs, chan, cmd_str, arg_str);
-			if(found)
-				return;
+			if(found) return;
 
 			lg::warn("cmd", "user '%s' tried non-existent command '%s'", user, cmd_str);
 		}
 	}
 
-	bool verifyPermissions(uint32_t required, uint32_t given)
+	bool verifyPermissions(uint64_t required, uint64_t given)
 	{
 		bool is_owner = (given & permissions::OWNER);
 
@@ -136,9 +136,9 @@ namespace ikura::cmd
 
 
 
-	ikura::string_map<uint32_t> getDefaultBuiltinPermissions()
+	ikura::string_map<uint64_t> getDefaultBuiltinPermissions()
 	{
-		ikura::string_map<uint32_t> ret;
+		ikura::string_map<uint64_t> ret;
 
 		namespace perms = permissions;
 

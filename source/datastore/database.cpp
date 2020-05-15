@@ -308,6 +308,7 @@ namespace ikura::db
 			return error("type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		TwitchUserCredentials ret;
+
 		if(!rd.read(&ret.permissions))
 			return { };
 

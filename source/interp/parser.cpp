@@ -13,40 +13,6 @@ namespace ikura::interp::ast
 {
 	using TT = lexer::TokenType;
 
-	template <typename T, typename E = std::string>
-	struct Result
-	{
-		Result() : valid(false) { }
-
-		Result(const T& x) : valid(true), val(x) { }
-		Result(T&& x) : valid(true), val(std::move(x)) { }
-
-		Result(const E& e) : valid(false), err(e) { }
-		Result(E&& e) : valid(false), err(std::move(e)) { }
-
-		Result(Result&&) = default;
-		Result(const Result&) = default;
-
-		Result& operator=(const Result&) = default;
-		Result& operator=(Result&&) = default;
-
-		operator bool() const { return this->valid; }
-		bool has_value() const { return this->valid; }
-
-		T value() const { assert(this->valid); return this->val; }
-		E error() const { assert(!this->valid); return this->err; }
-
-		T unwrap() const { return value(); }
-
-		using result_type = T;
-		using error_type = E;
-
-	private:
-		bool valid = false;
-		T val;
-		E err;
-	};
-
 	namespace {
 		template <typename> struct is_result : std::false_type { };
 		template <typename T, typename E> struct is_result<Result<T, E>> : std::true_type { };
@@ -304,7 +270,7 @@ namespace ikura::interp::ast
 	static Result<Expr*> parseExpr(State& st);
 	static Result<Expr*> parseBool(State& st);
 
-	Expr* parseExpr(ikura::str_view src)
+	Result<Expr*> parseExpr(ikura::str_view src)
 	{
 		auto tokens = lexer::lexString(src);
 		ikura::span span = tokens;
@@ -312,15 +278,10 @@ namespace ikura::interp::ast
 		auto st = State(span);
 
 		// lg::log("parser", "parsing '%s'", src);
-		auto result = parseStmt(st);
-		if(result)
-			return result.unwrap();
-
-		lg::error("parser", "error: %s", result.error());
-		return nullptr;
+		return parseStmt(st);
 	}
 
-	Expr* parse(ikura::str_view src)
+	Result<Expr*> parse(ikura::str_view src)
 	{
 		return parseExpr(src);
 	}
@@ -601,7 +562,7 @@ namespace ikura::interp::ast
 		}
 		else
 		{
-			return { };
+			return zpr::sprint("invalid postfix operator");
 		}
 	}
 
@@ -641,19 +602,19 @@ namespace ikura::interp::ast
 	}
 
 
-	std::optional<interp::Value> parseType(ikura::str_view str)
+	std::optional<interp::Type::Ptr> parseType(ikura::str_view str)
 	{
-		using interp::Value;
+		using interp::Type;
 
 		str = str.trim();
 		if(str.empty())
 			return { };
 
-		if(str == "int")        return Value::of_integer(0);
-		else if(str == "dbl")   return Value::of_double(0.0);
-		else if(str == "bool")  return Value::of_bool(false);
-		else if(str == "str")   return Value::of_string(std::string());
-		else if(str == "void")  return Value::of_void();
+		if(str == "int")        return Type::get_integer();
+		else if(str == "dbl")   return Type::get_double();
+		else if(str == "bool")  return Type::get_bool();
+		else if(str == "str")   return Type::get_string();
+		else if(str == "void")  return Type::get_void();
 		else if(str[0] != '[')  return { };
 
 		str.remove_prefix(1);
@@ -679,11 +640,11 @@ namespace ikura::interp::ast
 			if(!elm || str.empty() || str[0] != ']')
 				return { };
 
-			return Value::of_map(key->type(), elm->type(), { });
+			return Type::get_map(key.value(), elm.value());
 		}
 		else if(str[0] == ']')
 		{
-			return Value::of_list(key->type(), { });
+			return Type::get_list(key.value());
 		}
 		else
 		{
