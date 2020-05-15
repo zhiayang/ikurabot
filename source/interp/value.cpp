@@ -245,7 +245,7 @@ namespace ikura::interp
 		else if(this->_type->is_map())      wr.write(this->v_map);
 		else if(this->_type->is_list())     wr.write(this->v_list);
 		else if(this->_type->is_function()) wr.write(this->v_function->getName());
-		else                                lg::error("db/interp", "invalid value type");
+		else                                lg::error("db", "invalid value type");
 	}
 
 	std::optional<Value> Value::deserialise(Span& buf)
@@ -318,7 +318,7 @@ namespace ikura::interp
 		}
 		else
 		{
-			lg::error("db/interp", "invalid value type");
+			lg::error("db", "invalid value type");
 			return { };
 		}
 	}

@@ -8,6 +8,7 @@
 #include "db.h"
 #include "ast.h"
 #include "defs.h"
+#include "markov.h"
 #include "network.h"
 
 using namespace std::chrono_literals;
@@ -28,19 +29,8 @@ int main(int argc, char** argv)
 	if(!ikura::db::load(argv[2], (argc > 3 && std::string(argv[3]) == "--create")))
 		ikura::lg::fatal("db", "failed to load database '%s'", argv[2]);
 
-
-	// ikura::cmd::CmdContext cs;
-
-	// auto expr = ikura::cmd::ast::parse("2 == 1 ? \"one\" : 2 == 2 ? \"two\" : 3 == 2 ? \"three\" : 4 == 2 ? \"four\" : \"nope\"");
-	// auto ret = expr->evaluate(ikura::cmd::interpreter().wlock().get(), cs);
-	// zpr::println("> %s", ret->str());
-
-	// ikura::database().rlock()->sync();
-	// return 0;
-
-
-
-
+	// this just starts a worker thread to process input in the background.
+	ikura::markov::init();
 
 	if(ikura::config::haveTwitch())
 		ikura::twitch::init();
@@ -61,7 +51,10 @@ int main(int argc, char** argv)
 	});
 
 	thr.join();
+
 	ikura::twitch::shutdown();
+	ikura::markov::shutdown();
+
 
 	std::this_thread::sleep_for(1s);
 	ikura::database().rlock()->sync();

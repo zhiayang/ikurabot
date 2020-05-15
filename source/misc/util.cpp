@@ -162,28 +162,34 @@ namespace ikura
 		template <typename T>
 		struct rd_state_t
 		{
-			rd_state_t() : mersenne(std::random_device()()),
-				distribution(std::numeric_limits<T>::min(), std::numeric_limits<T>::max()) { }
+			rd_state_t() : mersenne(std::random_device()()) { }
 
 			std::mt19937 mersenne;
-			std::uniform_int_distribution<T> distribution;
 		};
 
 		template <typename T>
 		rd_state_t<T> rd_state;
 
-
 		template <typename T>
 		T get()
 		{
 			auto& st = rd_state<T>;
-			return st.distribution(st.mersenne);
+			return std::uniform_int_distribution<T>(std::numeric_limits<T>::min(), std::numeric_limits<T>::max())(st.mersenne);
 		}
 
-		template uint8_t  get<uint8_t>();
-		template uint16_t get<uint16_t>();
-		template uint32_t get<uint32_t>();
-		template uint64_t get<uint64_t>();
+		template <typename T>
+		T get(T min, T max)
+		{
+			auto& st = rd_state<T>;
+			return std::uniform_int_distribution<T>(min, max)(st.mersenne);
+		}
+
+		template uint8_t  get<uint8_t>();   template uint8_t  get<uint8_t>(uint8_t, uint8_t);
+		template uint16_t get<uint16_t>();  template uint16_t get<uint16_t>(uint16_t, uint16_t);
+		template uint32_t get<uint32_t>();  template uint32_t get<uint32_t>(uint32_t, uint32_t);
+		template uint64_t get<uint64_t>();  template uint64_t get<uint64_t>(uint64_t, uint64_t);
+
+		template size_t get<size_t>();      template size_t get<size_t>(size_t, size_t);
 	}
 
 	namespace util

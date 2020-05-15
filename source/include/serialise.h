@@ -129,8 +129,8 @@ namespace ikura::serialise
 				write(k), write(v);
 		}
 
-		template<typename K, typename V>
-		void write(const tsl::robin_map<K, V>& map)
+		template<typename K, typename V, typename H, typename E>
+		void write(const tsl::robin_map<K, V, H, E>& map)
 		{
 			ensure(9); tag(TAG_TSL_HASHMAP);
 			auto sz = map.size(); write((uint64_t) sz);

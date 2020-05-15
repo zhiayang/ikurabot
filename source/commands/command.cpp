@@ -6,6 +6,7 @@
 #include "cmd.h"
 #include "ast.h"
 #include "timer.h"
+#include "markov.h"
 
 namespace ikura::interp
 {
@@ -168,6 +169,7 @@ namespace ikura::cmd
 
 	static Message generateResponse(str_view user, const Channel* chan, str_view msg)
 	{
-		return Message(zpr::sprint("%s AYAYA /", user));
+		// return Message(zpr::sprint("%s AYAYA /", user));
+		return Message(markov::generate(""));
 	}
 }

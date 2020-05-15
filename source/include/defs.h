@@ -50,6 +50,9 @@ namespace ikura
 		constexpr uint8_t TAG_INTERP_VALUE      = 0x48;
 		constexpr uint8_t TAG_TWITCH_USER_CREDS = 0x49;
 		constexpr uint8_t TAG_TWITCH_CHANNEL    = 0x4A;
+		constexpr uint8_t TAG_MARKOV_DB         = 0x4B;
+		constexpr uint8_t TAG_MARKOV_WORD_LIST  = 0x4C;
+		constexpr uint8_t TAG_MARKOV_WORD       = 0x4D;
 
 		// if the byte has 0x80 set, then the lower 7 bits represents a truncated 64-bit number. it's a further
 		// extension of the SMALL_U64 thing, but literally only uses 1 byte for sizes between 0 - 127
@@ -217,6 +220,7 @@ namespace ikura
 	namespace random
 	{
 		template <typename T> T get();
+		template <typename T> T get(T min, T max);
 	}
 
 	namespace base64

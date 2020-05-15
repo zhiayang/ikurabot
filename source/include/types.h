@@ -185,10 +185,51 @@ namespace ikura
 			return *this;
 		}
 
+		bool operator == (const std::vector<T>& other) const
+		{
+			if(this->cnt != other.size())
+				return false;
+
+			const T* a = this->ptr;
+			const T* b = other.data();
+
+			for(size_t i = 0; i < this->cnt; i++)
+				if(*a != *b)
+					return false;
+
+			return true;
+		}
+
+		bool operator == (const span& other) const
+		{
+			if(this->cnt != other.cnt)
+				return false;
+
+			const T* a = this->ptr;
+			const T* b = other.ptr;
+
+			for(size_t i = 0; i < this->cnt; i++)
+				if(*a != *b)
+					return false;
+
+			return true;
+		}
+
+		bool operator != (const span& other) const
+		{
+			return !(this->operator==(other));
+		}
+
+		bool operator != (const std::vector<T>& other) const
+		{
+			return !(this->operator==(other));
+		}
+
 		std::vector<T> vec() const              { return std::vector<T>(this->begin(), this->end()); }
 
 		span drop(size_t n) const               { auto copy = *this; copy.remove_prefix(n); return copy; }
 		span take(size_t n) const               { auto copy = *this; copy.remove_suffix(this->cnt - n); return copy; }
+		span take_last(size_t n) const          { return (this->size() > n ? this->subspan(this->cnt - n) : *this); }
 
 		const T& front() const                  { assert(this->cnt > 0); return this->ptr[0]; }
 		const T& back() const                   { assert(this->cnt > 0); return this->ptr[this->cnt - 1]; }
@@ -208,6 +249,12 @@ namespace ikura
 	};
 
 
+	template<typename T>
+	void hash_combine(size_t& seed, const T& key)
+	{
+		std::hash<T> hasher;
+		seed ^= hasher(key) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+	}
 
 	namespace __detail
 	{
@@ -257,8 +304,9 @@ namespace ikura
 		str_view(const char* s, size_t l)   : std::string_view(s, l) { }
 
 		std::string_view sv() const   { return *this; }
-		str_view drop(size_t n) const { return (this->size() > n ? str_view(this->substr(n)) : ""); }
-		str_view take(size_t n) const { return (this->size() > n ? str_view(this->substr(0, n)) : *this); }
+		str_view drop(size_t n) const { return (this->size() > n ? this->substr(n) : ""); }
+		str_view take(size_t n) const { return (this->size() > n ? this->substr(0, n) : *this); }
+		str_view take_last(size_t n) const { return (this->size() > n ? this->substr(this->size() - n) : *this); }
 		str_view substr(size_t pos = 0, size_t cnt = -1) const { return str_view(std::string_view::substr(pos, cnt)); }
 
 		str_view& remove_prefix(size_t n) { std::string_view::remove_prefix(n); return *this; }
@@ -285,5 +333,34 @@ namespace ikura
 		}
 
 		std::string str() const { return std::string(*this); }
+	};
+}
+
+namespace std
+{
+	template<typename T>
+	struct hash<std::vector<T>>
+	{
+		size_t operator () (const std::vector<T>& vec) const
+		{
+			size_t seed = 0;
+			for(const auto& t : vec)
+				ikura::hash_combine(seed, t);
+
+			return seed;
+		}
+	};
+
+	template<typename T>
+	struct hash<ikura::span<T>>
+	{
+		size_t operator () (const ikura::span<T>& vec) const
+		{
+			size_t seed = 0;
+			for(const auto& t : vec)
+				ikura::hash_combine(seed, t);
+
+			return seed;
+		}
 	};
 }

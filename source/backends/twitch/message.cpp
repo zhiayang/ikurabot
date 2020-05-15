@@ -6,6 +6,7 @@
 #include "cmd.h"
 #include "irc.h"
 #include "defs.h"
+#include "markov.h"
 #include "twitch.h"
 
 namespace ikura::twitch
@@ -169,6 +170,8 @@ namespace ikura::twitch
 
 			if(this->channels[channel].lurk)
 				return;
+
+			markov::process(message);
 
 			cmd::processMessage(user, &this->channels[channel], message);
 		}
