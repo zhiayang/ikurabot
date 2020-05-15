@@ -262,7 +262,19 @@ namespace ikura::interp
 	static auto bfn_list_to_str = BuiltinFunction("str", t_fn(t_str(), { t_list(t_void()) }), &fn_list_to_str);
 	static auto bfn_map_to_str  = BuiltinFunction("str", t_fn(t_str(), { t_map(t_void(), t_void()) }), &fn_map_to_str);
 
-	static std::unordered_map<std::string, FunctionOverloadSet> builtin_fns = {
+
+	static std::optional<interp::Value> fn_sin(InterpState* fs, CmdContext& cs);
+	static std::optional<interp::Value> fn_cos(InterpState* fs, CmdContext& cs);
+	static std::optional<interp::Value> fn_tan(InterpState* fs, CmdContext& cs);
+	static std::optional<interp::Value> fn_asin(InterpState* fs, CmdContext& cs);
+	static std::optional<interp::Value> fn_acos(InterpState* fs, CmdContext& cs);
+	static std::optional<interp::Value> fn_atan(InterpState* fs, CmdContext& cs);
+	static std::optional<interp::Value> fn_atan2(InterpState* fs, CmdContext& cs);
+	static std::optional<interp::Value> fn_sqrt(InterpState* fs, CmdContext& cs);
+	static std::optional<interp::Value> fn_rtod(InterpState* fs, CmdContext& cs);
+	static std::optional<interp::Value> fn_dtor(InterpState* fs, CmdContext& cs);
+
+	static std::unordered_map<std::string, FunctionOverloadSet> builtin_overloaded_fns = {
 		{
 			"int", FunctionOverloadSet("int", {
 				&bfn_int_to_int, &bfn_str_to_int, &bfn_dbl_to_int, &bfn_bool_to_int, &bfn_char_to_int,
@@ -274,13 +286,29 @@ namespace ikura::interp
 				&bfn_str_to_str, &bfn_int_to_str, &bfn_dbl_to_str, &bfn_bool_to_str, &bfn_char_to_str,
 				&bfn_list_to_str, &bfn_map_to_str,
 			})
-		}
+		},
+	};
+
+	static std::unordered_map<std::string, BuiltinFunction> builtin_fns = {
+		{ "sin",  BuiltinFunction("sin",  t_fn(t_dbl(), { t_dbl() }), &fn_sin) },
+		{ "cos",  BuiltinFunction("cos",  t_fn(t_dbl(), { t_dbl() }), &fn_cos) },
+		{ "tan",  BuiltinFunction("tan",  t_fn(t_dbl(), { t_dbl() }), &fn_tan) },
+		{ "asin", BuiltinFunction("asin", t_fn(t_dbl(), { t_dbl() }), &fn_asin) },
+		{ "acos", BuiltinFunction("acos", t_fn(t_dbl(), { t_dbl() }), &fn_acos) },
+		{ "atan", BuiltinFunction("atan", t_fn(t_dbl(), { t_dbl() }), &fn_atan) },
+		{ "atan2", BuiltinFunction("atan2", t_fn(t_dbl(), { t_dbl(), t_dbl() }), &fn_atan2) },
+		{ "sqrt", BuiltinFunction("sqrt", t_fn(t_dbl(), { t_dbl() }), &fn_sqrt) },
+		{ "rtod", BuiltinFunction("rtod", t_fn(t_dbl(), { t_dbl() }), &fn_rtod) },
+		{ "dtor", BuiltinFunction("dtor", t_fn(t_dbl(), { t_dbl() }), &fn_dtor) },
 	};
 
 
 	Command* getBuiltinFunction(ikura::str_view name)
 	{
 		if(auto it = builtin_fns.find(name.str()); it != builtin_fns.end())
+			return &it->second;
+
+		if(auto it = builtin_overloaded_fns.find(name.str()); it != builtin_overloaded_fns.end())
 			return &it->second;
 
 		return nullptr;
@@ -291,6 +319,27 @@ namespace ikura::interp
 
 	std::optional<interp::Value> BuiltinFunction::run(InterpState* fs, CmdContext& cs) const
 	{
+		auto sig_args = this->signature->arg_types();
+		if(sig_args.size() != cs.macro_args.size())
+		{
+			lg::error("interp", "calling function '%s' with wrong number of arguments (expected %zu, found %zu)",
+				this->name, sig_args.size(), cs.macro_args.size());
+			return { };
+		}
+
+		for(size_t i = 0; i < sig_args.size(); i++)
+		{
+			auto tmp = cs.macro_args[i].cast_to(sig_args[i]);
+			if(!tmp)
+			{
+				lg::error("interp", "argument %zu: type mismatch, expected '%s', found '%s'",
+					sig_args[i]->str(), cs.macro_args[i].type()->str());
+				return { };
+			}
+
+			cs.macro_args[i] = tmp.value();
+		}
+
 		return this->action(fs, cs);
 	}
 
@@ -333,8 +382,100 @@ namespace ikura::interp
 			return { };
 		}
 
+		// TODO: need to do casting here
 		return best->run(fs, cs);
 	}
+
+
+	static std::optional<interp::Value> fn_sin(InterpState* fs, CmdContext& cs)
+	{
+		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+			return { };
+
+		return Value::of_double(::sin(cs.macro_args[0].get_double()));
+	}
+
+	static std::optional<interp::Value> fn_cos(InterpState* fs, CmdContext& cs)
+	{
+		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+			return { };
+
+		return Value::of_double(::cos(cs.macro_args[0].get_double()));
+	}
+
+	static std::optional<interp::Value> fn_tan(InterpState* fs, CmdContext& cs)
+	{
+		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+			return { };
+
+		return Value::of_double(::tan(cs.macro_args[0].get_double()));
+	}
+
+	static std::optional<interp::Value> fn_asin(InterpState* fs, CmdContext& cs)
+	{
+		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+			return { };
+
+		return Value::of_double(::asin(cs.macro_args[0].get_double()));
+	}
+
+	static std::optional<interp::Value> fn_acos(InterpState* fs, CmdContext& cs)
+	{
+		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+			return { };
+
+		return Value::of_double(::acos(cs.macro_args[0].get_double()));
+	}
+
+	static std::optional<interp::Value> fn_atan(InterpState* fs, CmdContext& cs)
+	{
+		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+			return { };
+
+		return Value::of_double(::atan(cs.macro_args[0].get_double()));
+	}
+
+	static std::optional<interp::Value> fn_atan2(InterpState* fs, CmdContext& cs)
+	{
+		if(cs.macro_args.size() != 2 || !(cs.macro_args[0].is_double() && cs.macro_args[1].is_double()))
+			return { };
+
+		return Value::of_double(::atan2(cs.macro_args[0].get_double(), cs.macro_args[1].get_double()));
+	}
+
+	static std::optional<interp::Value> fn_sqrt(InterpState* fs, CmdContext& cs)
+	{
+		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+			return { };
+
+		return Value::of_double(::sqrt(cs.macro_args[0].get_double()));
+	}
+
+	constexpr double PI = 3.14159265358979323846264338327950;
+	static std::optional<interp::Value> fn_rtod(InterpState* fs, CmdContext& cs)
+	{
+		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+			return { };
+
+		return Value::of_double(180.0 * (cs.macro_args[0].get_double() / PI));
+	}
+
+	static std::optional<interp::Value> fn_dtor(InterpState* fs, CmdContext& cs)
+	{
+		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+			return { };
+
+		return Value::of_double(PI * (cs.macro_args[0].get_double() / 180.0));
+	}
+
+
+
+
+
+
+
+
+
 
 
 

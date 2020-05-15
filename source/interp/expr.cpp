@@ -68,7 +68,7 @@ namespace ikura::interp::ast
 		{
 			if(lhs.is_integer() && rhs.is_integer())        return make_int(lhs.get_integer() + rhs.get_integer());
 			else if(lhs.is_integer() && rhs.is_double())    return make_flt(lhs.get_integer() + rhs.get_double());
-			else if(lhs.is_double() && rhs.is_integer())    return make_int(lhs.get_double() + rhs.get_integer());
+			else if(lhs.is_double() && rhs.is_integer())    return make_flt(lhs.get_double() + rhs.get_integer());
 			else if(lhs.is_double() && rhs.is_double())     return make_flt(lhs.get_double() + rhs.get_double());
 			if(lhs.is_list())
 			{
@@ -128,28 +128,28 @@ namespace ikura::interp::ast
 		{
 			if(lhs.is_integer() && rhs.is_integer())        return make_int(lhs.get_integer() - rhs.get_integer());
 			else if(lhs.is_integer() && rhs.is_double())    return make_flt(lhs.get_integer() - rhs.get_double());
-			else if(lhs.is_double() && rhs.is_integer())    return make_int(lhs.get_double() - rhs.get_integer());
+			else if(lhs.is_double() && rhs.is_integer())    return make_flt(lhs.get_double() - rhs.get_integer());
 			else if(lhs.is_double() && rhs.is_double())     return make_flt(lhs.get_double() - rhs.get_double());
 		}
 		else if(op == TT::Asterisk || op == TT::TimesEquals)
 		{
 			if(lhs.is_integer() && rhs.is_integer())        return make_int(lhs.get_integer() * rhs.get_integer());
 			else if(lhs.is_integer() && rhs.is_double())    return make_flt(lhs.get_integer() * rhs.get_double());
-			else if(lhs.is_double() && rhs.is_integer())    return make_int(lhs.get_double() * rhs.get_integer());
+			else if(lhs.is_double() && rhs.is_integer())    return make_flt(lhs.get_double() * rhs.get_integer());
 			else if(lhs.is_double() && rhs.is_double())     return make_flt(lhs.get_double() * rhs.get_double());
 		}
 		else if(op == TT::Slash || op == TT::DivideEquals)
 		{
 			if(lhs.is_integer() && rhs.is_integer())        return make_int(lhs.get_integer() / rhs.get_integer());
 			else if(lhs.is_integer() && rhs.is_double())    return make_flt(lhs.get_integer() / rhs.get_double());
-			else if(lhs.is_double() && rhs.is_integer())    return make_int(lhs.get_double() / rhs.get_integer());
+			else if(lhs.is_double() && rhs.is_integer())    return make_flt(lhs.get_double() / rhs.get_integer());
 			else if(lhs.is_double() && rhs.is_double())     return make_flt(lhs.get_double() / rhs.get_double());
 		}
 		else if(op == TT::Percent || op == TT::RemainderEquals)
 		{
 			if(lhs.is_integer() && rhs.is_integer())        return make_int(std::modulus()(lhs.get_integer(), rhs.get_integer()));
 			else if(lhs.is_integer() && rhs.is_double())    return make_flt(fmodl(lhs.get_integer(), rhs.get_double()));
-			else if(lhs.is_double() && rhs.is_integer())    return make_int(fmodl(lhs.get_double(), rhs.get_integer()));
+			else if(lhs.is_double() && rhs.is_integer())    return make_flt(fmodl(lhs.get_double(), rhs.get_integer()));
 			else if(lhs.is_double() && rhs.is_double())     return make_flt(fmodl(lhs.get_double(), rhs.get_double()));
 		}
 		else if(op == TT::Caret || op == TT::ExponentEquals)
@@ -518,7 +518,7 @@ namespace ikura::interp::ast
 			// clone the thing, and replace the args. this way we keep the rest of the stuff
 			// like caller, channel, etc.
 			CmdContext params = cs;
-			params.macro_args = ikura::span(args);
+			params.macro_args = std::move(args);
 
 			return macro->run(fs, params);
 		}
@@ -534,9 +534,9 @@ namespace ikura::interp::ast
 			}
 
 			CmdContext params = cs;
-			params.macro_args = ikura::span(args);
+			params.macro_args = std::move(args);
 
-			return function->run(fs, cs);
+			return function->run(fs, params);
 		}
 	}
 

@@ -186,7 +186,20 @@ namespace ikura::interp
 		return ret;
 	}
 
+	std::optional<Value> Value::cast_to(Type::Ptr type) const
+	{
+		auto castable = (this->type()->get_cast_dist(type) != -1);
+		if(!castable) return { };
 
+		if(this->is_integer() && type->is_double())
+			return Value::of_double((double) this->get_integer());
+
+		if((this->is_list() && type->is_list()) || (this->is_map() && type->is_map()))
+			return *this;
+
+		else
+			return { };
+	}
 
 
 	bool Value::is_lvalue() const   { return this->v_is_lvalue; }

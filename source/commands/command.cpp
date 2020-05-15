@@ -104,8 +104,8 @@ namespace ikura::cmd
 
 			auto t = ikura::timer();
 			auto args = expand_arguments(interpreter().wlock().get(), cs, arg_str);
+			cs.macro_args = std::move(args);
 
-			cs.macro_args = ikura::span(args);
 			auto ret = interpreter().map_write([&](auto& fs) {
 				return command->run(&fs, cs);
 			});

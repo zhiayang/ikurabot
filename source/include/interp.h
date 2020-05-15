@@ -110,6 +110,8 @@ namespace ikura::interp
 		std::string str() const;
 		std::string raw_str() const;
 
+		std::optional<Value> cast_to(Type::Ptr type) const;
+
 		static Value default_of(Type::Ptr type);
 
 		static Value of_void();
@@ -192,11 +194,14 @@ namespace ikura::interp
 		const Channel* channel = nullptr;
 
 		// the arguments, split by spaces and Value::of_string-ed
-		ikura::span<interp::Value> macro_args;
+		std::vector<interp::Value> macro_args;
 	};
 
 	struct InterpState : Serialisable
 	{
+		// we need this to setup some global stuff.
+		InterpState();
+
 		ikura::string_map<Command*> commands;
 		ikura::string_map<std::string> aliases;
 

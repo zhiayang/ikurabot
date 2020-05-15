@@ -52,7 +52,7 @@ namespace ikura::interp
 		if(name == "user")      return Value::of_string(cs.caller.str());
 		if(name == "self")      return Value::of_string(cs.channel->getUsername());
 		if(name == "channel")   return Value::of_string(cs.channel->getName());
-		if(name == "args")      return Value::of_list(Type::get_string(), cs.macro_args.vec());
+		if(name == "args")      return Value::of_list(Type::get_string(), cs.macro_args);
 
 		return { };
 	}
@@ -239,6 +239,18 @@ namespace ikura::interp
 
 		interp.builtinCommandPermissions = builtinPerms;
 		return interp;
+	}
+
+	static auto const_e   = Value::of_double(2.71828182845904523536028747135266);
+	static auto const_pi  = Value::of_double(3.14159265358979323846264338327950);
+	static auto const_tau = Value::of_double(6.28318530717958647692528676655900);
+
+	InterpState::InterpState()
+	{
+		// setup some globals.
+		this->globals["e"]   = &const_e;
+		this->globals["pi"]  = &const_pi;
+		this->globals["tau"] = &const_tau;
 	}
 }
 
