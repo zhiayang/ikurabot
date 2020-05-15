@@ -527,7 +527,32 @@ namespace ikura::interp::ast
 
 	static Result<Expr*> parsePostfix(State& st, Expr* lhs, TT op)
 	{
-		if(op == TT::LSquare)
+		if(op == TT::LParen)
+		{
+			std::vector<Expr*> args;
+
+			while(st.peek() != TT::RParen)
+			{
+				auto a = parseExpr(st);
+				if(!a) return a;
+
+				args.push_back(a.unwrap());
+				if(st.match(TT::Comma))
+					continue;
+
+				else if(st.peek() == TT::RParen)
+					break;
+
+				else
+					return zpr::sprint("expected ',' or ')'");
+			}
+
+			if(!st.match(TT::RParen))
+				return zpr::sprint("expected ')'");
+
+			return makeAST<FunctionCall>(lhs, args);
+		}
+		else if(op == TT::LSquare)
 		{
 			// 5 cases: [N], [:], [N:], [:M], [N:M]
 			if(st.match(TT::Colon))

@@ -261,6 +261,19 @@ namespace ikura::interp
 			Expr* rhs;
 		};
 
+		struct FunctionCall : Expr
+		{
+			FunctionCall(Expr* fn, std::vector<Expr*> args) : callee(fn), arguments(std::move(args)) { }
+			virtual ~FunctionCall() override { }
+
+			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+
+		private:
+			Expr* callee;
+			std::vector<Expr*> arguments;
+		};
+
+
 		Expr* parse(ikura::str_view src);
 		Expr* parseExpr(ikura::str_view src);
 

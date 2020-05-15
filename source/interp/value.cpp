@@ -8,6 +8,50 @@
 
 namespace ikura::interp
 {
+	std::string Value::raw_str() const
+	{
+		if(this->is_lvalue())               return this->v_lvalue->raw_str();
+		else if(this->_type->is_void())     return "";
+		else if(this->_type->is_bool())     return zpr::sprint("%s", this->v_bool);
+		else if(this->_type->is_char())     return zpr::sprint("%c", (char) this->v_char);
+		else if(this->_type->is_double())   return zpr::sprint("%.3f", this->v_double);
+		else if(this->_type->is_integer())  return zpr::sprint("%d", this->v_integer);
+		else if(this->_type->is_map())
+		{
+			std::string ret;
+			size_t i = 0;
+			for(const auto& [ k, v ] : this->v_map)
+			{
+				ret += zpr::sprint("%s: %s", k.raw_str(), v.raw_str());
+				if(i + 1 != this->v_map.size())
+					ret += " ";
+
+				i++;
+			}
+			return ret;
+		}
+		else if(this->_type->is_list())
+		{
+			if(this->_type->elm_type()->is_char())
+			{
+				std::string ret;
+				for(const auto& c : this->v_list)
+					ret += (char) c.get_char();
+
+				return ret;
+			}
+			else
+			{
+				return zfu::listToString(this->v_list, [](const auto& x) -> auto { return x.str(); },
+					/* braces: */ false, /* sep: */ " ");
+			}
+		}
+		else
+		{
+			return "";
+		}
+	}
+
 	std::string Value::str() const
 	{
 		if(this->is_lvalue())               return this->v_lvalue->str();
@@ -133,6 +177,18 @@ namespace ikura::interp
 		return ret;
 	}
 
+	Value Value::of_function(Command* function)
+	{
+		auto sig = function->getSignature();
+		auto ret = Value(Type::get_function(sig->ret_type(), sig->arg_types()));
+		ret.v_function = function;
+
+		return ret;
+	}
+
+
+
+
 	bool Value::is_lvalue() const   { return this->v_is_lvalue; }
 	bool Value::is_list() const     { return this->_type->is_list(); }
 	bool Value::is_void() const     { return this->_type->is_void(); }
@@ -142,7 +198,9 @@ namespace ikura::interp
 	bool Value::is_string() const   { return this->_type->is_string(); }
 	bool Value::is_map() const      { return this->_type->is_map(); }
 	bool Value::is_char() const     { return this->_type->is_char(); }
+	bool Value::is_function() const { return this->_type->is_function(); }
 
+	Command* Value::get_function() const    { return this->is_lvalue() ? this->v_lvalue->get_function() : this->v_function; }
 	int64_t Value::get_integer() const      { return this->is_lvalue() ? this->v_lvalue->get_integer() : this->v_integer; }
 	double Value::get_double() const        { return this->is_lvalue() ? this->v_lvalue->get_double() : this->v_double; }
 	bool Value::get_bool() const            { return this->is_lvalue() ? this->v_lvalue->get_bool() : this->v_bool; }
@@ -169,6 +227,7 @@ namespace ikura::interp
 		else if(this->_type->is_integer())  wr.write(this->v_integer);
 		else if(this->_type->is_map())      wr.write(this->v_map);
 		else if(this->_type->is_list())     wr.write(this->v_list);
+		else if(this->_type->is_function()) wr.write(this->v_function->getName());
 		else                                lg::error("db/interp", "invalid value type");
 	}
 
@@ -231,6 +290,13 @@ namespace ikura::interp
 			if(!x) return { };
 
 			return Value::of_map(type->key_type(), type->elm_type(), x.value());
+		}
+		else if(type->is_function())
+		{
+			auto name = rd.read<std::string>();
+			if(!name) return { };
+
+			return Value::of_function(interpreter().rlock()->findCommand(name.value()));
 		}
 		else
 		{

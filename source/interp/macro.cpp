@@ -105,11 +105,12 @@ namespace ikura::interp
 
 
 
-	Macro::Macro(std::string name, std::vector<std::string> words) : Command(std::move(name)), code(std::move(words))
+	Macro::Macro(std::string name, std::vector<std::string> words)
+		: Command(std::move(name), Type::get_macro_function()), code(std::move(words))
 	{
 	}
 
-	Macro::Macro(std::string name, ikura::str_view code) : Command(std::move(name))
+	Macro::Macro(std::string name, ikura::str_view code) : Command(std::move(name), Type::get_macro_function())
 	{
 		this->code = performExpansion(code);
 	}
@@ -163,7 +164,7 @@ namespace ikura::interp
 		return ret;
 	}
 
-	Command::Command(std::string name) : name(std::move(name)) { }
+	Command::Command(std::string name, Type::Ptr sig) : name(std::move(name)), signature(std::move(sig)) { }
 
 	std::optional<Command*> Command::deserialise(Span& buf)
 	{

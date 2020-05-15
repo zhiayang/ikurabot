@@ -2,8 +2,9 @@
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
 
-#include "ast.h"
 #include "zfu.h"
+#include "ast.h"
+#include "cmd.h"
 
 namespace ikura::interp::ast
 {
@@ -366,16 +367,13 @@ namespace ikura::interp::ast
 			if(base->type()->key_type() != idx->type())
 				return error("cannot index '%s' with key '%s'", base->type()->str(), idx->type()->str());
 
-			zpr::println("indexing %s", base->type()->str());
 			if(auto it = map->find(idx.value()); it != map->end())
 			{
-				zpr::println("existing %s (%d)", base->type()->str(), base->is_lvalue());
 				if(base->is_lvalue())   return Value::of_lvalue(&it->second);
 				else                    return it->second;
 			}
 			else
 			{
-				zpr::println("making new %s", base->type()->str());
 				std::tie(it, std::ignore) = map->insert({ idx.value(), Value::default_of(base->type()->elm_type()) });
 
 				if(base->is_lvalue())   return Value::of_lvalue(&it->second);
@@ -488,6 +486,58 @@ namespace ikura::interp::ast
 		auto [ val, ref ] = fs->resolveVariable(this->name, cs);
 		if(ref) return Value::of_lvalue(ref);
 		else    return val;
+	}
+
+
+	std::optional<Value> FunctionCall::evaluate(InterpState* fs, CmdContext& cs) const
+	{
+		auto target = this->callee->evaluate(fs, cs);
+		if(!target) return { };
+
+		if(!target->type()->is_function())
+			return error("type '%s' is not callable", target->type()->str());
+
+		Command* function = target->get_function();
+		if(!function) return { };
+
+		// special handling for macros.
+		if(auto macro = dynamic_cast<Macro*>(function))
+		{
+			// macros take in a list of strings, and return a list of strings.
+			// so we just iterate over all our arguments, make convert them all to strings,
+			// make a list, then pass it in.
+			std::vector<Value> args;
+			for(Expr* e : this->arguments)
+			{
+				auto res = e->evaluate(fs, cs);
+				if(!res) return { };
+
+				args.push_back(Value::of_string(res->raw_str()));
+			}
+
+			// clone the thing, and replace the args. this way we keep the rest of the stuff
+			// like caller, channel, etc.
+			CmdContext params = cs;
+			params.macro_args = ikura::span(args);
+
+			return macro->run(fs, params);
+		}
+		else
+		{
+			std::vector<Value> args;
+			for(Expr* e : this->arguments)
+			{
+				auto res = e->evaluate(fs, cs);
+				if(!res) return { };
+
+				args.push_back(res.value());
+			}
+
+			CmdContext params = cs;
+			params.macro_args = ikura::span(args);
+
+			return function->run(fs, cs);
+		}
 	}
 
 

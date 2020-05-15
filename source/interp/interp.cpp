@@ -90,6 +90,14 @@ namespace ikura::interp
 		{
 			if(auto it = this->globals.find(name); it != this->globals.end())
 				return { *it.value(), it.value() };
+
+			// try builtin functions
+			if(auto builtin = interp::getBuiltinFunction(name); builtin != nullptr)
+				return { Value::of_function(builtin), nullptr };
+
+			// try functions. commands are always rvalues, for obvious reasons.
+			if(auto cmd = this->findCommand(name); cmd != nullptr)
+				return { Value::of_function(cmd), nullptr };
 		}
 
 		// for now, nothing
@@ -158,11 +166,15 @@ namespace ikura::interp
 		return command;
 	}
 
+	// undef will currently undef the entire overload set, which is probably not what we want.
 	bool InterpState::removeCommandOrAlias(ikura::str_view name)
 	{
 		if(auto it = this->commands.find(name); it != this->commands.end())
 		{
+			auto cmd = it->second;
 			this->commands.erase(it);
+
+			delete cmd;
 			return true;
 		}
 		else if(auto it = this->aliases.find(name); it != this->aliases.end())
@@ -179,6 +191,10 @@ namespace ikura::interp
 		auto wr = serialise::Writer(buf);
 		wr.tag(TYPE_TAG);
 
+		// note: because values can contain references to commands (because this is an amazing scripting language)
+		// we must serialise/deserialise all commands first; values containing commands simply store the name of
+		// the command to disk, and on deserialisation they will read the Command* from the interp state. so we
+		// must make sure the commands are available in the global lookup table by the time we do values.
 		wr.write(this->commands);
 		wr.write(this->aliases);
 		wr.write(this->builtinCommandPermissions);

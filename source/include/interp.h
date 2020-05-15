@@ -14,6 +14,8 @@
 
 namespace ikura::interp
 {
+	struct Command;
+
 	struct Type : Serialisable
 	{
 		using Ptr = std::shared_ptr<const Type>;
@@ -25,10 +27,13 @@ namespace ikura::interp
 		static constexpr uint8_t T_LIST     = 4;
 		static constexpr uint8_t T_MAP      = 5;
 		static constexpr uint8_t T_CHAR     = 6;
+		static constexpr uint8_t T_FUNCTION = 7;
 
 		uint8_t type_id() const { return this->_type; }
-		std::shared_ptr<const Type> key_type() const { return this->_key_type; }
-		std::shared_ptr<const Type> elm_type() const { return this->_elm_type; }
+		Ptr key_type() const { return this->_key_type; }
+		Ptr elm_type() const { return this->_elm_type; }
+		Ptr ret_type() const { return this->_elm_type; }    // not a typo -- use elm_type to store ret_type also.
+		std::vector<Ptr> arg_types() const { return this->_arg_types; }
 
 		bool is_map() const;
 		bool is_void() const;
@@ -38,8 +43,10 @@ namespace ikura::interp
 		bool is_string() const; // is_list && list->elm_type->is_char
 		bool is_double() const;
 		bool is_integer() const;
+		bool is_function() const;
 
 		bool is_same(Ptr other) const;
+		int get_cast_dist(Ptr to) const;
 
 		std::string str() const;
 
@@ -51,6 +58,8 @@ namespace ikura::interp
 		static Ptr get_integer();
 		static Ptr get_list(Ptr elm_type);
 		static Ptr get_map(Ptr key_type, Ptr elm_type);
+		static Ptr get_macro_function();
+		static Ptr get_function(Ptr return_type, std::vector<Ptr> arg_types);
 
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<std::shared_ptr<const Type>> deserialise(Span& buf);
@@ -58,11 +67,13 @@ namespace ikura::interp
 		Type(uint8_t t) : _type(t) { };
 		Type(uint8_t t, Ptr elm) : _type(t), _elm_type(elm) { };
 		Type(uint8_t t, Ptr key, Ptr elm) : _type(t), _key_type(key), _elm_type(elm) { };
+		Type(uint8_t t, std::vector<Ptr> args, Ptr ret) : _type(t), _elm_type(ret), _arg_types(args) { };
 
 	private:
 		uint8_t _type = T_VOID;
 		Ptr _key_type;
-		Ptr _elm_type;
+		Ptr _elm_type;  // elm type for lists, value type for map, return type for functions
+		std::vector<Ptr> _arg_types;
 	};
 
 	struct Value : Serialisable
@@ -80,13 +91,15 @@ namespace ikura::interp
 		bool is_double() const;
 		bool is_lvalue() const;
 		bool is_integer() const;
+		bool is_function() const;
 		bool is_same_type(const Value& other) const { return this->_type->is_same(other._type); }
 
-		bool        get_bool() const;
-		uint32_t    get_char() const;
-		double      get_double() const;
-		Value*      get_lvalue() const;
-		int64_t     get_integer() const;
+		bool     get_bool() const;
+		uint32_t get_char() const;
+		double   get_double() const;
+		Value*   get_lvalue() const;
+		int64_t  get_integer() const;
+		Command* get_function() const;
 
 		std::vector<Value>& get_list();
 		const std::vector<Value>& get_list() const;
@@ -95,6 +108,7 @@ namespace ikura::interp
 		const std::map<Value, Value>& get_map() const;
 
 		std::string str() const;
+		std::string raw_str() const;
 
 		static Value default_of(Type::Ptr type);
 
@@ -107,6 +121,7 @@ namespace ikura::interp
 		static Value of_integer(int64_t i);
 		static Value of_lvalue(Value* v);
 		static Value of_list(Type::Ptr, std::vector<Value> l);
+		static Value of_function(Command* function);
 		static Value of_map(Type::Ptr key_type, Type::Ptr value_type, std::map<Value, Value> m);
 
 		virtual void serialise(Buffer& buf) const override;
@@ -163,6 +178,7 @@ namespace ikura::interp
 			bool     v_bool      = false;
 			Value*   v_lvalue    = 0;
 			uint32_t v_char      = 0;
+			Command* v_function  = 0;
 
 			std::vector<Value> v_list;
 			std::map<Value, Value> v_map;
