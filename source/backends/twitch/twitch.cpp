@@ -114,9 +114,9 @@ namespace ikura::twitch
 		this->ws.send(zpr::sprint("PASS oauth:%s\r\n", config::twitch::getOAuthToken()));
 		this->ws.send(zpr::sprint("NICK %s\r\n", config::twitch::getUsername()));
 
-		if(!didcon.wait(true, 2000ms))
+		if(!didcon.wait(true, 3000ms))
 		{
-			lg::error("twitch", "connection failed");
+			lg::error("twitch", "connection failed (did not authenticate)");
 			this->ws.onReceiveText([](bool, ikura::str_view) { });
 			this->ws.disconnect();
 			return;

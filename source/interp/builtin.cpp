@@ -11,7 +11,10 @@ namespace ikura::cmd
 {
 	// defined in command.cpp
 	Message value_to_message(const interp::Value& val);
+}
 
+namespace ikura::interp
+{
 	static void command_def(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_eval(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_show(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
@@ -24,6 +27,17 @@ namespace ikura::cmd
 	{
 		return zfu::match(x, "def", "eval", "show", "redef", "undef", "chmod", "global");
 	}
+
+	// tsl::robin_map doesn't let us do this for some reason, so just fall back to std::unordered_map.
+	static std::unordered_map<std::string, void (*)(CmdContext&, const Channel*, ikura::str_view)> builtin_fns = {
+		{ "chmod",  command_chmod  },
+		{ "eval",   command_eval   },
+		{ "global", command_global },
+		{ "def",    command_def    },
+		{ "redef",  command_redef  },
+		{ "undef",  command_undef  },
+		{ "show",   command_show   },
+	};
 
 	bool run_builtin_command(CmdContext& cs, const Channel* chan, ikura::str_view cmd_str, ikura::str_view arg_str)
 	{
@@ -43,60 +57,12 @@ namespace ikura::cmd
 			return 0;
 		});
 
-		if(cmd_str == "chmod")
-		{
-			if(!verifyPermissions(perm, user_perms))
-				return denied();
+		if(!cmd::verifyPermissions(perm, user_perms))
+			return denied();
 
-			command_chmod(cs, chan, arg_str);
-			return true;
-		}
-		else if(cmd_str == "eval")
+		if(is_builtin(cmd_str))
 		{
-			if(!verifyPermissions(perm, user_perms))
-				return denied();
-
-			command_eval(cs, chan, arg_str);
-			return true;
-		}
-		else if(cmd_str == "global")
-		{
-			if(!verifyPermissions(perm, user_perms))
-				return denied();
-
-			command_global(cs, chan, arg_str);
-			return true;
-		}
-		else if(cmd_str == "def")
-		{
-			if(!verifyPermissions(perm, user_perms))
-				return denied();
-
-			command_def(cs, chan, arg_str);
-			return true;
-		}
-		else if(cmd_str == "redef")
-		{
-			if(!verifyPermissions(perm, user_perms))
-				return denied();
-
-			command_redef(cs, chan, arg_str);
-			return true;
-		}
-		else if(cmd_str == "undef")
-		{
-			if(!verifyPermissions(perm, user_perms))
-				return denied();
-
-			command_undef(cs, chan, arg_str);
-			return true;
-		}
-		else if(cmd_str == "show")
-		{
-			if(!verifyPermissions(perm, user_perms))
-				return denied();
-
-			command_show(cs, chan, arg_str);
+			builtin_fns[cmd_str.str()](cs, chan, arg_str);
 			return true;
 		}
 
@@ -117,7 +83,7 @@ namespace ikura::cmd
 		auto ret = interpreter().wlock()->evaluateExpr(arg_str, cs);
 		lg::log("interp", "command took %.3f ms to execute", t.measure());
 
-		if(ret) chan->sendMessage(value_to_message(ret.value()));
+		if(ret) chan->sendMessage(cmd::value_to_message(ret.value()));
 	}
 
 	static void command_chmod(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
@@ -165,7 +131,7 @@ namespace ikura::cmd
 			return chan->sendMessage(Message(zpr::sprint("invalid type '%s'", type_str)));
 
 		interpreter().wlock()->addGlobal(name, value.value());
-		chan->sendMessage(Message(zpr::sprint("added global '%s' with type '%s'", name, value->type_str())));
+		chan->sendMessage(Message(zpr::sprint("added global '%s' with type '%s'", name, value->type()->str())));
 	}
 
 	static void internal_def(const Channel* chan, bool redef, ikura::str_view name, ikura::str_view expansion)

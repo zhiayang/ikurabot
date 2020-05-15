@@ -2,20 +2,21 @@
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
 
-#include <chrono>
-
 #include "zfu.h"
 #include "cmd.h"
 #include "ast.h"
 #include "timer.h"
 
+namespace ikura::interp
+{
+	// defined in builtin.cpp. returns true if the command existed
+	bool run_builtin_command(interp::CmdContext& cs, const Channel* chan, str_view cmd, str_view args);
+}
+
 namespace ikura::cmd
 {
 	static void process_command(str_view user, const Channel* chan, str_view cmd);
 	static Message generateResponse(str_view user, const Channel* chan, str_view msg);
-
-	// defined in builtin.cpp. returns true if the command existed
-	bool run_builtin_command(CmdContext& cs, const Channel* chan, str_view cmd, str_view args);
 
 	void processMessage(str_view user, const Channel* chan, str_view message)
 	{
@@ -42,23 +43,24 @@ namespace ikura::cmd
 			if(v.is_void())
 				return;
 
-			if(v.is_list())
+			if(v.is_string())
 			{
-				auto& l = v.get_list();
-				for(auto& x : l)
-					do_one(m, x);
-			}
-			else if(v.is_string())
-			{
-				// don't include the quotes.
-				auto s = v.get_string();
-				auto sv = ikura::str_view(s);
+				auto s = v.str();
+
+				// drop the quotes.
+				auto sv = ikura::str_view(s).remove_prefix(1).remove_suffix(1);
 
 				// syntax is :NAME for emotes
 				// but you can escape the : with \:
 				if(sv.find("\\:") == 0)     m.add(sv.drop(1));
 				else if(sv.find(':') == 0)  m.add(Emote(sv.drop(1).str()));
 				else                        m.add(sv);
+			}
+			else if(v.is_list())
+			{
+				auto& l = v.get_list();
+				for(auto& x : l)
+					do_one(m, x);
 			}
 			else
 			{
@@ -70,11 +72,15 @@ namespace ikura::cmd
 		return msg;
 	}
 
-
+	static std::vector<interp::Value> expand_arguments(interp::InterpState* fs, interp::CmdContext& cs, ikura::str_view input)
+	{
+		auto code = interp::performExpansion(input);
+		return evaluateMacro(fs, cs, code);
+	}
 
 	static void process_command(str_view user, const Channel* chan, str_view input)
 	{
-		CmdContext cs;
+		interp::CmdContext cs;
 		cs.caller = user;
 		cs.channel = chan;
 
@@ -97,8 +103,7 @@ namespace ikura::cmd
 			}
 
 			auto t = ikura::timer();
-			auto arg_split = util::split(arg_str, ' ');
-			auto args = zfu::map(arg_split, [](const auto& x) -> auto { return interp::Value::of_string(x.str()); });
+			auto args = expand_arguments(interpreter().wlock().get(), cs, arg_str);
 
 			cs.macro_args = ikura::span(args);
 			auto ret = interpreter().map_write([&](auto& fs) {
@@ -164,36 +169,5 @@ namespace ikura::cmd
 	static Message generateResponse(str_view user, const Channel* chan, str_view msg)
 	{
 		return Message(zpr::sprint("%s AYAYA /", user));
-	}
-
-
-
-
-
-
-
-
-
-
-
-
-	Command::Command(std::string name) : name(std::move(name)) { }
-
-	std::optional<Command*> Command::deserialise(Span& buf)
-	{
-		auto tag = buf.peek();
-		switch(tag)
-		{
-			case serialise::TAG_MACRO: {
-				auto ret = Macro::deserialise(buf);
-				if(ret) return ret.value();     // force unwrap to cast Macro* -> Command*
-				else    return { };
-			}
-
-			case serialise::TAG_FUNCTION:
-			default:
-				lg::error("db", "type tag mismatch (unexpected '%02x')", tag);
-				return { };
-		}
 	}
 }

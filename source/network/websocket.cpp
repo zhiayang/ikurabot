@@ -193,7 +193,7 @@ namespace ikura
 					memcpy(&tmp, the_buffer.data() + sizeof(raw_frame_t), sizeof(uint16_t));
 
 					totalLen += sizeof(uint16_t);
-					payloadLen = value::to_native<uint16_t>(tmp);
+					payloadLen = util::to_native<uint16_t>(tmp);
 				}
 				else if(frame->len1 == 127)
 				{
@@ -201,7 +201,7 @@ namespace ikura
 					memcpy(&tmp, the_buffer.data() + sizeof(raw_frame_t), sizeof(uint64_t));
 
 					totalLen += sizeof(uint64_t);
-					payloadLen = value::to_native<uint64_t>(tmp);
+					payloadLen = util::to_native<uint64_t>(tmp);
 				}
 				else
 				{
@@ -300,13 +300,13 @@ namespace ikura
 
 		if(len1 == 126)
 		{
-			uint16_t len = value::to_network<uint16_t>(payload.size());
+			uint16_t len = util::to_network<uint16_t>(payload.size());
 			memcpy(cur_ptr, &len, sizeof(uint16_t));
 			cur_ptr += sizeof(uint16_t);
 		}
 		else if(len1 == 127)
 		{
-			uint64_t len = value::to_network<uint64_t>(payload.size());
+			uint64_t len = util::to_network<uint64_t>(payload.size());
 			memcpy(cur_ptr, &len, sizeof(uint64_t));
 			cur_ptr += sizeof(uint64_t);
 		}

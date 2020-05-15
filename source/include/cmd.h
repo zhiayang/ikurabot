@@ -10,7 +10,7 @@
 #include "defs.h"
 #include "interp.h"
 
-namespace ikura::cmd
+namespace ikura::interp
 {
 	struct InterpState;
 
@@ -63,9 +63,15 @@ namespace ikura::cmd
 	};
 
 
+	std::vector<std::string> performExpansion(ikura::str_view str);
+	std::vector<interp::Value> evaluateMacro(InterpState* fs, CmdContext& cs, const std::vector<std::string>& code);
+
+}
+
+namespace ikura::cmd
+{
 	ikura::string_map<uint32_t> getDefaultBuiltinPermissions();
 
-	void init();
 	bool verifyPermissions(uint32_t required, uint32_t given);
 	void processMessage(ikura::str_view user, const Channel* channel, ikura::str_view message);
 }

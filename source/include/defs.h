@@ -192,6 +192,9 @@ namespace ikura
 
 	namespace util
 	{
+		template <typename T> T to_native(T x);
+		template <typename T> T to_network(T x);
+
 		std::vector<ikura::str_view> split(ikura::str_view view, char delim);
 		std::vector<std::string> split_copy(ikura::str_view view, char delim);
 		std::string join(const ikura::span<ikura::str_view>&, const std::string& delim);
@@ -209,12 +212,6 @@ namespace ikura
 	namespace random
 	{
 		template <typename T> T get();
-	}
-
-	namespace value
-	{
-		template <typename T> T to_native(T x);
-		template <typename T> T to_network(T x);
 	}
 
 	namespace base64

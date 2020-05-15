@@ -6,143 +6,170 @@
 
 #include <map>
 #include <string>
+#include <memory>
 #include <optional>
 
 #include "buffer.h"
 #include "synchro.h"
 
-namespace ikura::cmd
+namespace ikura::interp
 {
-	namespace interp
+	struct Type : Serialisable
 	{
-		struct Value : Serialisable
+		using Ptr = std::shared_ptr<const Type>;
+
+		static constexpr uint8_t T_VOID     = 0;
+		static constexpr uint8_t T_INTEGER  = 1;
+		static constexpr uint8_t T_DOUBLE   = 2;
+		static constexpr uint8_t T_BOOLEAN  = 3;
+		static constexpr uint8_t T_LIST     = 4;
+		static constexpr uint8_t T_MAP      = 5;
+		static constexpr uint8_t T_CHAR     = 6;
+
+		uint8_t type_id() const { return this->_type; }
+		std::shared_ptr<const Type> key_type() const { return this->_key_type; }
+		std::shared_ptr<const Type> elm_type() const { return this->_elm_type; }
+
+		bool is_map() const;
+		bool is_void() const;
+		bool is_bool() const;
+		bool is_list() const;
+		bool is_char() const;
+		bool is_string() const; // is_list && list->elm_type->is_char
+		bool is_double() const;
+		bool is_integer() const;
+
+		bool is_same(Ptr other) const;
+
+		std::string str() const;
+
+		static Ptr get_void();
+		static Ptr get_bool();
+		static Ptr get_char();
+		static Ptr get_string();
+		static Ptr get_double();
+		static Ptr get_integer();
+		static Ptr get_list(Ptr elm_type);
+		static Ptr get_map(Ptr key_type, Ptr elm_type);
+
+		virtual void serialise(Buffer& buf) const override;
+		static std::optional<std::shared_ptr<const Type>> deserialise(Span& buf);
+
+		Type(uint8_t t) : _type(t) { };
+		Type(uint8_t t, Ptr elm) : _type(t), _elm_type(elm) { };
+		Type(uint8_t t, Ptr key, Ptr elm) : _type(t), _key_type(key), _elm_type(elm) { };
+
+	private:
+		uint8_t _type = T_VOID;
+		Ptr _key_type;
+		Ptr _elm_type;
+	};
+
+	struct Value : Serialisable
+	{
+		Value(Type::Ptr t) : _type(t) { }
+
+		Type::Ptr type() const { return this->_type; }
+
+		bool is_map() const;
+		bool is_void() const;
+		bool is_bool() const;
+		bool is_list() const;
+		bool is_char() const;
+		bool is_string() const; // is_list && list->elm_type->is_char
+		bool is_double() const;
+		bool is_lvalue() const;
+		bool is_integer() const;
+		bool is_same_type(const Value& other) const { return this->_type->is_same(other._type); }
+
+		bool        get_bool() const;
+		uint32_t    get_char() const;
+		double      get_double() const;
+		Value*      get_lvalue() const;
+		int64_t     get_integer() const;
+
+		std::vector<Value>& get_list();
+		const std::vector<Value>& get_list() const;
+
+		std::map<Value, Value>& get_map();
+		const std::map<Value, Value>& get_map() const;
+
+		std::string str() const;
+
+		static Value default_of(Type::Ptr type);
+
+		static Value of_void();
+		static Value of_bool(bool b);
+		static Value of_char(uint32_t c);
+		static Value of_double(double d);
+		static Value of_string(ikura::str_view s);
+		static Value of_string(const std::string& s);
+		static Value of_integer(int64_t i);
+		static Value of_lvalue(Value* v);
+		static Value of_list(Type::Ptr, std::vector<Value> l);
+		static Value of_map(Type::Ptr key_type, Type::Ptr value_type, std::map<Value, Value> m);
+
+		virtual void serialise(Buffer& buf) const override;
+		static std::optional<Value> deserialise(Span& buf);
+
+		static constexpr uint8_t TYPE_TAG = serialise::TAG_INTERP_VALUE;
+
+		bool operator == (const Value& other) const
 		{
-			static constexpr uint8_t TYPE_VOID      = 0;
-			static constexpr uint8_t TYPE_INTEGER   = 1;
-			static constexpr uint8_t TYPE_DOUBLE    = 2;
-			static constexpr uint8_t TYPE_BOOLEAN   = 3;
-			static constexpr uint8_t TYPE_STRING    = 4;
-			static constexpr uint8_t TYPE_LVALUE    = 5;
-			static constexpr uint8_t TYPE_LIST      = 6;
-			static constexpr uint8_t TYPE_MAP       = 7;
+			if(!this->is_same_type(other) || this->is_lvalue() != other.is_lvalue())
+				return false;
 
-			uint8_t type() const { return this->_type; }
-			uint8_t key_type() const { return this->_key_type; }
-			uint8_t elm_type() const { return this->_elm_type; }
+			if(this->_type->is_void())          return true;
+			else if(this->_type->is_map())      return this->v_map == other.v_map;
+			else if(this->_type->is_bool())     return this->v_bool == other.v_bool;
+			else if(this->_type->is_list())     return this->v_list == other.v_list;
+			else if(this->_type->is_char())     return this->v_char == other.v_char;
+			else if(this->_type->is_double())   return this->v_double == other.v_double;
+			else if(this->_type->is_integer())  return this->v_integer == other.v_integer;
+			else if(this->is_lvalue())          return this->v_lvalue == other.v_lvalue;
+			else                                return false;
+		}
 
-			std::string type_str() const;
+		bool operator < (const Value& rhs) const
+		{
+			if(!this->is_same_type(rhs) || this->is_lvalue() != rhs.is_lvalue())
+				return this->type()->type_id() < rhs.type()->type_id();
 
-			bool is_void() const;
-			bool is_integer() const;
-			bool is_double() const;
-			bool is_bool() const;
-			bool is_string() const;
-			bool is_lvalue() const;
-			bool is_list() const;
-			bool is_map() const;
-
-			int64_t     get_integer() const;
-			double      get_double() const;
-			bool        get_bool() const;
-			std::string get_string() const;
-			Value*      get_lvalue() const;
-
-			std::vector<Value>& get_list();
-			const std::vector<Value>& get_list() const;
-
-			std::map<Value, Value>& get_map();
-			const std::map<Value, Value>& get_map() const;
-
-			std::string str() const;
-
-
-			static Value of_void();
-			static Value of_bool(bool b);
-			static Value of_double(double d);
-			static Value of_string(std::string s);
-			static Value of_integer(int64_t i);
-			static Value of_lvalue(Value* v);
-			static Value of_list(std::vector<Value> l);
-			static Value of_list(uint8_t type, std::vector<Value> l);
-			static Value of_map(std::map<Value, Value> l);
-			static Value of_map(uint8_t key_type, uint8_t value_type, std::map<Value, Value> m);
-
-			virtual void serialise(Buffer& buf) const override;
-			static std::optional<Value> deserialise(Span& buf);
-
-			static constexpr uint8_t TYPE_TAG = serialise::TAG_INTERP_VALUE;
-
-
-			bool operator == (const Value& other) const
+			if(this->_type->is_void())          return false;
+			else if(this->_type->is_map())      return this->v_map < rhs.v_map;
+			else if(this->_type->is_bool())     return this->v_bool < rhs.v_bool;
+			else if(this->_type->is_list())     return this->v_list < rhs.v_list;
+			else if(this->_type->is_char())     return this->v_char < rhs.v_char;
+			else if(this->_type->is_double())   return this->v_double < rhs.v_double;
+			else if(this->_type->is_integer())  return this->v_integer < rhs.v_integer;
+			else if(this->is_lvalue())
 			{
-				if(other._type != this->_type || other._elm_type != this->_elm_type || other._key_type != this->_key_type)
-					return false;
+				if(this->v_lvalue && rhs.v_lvalue)
+					return *this->v_lvalue < *rhs.v_lvalue;
 
-				switch(this->_type)
-				{
-					case TYPE_VOID:     return true;
-					case TYPE_INTEGER:  return this->v_integer == other.v_integer;
-					case TYPE_DOUBLE:   return this->v_double == other.v_double;
-					case TYPE_BOOLEAN:  return this->v_bool == other.v_bool;
-					case TYPE_STRING:   return this->v_string == other.v_string;
-					case TYPE_LVALUE:   return this->v_lvalue == other.v_lvalue;
-					case TYPE_LIST:     return this->v_list == other.v_list;
-					case TYPE_MAP:      return this->v_map == other.v_map;
-					default:
-						return false;
-				}
+				return this->v_lvalue;
 			}
+			else                                return false;
+		}
 
-			bool operator < (const Value& rhs) const
-			{
-				if(this->_type != rhs._type)
-					return this->_type < rhs._type;
+	private:
+		friend struct Hasher;
+		Type::Ptr _type;
 
-				else if(this->_elm_type != rhs._elm_type)
-					return this->_elm_type < rhs._elm_type;
+		bool v_is_lvalue = false;
+		struct {
+			int64_t  v_integer   = 0;
+			double   v_double    = 0;
+			bool     v_bool      = false;
+			Value*   v_lvalue    = 0;
+			uint32_t v_char      = 0;
 
-				else if(this->_key_type != rhs._key_type)
-					return this->_key_type < rhs._key_type;
-
-
-				switch(this->_type)
-				{
-					case TYPE_INTEGER:  return this->v_integer < rhs.v_integer;
-					case TYPE_DOUBLE:   return this->v_double < rhs.v_double;
-					case TYPE_BOOLEAN:  return !this->v_bool && rhs.v_bool;
-					case TYPE_STRING:   return this->v_string < rhs.v_string;
-					case TYPE_LVALUE:   return this->v_lvalue < rhs.v_lvalue;
-					case TYPE_LIST:     return this->v_list < rhs.v_list;
-					case TYPE_MAP:      return this->v_map < rhs.v_map;
-
-					case TYPE_VOID:
-					default:
-						return false;
-				}
-			}
-
-		private:
-			friend struct Hasher;
-
-			uint8_t _key_type = TYPE_VOID;  // key type in maps.
-			uint8_t _elm_type = TYPE_VOID;  // elm type in list, and also value type in map
-
-			uint8_t _type = TYPE_VOID;
-			struct {
-				int64_t v_integer   = 0;
-				double  v_double    = 0;
-				bool    v_bool      = false;
-				Value*  v_lvalue    = 0;
-
-				std::string v_string;
-				std::vector<Value> v_list;
-				std::map<Value, Value> v_map;
-			};
+			std::vector<Value> v_list;
+			std::map<Value, Value> v_map;
 		};
-	}
+	};
 
 	struct Command;
-
 	struct CmdContext
 	{
 		ikura::str_view caller;
@@ -176,6 +203,9 @@ namespace ikura::cmd
 	private:
 		ikura::string_map<interp::Value*> globals;
 	};
+}
 
-	Synchronised<InterpState>& interpreter();
+namespace ikura
+{
+	Synchronised<interp::InterpState>& interpreter();
 }

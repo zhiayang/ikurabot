@@ -10,16 +10,9 @@
 
 #include "tsl/robin_set.h"
 
-namespace ikura::cmd
+namespace ikura::interp
 {
 	using interp::Value;
-
-	static Synchronised<InterpState, std::shared_mutex> TheInterpreter;
-
-	Synchronised<InterpState, std::shared_mutex>& interpreter()
-	{
-		return TheInterpreter;
-	}
 
 	static size_t parse_number_arg(ikura::str_view name, CmdContext& cs)
 	{
@@ -59,7 +52,7 @@ namespace ikura::cmd
 		if(name == "user")      return Value::of_string(cs.caller.str());
 		if(name == "self")      return Value::of_string(cs.channel->getUsername());
 		if(name == "channel")   return Value::of_string(cs.channel->getName());
-		if(name == "args")      return Value::of_list(Value::TYPE_STRING, cs.macro_args.vec());
+		if(name == "args")      return Value::of_list(Type::get_string(), cs.macro_args.vec());
 
 		return { };
 	}
@@ -91,10 +84,12 @@ namespace ikura::cmd
 				// check for builtins
 				if(auto b = get_builtin_var(name, cs); b.has_value())
 					return { b.value(), nullptr };
-
-				if(auto it = this->globals.find(name); it != this->globals.end())
-					return { *it.value(), it.value() };
 			}
+		}
+		else
+		{
+			if(auto it = this->globals.find(name); it != this->globals.end())
+				return { *it.value(), it.value() };
 		}
 
 		// for now, nothing
@@ -115,11 +110,11 @@ namespace ikura::cmd
 			return;
 		}
 
-		this->globals[name] = new Value(val);
+		this->globals[name] = new Value(std::move(val));
 		lg::log("interp", "added global '%s'", name);
 	}
 
-	std::optional<interp::Value> InterpState::evaluateExpr(ikura::str_view expr, CmdContext& cs)
+	std::optional<Value> InterpState::evaluateExpr(ikura::str_view expr, CmdContext& cs)
 	{
 		auto exp = ast::parseExpr(expr);
 		if(!exp) return { };
@@ -190,7 +185,7 @@ namespace ikura::cmd
 
 		ikura::string_map<interp::Value> globs;
 		for(const auto& [ k, v ] : this->globals)
-			globs[k] = *v;
+			globs.insert({ k, *v });
 
 		wr.write(globs);
 	}
@@ -235,16 +230,16 @@ namespace ikura::db
 {
 	void DbInterpState::serialise(Buffer& buf) const
 	{
-		cmd::interpreter().rlock()->serialise(buf);
+		interpreter().rlock()->serialise(buf);
 	}
 
 	std::optional<DbInterpState> DbInterpState::deserialise(Span& buf)
 	{
-		auto it = cmd::InterpState::deserialise(buf);
+		auto it = interp::InterpState::deserialise(buf);
 		if(!it) return { };
 
 		DbInterpState ret;
-		*cmd::interpreter().wlock().get() = std::move(it.value());
+		*interpreter().wlock().get() = std::move(it.value());
 
 		return ret;
 	}
@@ -253,5 +248,13 @@ namespace ikura::db
 
 
 
+namespace ikura
+{
+	static Synchronised<interp::InterpState, std::shared_mutex> TheInterpreter;
+	Synchronised<interp::InterpState, std::shared_mutex>& interpreter()
+	{
+		return TheInterpreter;
+	}
+}
 
 

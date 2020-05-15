@@ -8,7 +8,7 @@
 #include "defs.h"
 #include "interp.h"
 
-namespace ikura::cmd
+namespace ikura::interp
 {
 	struct InterpState;
 	struct CmdContext;
@@ -61,6 +61,8 @@ namespace ikura::cmd
 			ShiftLeft,
 			ShiftRight,
 			RightArrow,
+			DoublePlus,
+			DoubleMinus,
 
 			PlusEquals,
 			MinusEquals,
@@ -175,6 +177,18 @@ namespace ikura::cmd
 			Expr* index;
 		};
 
+		struct SliceOp : Expr
+		{
+			SliceOp(Expr* arr, Expr* start, Expr* end) : list(arr), start(start), end(end) { }
+			virtual ~SliceOp() override { }
+
+			virtual std::optional<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+
+		private:
+			Expr* list;
+			Expr* start;
+			Expr* end;
+		};
 
 		struct UnaryOp : Expr
 		{

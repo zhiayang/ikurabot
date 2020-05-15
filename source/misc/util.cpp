@@ -186,7 +186,7 @@ namespace ikura
 		template uint64_t get<uint64_t>();
 	}
 
-	namespace value
+	namespace util
 	{
 		constexpr bool IS_BIG = (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__);
 

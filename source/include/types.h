@@ -56,7 +56,7 @@ namespace ikura
 
 		span subspan(size_t idx, size_t len = -1) const
 		{
-			if(len == -1 && idx >= this->cnt)
+			if(len == (size_t) -1 && idx >= this->cnt)
 				return span();
 
 			if(len == (size_t) -1)
@@ -159,6 +159,10 @@ namespace ikura
 		str_view drop(size_t n) const { return (this->size() > n ? str_view(this->substr(n)) : ""); }
 		str_view take(size_t n) const { return (this->size() > n ? str_view(this->substr(0, n)) : *this); }
 		str_view substr(size_t pos = 0, size_t cnt = -1) const { return str_view(std::string_view::substr(pos, cnt)); }
+
+		str_view& remove_prefix(size_t n) { std::string_view::remove_prefix(n); return *this; }
+		str_view& remove_suffix(size_t n) { std::string_view::remove_suffix(n); return *this; }
+
 		str_view trim_front() const
 		{
 			auto ret = *this;

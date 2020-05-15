@@ -9,7 +9,7 @@
 #include <utility>
 #include <functional>
 
-namespace ikura::cmd::ast
+namespace ikura::interp::ast
 {
 	using TT = lexer::TokenType;
 
@@ -184,6 +184,11 @@ namespace ikura::cmd::ast
 			TT::RAngle, TT::GreaterThanEqual);
 	}
 
+	static bool is_postfix_op(TT op)
+	{
+		return zfu::match(op, TT::LSquare, TT::LParen, TT::DoublePlus, TT::DoubleMinus);
+	}
+
 	static bool is_assignment_op(TT op)
 	{
 		return zfu::match(op, TT::Equal, TT::PlusEquals, TT::MinusEquals, TT::TimesEquals,
@@ -201,6 +206,10 @@ namespace ikura::cmd::ast
 		switch(op)
 		{
 			case TT::Period:            return 8000;
+
+			case TT::LParen:            return 3000;
+
+			case TT::LSquare:           return 2800;
 
 			case TT::Caret:             return 2600;
 
@@ -284,6 +293,7 @@ namespace ikura::cmd::ast
 	};
 
 
+	static Result<Expr*> parsePostfix(State& st, Expr* lhs, TT op);
 	static Result<Expr*> parseParenthesised(State& st);
 	static Result<Expr*> parseIdentifier(State& st);
 	static Result<Expr*> parsePrimary(State& st);
@@ -385,6 +395,13 @@ namespace ikura::cmd::ast
 
 			auto oper = st.peek();
 			st.pop();
+
+			if(is_postfix_op(oper.type) && lhs)
+			{
+				lhs = parsePostfix(st, lhs.unwrap(), oper.type);
+				continue;
+			}
+
 
 			auto rhs = parseUnary(st);
 			if(!rhs) return rhs;
@@ -508,6 +525,61 @@ namespace ikura::cmd::ast
 		return makeAST<LitBoolean>(x == "true");
 	}
 
+	static Result<Expr*> parsePostfix(State& st, Expr* lhs, TT op)
+	{
+		if(op == TT::LSquare)
+		{
+			// 5 cases: [N], [:], [N:], [:M], [N:M]
+			if(st.match(TT::Colon))
+			{
+				if(st.match(TT::RSquare))
+				{
+					st.pop();
+					return makeAST<SliceOp>(lhs, nullptr, nullptr);
+				}
+				else
+				{
+					auto end = parseExpr(st);
+					if(!st.match(TT::RSquare))
+						return zpr::sprint("expected ']'");
+
+					return makeAST<SliceOp>(lhs, nullptr, end);
+				}
+			}
+			else
+			{
+				auto idx = parseExpr(st);
+				if(st.match(TT::Colon))
+				{
+					if(st.match(TT::RSquare))
+					{
+						return makeAST<SliceOp>(lhs, idx, nullptr);
+					}
+					else
+					{
+						auto end = parseExpr(st);
+						if(!st.match(TT::RSquare))
+							return zpr::sprint("expected ']'");
+
+						return makeAST<SliceOp>(lhs, idx, end);
+					}
+				}
+				else if(st.match(TT::RSquare))
+				{
+					return makeAST<SubscriptOp>(lhs, idx);
+				}
+				else
+				{
+					return zpr::sprint("expected either ']' or ':', found '%s'", st.peek().str());
+				}
+			}
+		}
+		else
+		{
+			return { };
+		}
+	}
+
 	static Result<Expr*> parseIdentifier(State& st)
 	{
 		std::string name = st.peek().str().str();
@@ -548,13 +620,14 @@ namespace ikura::cmd::ast
 	{
 		using interp::Value;
 
+		str = str.trim();
 		if(str.empty())
 			return { };
 
 		if(str == "int")        return Value::of_integer(0);
 		else if(str == "dbl")   return Value::of_double(0.0);
 		else if(str == "bool")  return Value::of_bool(false);
-		else if(str == "str")   return Value::of_string("");
+		else if(str == "str")   return Value::of_string(std::string());
 		else if(str == "void")  return Value::of_void();
 		else if(str[0] != '[')  return { };
 
@@ -567,14 +640,17 @@ namespace ikura::cmd::ast
 		if(!key || str.empty())
 			return { };
 
+		str = str.trim();
 		if(str[0] == ':')
 		{
 			str.remove_prefix(1);
 			auto tmp = str.find_first_of("[]:");
-			auto e = str.take(tmp);
-			str = str.drop(tmp);
+			auto e = str.take(tmp).trim();
+			str = str.drop(tmp).trim();
 
 			auto elm = parseType(e);
+			str = str.trim();
+
 			if(!elm || str.empty() || str[0] != ']')
 				return { };
 

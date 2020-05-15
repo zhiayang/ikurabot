@@ -4,7 +4,7 @@
 
 #include "ast.h"
 
-namespace ikura::cmd::lexer
+namespace ikura::interp::lexer
 {
 	using TT = TokenType;
 

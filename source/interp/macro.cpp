@@ -5,10 +5,12 @@
 #include "cmd.h"
 #include "serialise.h"
 
-namespace ikura::cmd
+namespace ikura::interp
 {
-	Macro::Macro(std::string name, ikura::str_view code) : Command(std::move(name))
+	std::vector<std::string> performExpansion(ikura::str_view code)
 	{
+		std::vector<std::string> ret;
+
 		// split up the thing.
 		size_t end = 0;
 		while(end < code.size())
@@ -56,7 +58,7 @@ namespace ikura::cmd
 			{
 			add_piece:
 				// lg::log("cmd", "piece = '%s'", code.take(end));
-				this->code.push_back(code.take(end).str());
+				ret.push_back(code.take(end).str());
 				code.remove_prefix(end);
 				end = 0;
 
@@ -66,16 +68,60 @@ namespace ikura::cmd
 		}
 
 		if(end > 0)
-			this->code.push_back(code.take(end).str());
+			ret.push_back(code.take(end).str());
+
+		return ret;
+	}
+
+	std::vector<interp::Value> evaluateMacro(InterpState* fs, CmdContext& cs, const std::vector<std::string>& code)
+	{
+		// just echo words wholesale until we get to a '$'
+		std::vector<interp::Value> list;
+
+		for(const auto& x : code)
+		{
+			if(x.empty())
+				continue;
+
+			auto a = ikura::str_view(x);
+
+			if(a.find("\\\\") == 0)
+			{
+				list.push_back(interp::Value::of_string(a.drop(1).str()));
+			}
+			else if(a[0] == '\\')
+			{
+				auto v = fs->evaluateExpr(a.drop(1), cs);
+				if(v) list.push_back(v.value());
+			}
+			else
+			{
+				list.push_back(interp::Value::of_string(a.str()));
+			}
+		}
+
+		return list;
+	}
+
+
+
+	Macro::Macro(std::string name, std::vector<std::string> words) : Command(std::move(name)), code(std::move(words))
+	{
+	}
+
+	Macro::Macro(std::string name, ikura::str_view code) : Command(std::move(name))
+	{
+		this->code = performExpansion(code);
+	}
+
+	std::optional<interp::Value> Macro::run(InterpState* fs, CmdContext& cs) const
+	{
+		return interp::Value::of_list(Type::get_string(), evaluateMacro(fs, cs, this->code));
 	}
 
 	const std::vector<std::string>& Macro::getCode() const
 	{
 		return this->code;
-	}
-
-	Macro::Macro(std::string name, std::vector<std::string> words) : Command(std::move(name)), code(std::move(words))
-	{
 	}
 
 	void Macro::serialise(Buffer& buf) const
@@ -117,34 +163,31 @@ namespace ikura::cmd
 		return ret;
 	}
 
+	Command::Command(std::string name) : name(std::move(name)) { }
 
-	std::optional<interp::Value> Macro::run(InterpState* fs, CmdContext& cs) const
+	std::optional<Command*> Command::deserialise(Span& buf)
 	{
-		// just echo words wholesale until we get to a '$'
-		std::vector<interp::Value> list;
-
-		for(const auto& x : this->code)
+		auto tag = buf.peek();
+		switch(tag)
 		{
-			if(x.empty())
-				continue;
+			case serialise::TAG_MACRO: {
+				auto ret = Macro::deserialise(buf);
+				if(ret) return ret.value();     // force unwrap to cast Macro* -> Command*
+				else    return { };
+			}
 
-			auto a = ikura::str_view(x);
-
-			if(a.find("\\\\") == 0)
-			{
-				list.push_back(interp::Value::of_string(a.drop(1).str()));
-			}
-			else if(a[0] == '\\')
-			{
-				auto v = fs->evaluateExpr(a.drop(1), cs);
-				if(v) list.push_back(v.value());
-			}
-			else
-			{
-				list.push_back(interp::Value::of_string(a.str()));
-			}
+			case serialise::TAG_FUNCTION:
+			default:
+				lg::error("db", "type tag mismatch (unexpected '%02x')", tag);
+				return { };
 		}
-
-		return interp::Value::of_list(list);
 	}
 }
+
+
+
+
+
+
+
+

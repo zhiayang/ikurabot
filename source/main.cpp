@@ -13,6 +13,13 @@
 using namespace std::chrono_literals;
 
 
+/*
+	TODO:
+
+	2. calling macros from interp-land as function calls
+	4. echo interp errors to the chat
+*/
+
 int main(int argc, char** argv)
 {
 	if(argc < 3)
