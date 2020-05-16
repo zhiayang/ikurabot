@@ -3,14 +3,43 @@
 // Licensed under the Apache License Version 2.0.
 
 #include "ast.h"
+#include "utf8proc/utf8proc.h"
 
 namespace ikura::interp::lexer
 {
+	size_t is_valid_first_ident_char(ikura::str_view str)
+	{
+		auto k = utf8::is_letter(str);
+		if(k > 0) return k;
+
+		// don't use math symbols for obvious reasons
+		k = utf8::is_category(str, { UTF8PROC_CATEGORY_SO });
+		if(k > 0) return k;
+
+		return 0;
+	}
+
+	size_t is_valid_identifier(ikura::str_view str)
+	{
+		auto k = utf8::is_letter(str);
+		if(k > 0) return k;
+
+		k = utf8::is_digit(str);
+		if(k > 0) return k;
+
+		k = utf8::is_category(str, {
+			UTF8PROC_CATEGORY_MN, UTF8PROC_CATEGORY_MC, UTF8PROC_CATEGORY_ME,
+			UTF8PROC_CATEGORY_SC, UTF8PROC_CATEGORY_SK, UTF8PROC_CATEGORY_SO
+		});
+		if(k > 0) return k;
+
+		return 0;
+	}
+
 	using TT = TokenType;
 
 	static Token INVALID = Token(TT::Invalid, "");
 	static bool is_digit(char c) { return '0' <= c && c <= '9'; }
-	static bool is_letter(char c) { return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z'); }
 
 	static ikura::string_map<TT> keywordMap;
 	static void initKeywordMap()
@@ -35,8 +64,13 @@ namespace ikura::interp::lexer
 	static Token lex_one_token(ikura::str_view& src, TT prevType)
 	{
 		// skip all whitespace.
-		while(src.size() > 0 && (src[0] == ' ' || src[0] == '\t' || src[0] == '\n' || src[0] == '\r'))
-			src.remove_prefix(1);
+		size_t k = 0;
+		while(src.size() > 0 && (k = utf8::is_category(src, {
+			UTF8PROC_CATEGORY_ZS, UTF8PROC_CATEGORY_ZL, UTF8PROC_CATEGORY_ZP
+		}), k > 0))
+		{
+			src.remove_prefix(k);
+		}
 
 		if(src.empty())
 			return Token(TT::EndOfFile, "");
@@ -284,14 +318,14 @@ namespace ikura::interp::lexer
 
 			return ret;
 		}
-		else if(src[0] == '_' || is_letter(src[0]))
+		else if(src[0] == '_' || (lexer::is_valid_first_ident_char(src) > 0))
 		{
-			// TODO: handle unicode.
-			size_t identLength = 1;
-			auto tmp = src.drop(1);
+			size_t identLength = (src[0] == '_') ? 1 : lexer::is_valid_first_ident_char(src);
+			auto tmp = src.drop(identLength);
 
-			while(is_digit(tmp[0]) || is_letter(tmp[0]) || tmp[0] == '_')
-				tmp.remove_prefix(1), identLength++;
+			size_t k = 0;
+			while((k = lexer::is_valid_identifier(tmp)), k > 0)
+				tmp.remove_prefix(k), identLength += k;
 
 			size_t read = identLength;
 			auto text = src.substr(0, identLength);
@@ -311,6 +345,7 @@ namespace ikura::interp::lexer
 		else
 		{
 			Token ret;
+			size_t sz = 1;
 			switch(src[0])
 			{
 				case ';': ret = Token(TT::Semicolon, src.take(1));      break;
@@ -338,10 +373,17 @@ namespace ikura::interp::lexer
 				case '%': ret = Token(TT::Percent, src.take(1));        break;
 				case '~': ret = Token(TT::Tilde, src.take(1));          break;
 				case '?': ret = Token(TT::Question, src.take(1));       break;
-				default:  ret = Token(TT::Invalid, src.take(1));        break;
+
+				default:
+					lg::warn("lexer", "invalid token - stream: '%s'", src);
+
+					// try to unicode my way out of this.
+					sz = utf8::get_codepoint_length(src);
+					ret = Token(TT::Invalid, src.take(sz));
+					break;
 			}
 
-			src.remove_prefix(1);
+			src.remove_prefix(sz);
 			return ret;
 		}
 	}

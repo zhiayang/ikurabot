@@ -41,6 +41,8 @@ namespace ikura::interp
 
 	bool run_builtin_command(CmdContext& cs, const Channel* chan, ikura::str_view cmd_str, ikura::str_view arg_str)
 	{
+		// auto cmd_str = utf8::normalise_identifier(cmd_sv);
+
 		auto user_perms = chan->getUserPermissions(cs.caller);
 		auto denied = [&]() -> bool {
 			lg::warn("cmd", "user '%s' tried to execute command '%s' with insufficient permissions (%x)",

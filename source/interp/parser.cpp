@@ -593,7 +593,7 @@ namespace ikura::interp::ast
 			st.pop();
 		}
 
-		return makeAST<VarRef>(name);
+		return makeAST<VarRef>(utf8::normalise_identifier(name));
 	}
 
 	static Result<Expr*> parseStmt(State& st)

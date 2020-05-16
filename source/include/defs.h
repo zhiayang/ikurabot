@@ -104,6 +104,19 @@ namespace ikura
 		}
 	}
 
+	namespace utf8
+	{
+		size_t is_digit(ikura::str_view str);
+		size_t is_letter(ikura::str_view str);
+		size_t is_symbol(ikura::str_view str);
+		size_t is_any_symbol(ikura::str_view str);
+		size_t is_punctuation(ikura::str_view str);
+		size_t is_category(ikura::str_view str, const std::initializer_list<int>& categories);
+		size_t get_codepoint_length(ikura::str_view str);
+
+		std::string normalise_identifier(ikura::str_view str);
+	}
+
 	namespace colours
 	{
 		constexpr const char* COLOUR_RESET  = "\x1b[0m";

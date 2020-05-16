@@ -33,7 +33,8 @@ namespace ikura
 				break;
 
 			auto tmp = url.substr(0, i);
-			url.remove_prefix(i);   // include the leading / for the path
+			if(i != (size_t) -1)
+				url.remove_prefix(i);   // include the leading / for the path
 
 			this->_resource = std::string(url);
 

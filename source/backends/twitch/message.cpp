@@ -113,7 +113,8 @@ namespace ikura::twitch
 		if(!m) return error("malformed: '%s'", input);
 
 		auto msg = m.value();
-		// zpr::println("(%zu) %s", input.size(), input);
+		// for(size_t i = 0; i < input.size(); i++)
+		// 	printf(" %02x", input[i]);
 
 		if(msg.command == "PING")
 		{
@@ -171,9 +172,14 @@ namespace ikura::twitch
 			if(this->channels[channel].lurk)
 				return;
 
-			markov::process(message);
+			auto n_message = utf8::normalise_identifier(message);
 
-			cmd::processMessage(user, &this->channels[channel], message);
+			// for(size_t i = 0; i < message.size(); i++)
+			// 	printf(" %02x", (uint8_t) message[i]);
+
+			markov::process(n_message);
+
+			cmd::processMessage(user, &this->channels[channel], n_message);
 		}
 		else if(msg.command == "353" || msg.command == "366")
 		{

@@ -122,7 +122,7 @@ namespace ikura::markov
 
 	static bool is_punctuation(char c)
 	{
-		return zfu::match(c, '.', ',', '!', '?', ';', ':', '&', '(', ')', '"', '\'');
+		return zfu::match(c, '.', ',', '!', '?', ';', ':', '(', ')');
 	}
 
 	static uint64_t get_word_index(MarkovModel* markov, ikura::str_view word)
@@ -273,6 +273,7 @@ namespace ikura::markov
 			}
 		}
 
+		size_t totallen = 0;
 		size_t max_length = 25;
 		std::vector<ikura::str_view> output;
 		std::vector<uint64_t> output_words;
@@ -286,12 +287,23 @@ namespace ikura::markov
 			if(word.empty())
 				break;
 
+			totallen += word.size();
 			output.push_back(word);
 			output_words.push_back(get_word_index(markovModel().wlock().get(), word));
 		}
 
-		return zfu::listToString(output, [](auto& x) -> auto { return x.str(); },
-			/* braces: */ false, /* sep: */ " ");
+		std::string ret;
+		ret.reserve(totallen);
+
+		for(size_t i = 0; i < output.size(); i++)
+		{
+			if(i != 0 && (output[i].find_first_of(".,?!") != 0))
+				ret += ' ';
+
+			ret += output[i].str();
+		}
+
+		return ret;
 	}
 
 
