@@ -18,6 +18,9 @@ namespace ikura::irc
 		ikura::str_view command;
 		std::vector<ikura::str_view> params;
 		ikura::string_map<std::string> tags;
+
+		bool isCTCP = false;
+		ikura::str_view ctcpCommand;
 	};
 
 	std::optional<IRCMessage> parseMessage(ikura::str_view);

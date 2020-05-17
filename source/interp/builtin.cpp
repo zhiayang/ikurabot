@@ -6,6 +6,7 @@
 #include "ast.h"
 #include "cmd.h"
 #include "timer.h"
+#include "markov.h"
 
 namespace ikura::cmd
 {
@@ -22,10 +23,11 @@ namespace ikura::interp
 	static void command_undef(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_chmod(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_global(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
+	static void command_markov(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 
 	bool is_builtin_command(ikura::str_view x)
 	{
-		return zfu::match(x, "def", "eval", "show", "redef", "undef", "chmod", "global");
+		return zfu::match(x, "def", "eval", "show", "redef", "undef", "chmod", "global", "markov");
 	}
 
 	// tsl::robin_map doesn't let us do this for some reason, so just fall back to std::unordered_map.
@@ -37,6 +39,7 @@ namespace ikura::interp
 		{ "redef",  command_redef  },
 		{ "undef",  command_undef  },
 		{ "show",   command_show   },
+		{ "markov", command_markov },
 	};
 
 	bool run_builtin_command(CmdContext& cs, const Channel* chan, ikura::str_view cmd_str, ikura::str_view arg_str)
@@ -74,6 +77,13 @@ namespace ikura::interp
 
 
 
+
+	static void command_markov(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
+	{
+		// syntax: markov
+		auto t = ikura::timer();
+		chan->sendMessage(markov::generateMessage());
+	}
 
 	static void command_eval(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
 	{

@@ -260,8 +260,7 @@ namespace ikura::twitch
 			if(userid.empty()) return;
 
 			auto message = msg.params[1].trim();
-			lg::log("msg", "twitch/#%s: <%s>  %s", channel, username, message);
-
+			lg::log("msg", "twitch/#%s: <%s> %s", channel, username, message);
 
 			// zpr::println("%s", input);
 			// for(size_t i = 0; i < message.size(); i++)
@@ -272,8 +271,9 @@ namespace ikura::twitch
 			auto emote_idxs  = get_emote_indices(msg.tags, message_u8, message_u32);
 
 			// only process commands if we're not lurking
+			bool ran_cmd = false;
 			if(!this->channels[channel].lurk)
-				cmd::processMessage(userid, username, &this->channels[channel], message_u8);
+				ran_cmd = cmd::processMessage(userid, username, &this->channels[channel], message_u8);
 
 			auto tmp = util::stou(msg.tags["tmi-sent-ts"]);
 			uint64_t ts = (tmp.has_value()
@@ -285,7 +285,10 @@ namespace ikura::twitch
 			for(const auto& em : emote_idxs)
 				rel_emote_idxs.emplace_back(em.data() - message_u8.data(), em.size());
 
-			markov::process(message_u8, std::move(rel_emote_idxs));
+			// don't train on commands.
+			if(!ran_cmd)
+				markov::process(message_u8, std::move(rel_emote_idxs));
+
 			this->logMessage(ts, userid, &this->channels[channel], message_u8, emote_idxs);
 		}
 		else if(msg.command == "353" || msg.command == "366")

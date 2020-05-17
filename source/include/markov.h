@@ -21,5 +21,5 @@ namespace ikura::markov
 	void shutdown();
 
 	void process(ikura::str_view input, const std::vector<ikura::relative_str>& emote_idxs);
-	std::string generate(ikura::str_view seed);
+	Message generateMessage();
 }

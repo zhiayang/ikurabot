@@ -2,6 +2,7 @@
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
 
+#include "defs.h"
 #include "irc.h"
 #include "types.h"
 
@@ -185,8 +186,28 @@ namespace ikura::irc
 		do {
 			if(xs[0] == ':')
 			{
+				xs.remove_prefix(1);
+
+				if(msg.command == "PRIVMSG" || msg.command == "NOTICE")
+				{
+					if(xs.find('\x01') == 0)
+					{
+						xs.remove_prefix(1);
+
+						// invalid! CTCP must begin and end with \x01
+						if(xs.back() != '\x01')
+							return { };
+
+						xs.remove_suffix(1);
+						msg.isCTCP = true;
+
+						std::tie(x, xs) = bisect(xs, ' ');
+						msg.ctcpCommand = x;
+					}
+				}
+
 				// trailing parameter -- the rest is the last param.
-				msg.params.push_back(xs.drop(1));
+				msg.params.push_back(xs);
 				break;
 			}
 			else

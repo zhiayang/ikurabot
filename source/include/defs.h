@@ -248,6 +248,8 @@ namespace ikura
 	{
 		template <typename T> T get();
 		template <typename T> T get(T min, T max);
+
+		template <typename T> T get_normal(T mean, T stddev);
 	}
 
 	namespace base64
@@ -307,6 +309,14 @@ namespace ikura
 		std::vector<Fragment> fragments;
 
 		Message& add(ikura::str_view sv) { fragments.emplace_back(sv); return *this; }
+		Message& addNoSpace(ikura::str_view sv)
+		{
+			if(fragments.empty() || fragments.back().isEmote)
+				return add(sv);
+
+			fragments.back().str += sv;
+			return *this;
+		}
 		Message& add(const Emote& emote) { fragments.emplace_back(emote); return *this; }
 	};
 

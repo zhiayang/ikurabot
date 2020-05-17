@@ -100,5 +100,7 @@ namespace ikura::cmd
 	ikura::string_map<uint64_t> getDefaultBuiltinPermissions();
 
 	bool verifyPermissions(uint64_t required, uint64_t given);
-	void processMessage(ikura::str_view userid, ikura::str_view username, const Channel* channel, ikura::str_view message);
+
+	// returns true if a command was run.
+	bool processMessage(ikura::str_view userid, ikura::str_view username, const Channel* channel, ikura::str_view message);
 }

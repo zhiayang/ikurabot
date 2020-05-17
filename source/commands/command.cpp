@@ -19,18 +19,21 @@ namespace ikura::cmd
 	static void process_command(ikura::str_view user, ikura::str_view username, const Channel* chan, ikura::str_view cmd);
 	static Message generateResponse(ikura::str_view user, const Channel* chan, ikura::str_view msg);
 
-	void processMessage(ikura::str_view userid, ikura::str_view username, const Channel* chan, ikura::str_view message)
+	bool processMessage(ikura::str_view userid, ikura::str_view username, const Channel* chan, ikura::str_view message)
 	{
 		auto pref = chan->getCommandPrefix();
 		if(!pref.empty() && message.find(pref) == 0)
 		{
 			process_command(userid, username, chan, message.drop(pref.size()));
+			return true;
 		}
 		else if(message.find(chan->getUsername()) != std::string::npos)
 		{
 			if(chan->shouldReplyMentions())
 				chan->sendMessage(generateResponse(userid, chan, message));
 		}
+
+		return false;
 	}
 
 
@@ -170,7 +173,6 @@ namespace ikura::cmd
 
 	static Message generateResponse(str_view userid, const Channel* chan, str_view msg)
 	{
-		// return Message(zpr::sprint("%s AYAYA /", user));
-		return Message(markov::generate(""));
+		return markov::generateMessage();
 	}
 }

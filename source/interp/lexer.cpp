@@ -29,7 +29,7 @@ namespace ikura::interp::lexer
 
 		k = unicode::is_category(str, {
 			UTF8PROC_CATEGORY_MN, UTF8PROC_CATEGORY_MC, UTF8PROC_CATEGORY_ME,
-			UTF8PROC_CATEGORY_SC, UTF8PROC_CATEGORY_SK, UTF8PROC_CATEGORY_SO
+			UTF8PROC_CATEGORY_PC
 		});
 		if(k > 0) return k;
 

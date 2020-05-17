@@ -3,6 +3,7 @@
 // Licensed under the Apache License Version 2.0.
 
 #include <thread>
+#include <random>
 
 #include "zfu.h"
 #include "markov.h"
@@ -87,14 +88,16 @@ namespace ikura::markov
 		// the list of words. either way we'll need two sets, because we need to go from
 		// index -> word and word -> index.
 		std::vector<DBWord> wordList;
-
-		// how long (at most) the prefix should be. the longer this is, the longer it will
-		// take to both train and use the model.
-		static constexpr size_t MAX_LENGTH = 8;
 	};
 
-	static constexpr size_t IDX_START_MARKER    = 0;
-	static constexpr size_t IDX_END_MARKER      = 1;
+	static constexpr size_t MIN_INPUT_LENGTH        = 2;
+	static constexpr size_t GOOD_INPUT_LENGTH       = 6;
+	static constexpr size_t DISCARD_CHANCE_PERCENT  = 60;
+
+	static constexpr size_t MAX_PREFIX_LENGTH       = 6;
+
+	static constexpr size_t IDX_START_MARKER        = 0;
+	static constexpr size_t IDX_END_MARKER          = 1;
 
 	static constexpr uint64_t WORD_FLAG_EMOTE           = 0x1;
 	static constexpr uint64_t WORD_FLAG_SENTENCE_START  = 0x2;
@@ -176,7 +179,8 @@ namespace ikura::markov
 	{
 		return unicode::is_category(str, {
 			UTF8PROC_CATEGORY_CN, UTF8PROC_CATEGORY_MN, UTF8PROC_CATEGORY_MC, UTF8PROC_CATEGORY_ME, UTF8PROC_CATEGORY_ZL,
-			UTF8PROC_CATEGORY_ZP, UTF8PROC_CATEGORY_CC, UTF8PROC_CATEGORY_CF, UTF8PROC_CATEGORY_CS, UTF8PROC_CATEGORY_CO
+			UTF8PROC_CATEGORY_ZP, UTF8PROC_CATEGORY_CC, UTF8PROC_CATEGORY_CF, UTF8PROC_CATEGORY_CS, UTF8PROC_CATEGORY_CO,
+			UTF8PROC_CATEGORY_SO
 		});
 	}
 
@@ -191,7 +195,6 @@ namespace ikura::markov
 		std::vector<std::pair<ikura::str_view, bool>> word_arr;
 		{
 			assert(input[0] != ' ' && input[0] != '\t');
-			const char* orig_ptr = input.data();
 
 			size_t end = 0;
 			size_t cur_idx = 0;
@@ -266,8 +269,19 @@ namespace ikura::markov
 			}
 		}
 
-		for(const auto& [ w, e ] : word_arr)
-			zpr::println("'%s' - %s", w, e);
+
+		// filter out most of the shorter responses.
+		if(word_arr.size() < MIN_INPUT_LENGTH)
+			return;
+
+		else if(word_arr.size() < GOOD_INPUT_LENGTH)
+		{
+			auto x = random::get<uint64_t>(0, 100);
+			if(x <= DISCARD_CHANCE_PERCENT)
+				return;
+		}
+
+
 
 		auto word_indices = markovModel().map_write([&](auto& markov) -> std::vector<uint64_t> {
 			std::vector<uint64_t> ret;
@@ -284,7 +298,7 @@ namespace ikura::markov
 		auto words = ikura::span(word_indices);
 		for(size_t i = 0; i + 1 < words.size(); i++)
 		{
-			for(size_t k = 1; k <= MarkovModel::MAX_LENGTH && i + k < words.size(); k++)
+			for(size_t k = 1; k <= MAX_PREFIX_LENGTH && i + k < words.size(); k++)
 			{
 				// TODO: might want to make this case insensitive?
 				auto the_word = words[i + k];
@@ -317,12 +331,20 @@ namespace ikura::markov
 		}
 	}
 
+	template <typename T> struct rd_state_t { rd_state_t() : mersenne(std::random_device()()) { } std::mt19937 mersenne; };
+	template <typename T> static rd_state_t<T> rd_state;
+
 	static uint64_t generate_one(ikura::span<uint64_t> prefix)
 	{
 		if(prefix.empty())
 			return IDX_END_MARKER;
 
-		prefix = prefix.take_last(random::get<size_t>(1, MarkovModel::MAX_LENGTH));
+		// auto prb = std::uniform_real_distribution<>(0.2, 0.57)(rd_state<double>.mersenne);
+		auto pfl = (size_t) (1); // + prb * (MAX_PREFIX_LENGTH - 1));
+		prefix = prefix.take_last(pfl);
+
+		// lg::log("markov", "prefix len = %.3f / %zu", prb, pfl);
+
 		return markovModel().map_read([&](auto& markov) -> uint64_t {
 			while(!prefix.empty())
 			{
@@ -351,25 +373,9 @@ namespace ikura::markov
 		});
 	}
 
-	std::string generate(ikura::str_view seed)
+	Message generateMessage()
 	{
-		if(seed.empty())
-		{
-			seed = markovModel().map_read([](auto& markov) -> ikura::str_view {
-				if(markov.wordList.empty())
-					return "";
-
-				return markov.wordList[random::get<size_t>(0, markov.wordList.size() - 1)].word;
-			});
-
-			if(seed.empty())
-			{
-				lg::warn("markov", "failed to find seed");
-				return "";
-			}
-		}
-
-		size_t max_length = 25;
+		size_t max_length = 50;
 
 		std::vector<uint64_t> output;
 		output.push_back(IDX_START_MARKER);
@@ -383,22 +389,31 @@ namespace ikura::markov
 			output.push_back(word);
 		}
 
-		std::string ret;
-		ret.reserve(output.size() * 5); // average word length of 5? good enough.
+		Message msg;
 
-		markovModel().perform_read([&output, &ret](auto& markov) {
+		markovModel().perform_read([&output, &msg](auto& markov) {
 			for(size_t i = 0; i < output.size(); i++)
 			{
-				const auto& word = markov.wordList[output[i]].word;
+				auto& [ word, em ] = markov.wordList[output[i]];
+				if(word.empty())
+					continue;
 
-				if(i != 0 && (word.find_first_of(".,?!") != 0))
-					ret += ' ';
+				if(em)
+				{
+					msg.add(Emote(word));
+				}
+				else
+				{
+					if(word.find_first_of(".,?!") == 0)
+						msg.addNoSpace(word);
 
-				ret += word;
+					else
+						msg.add(word);
+				}
 			}
 		});
 
-		return ret;
+		return msg;
 	}
 
 
