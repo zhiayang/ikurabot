@@ -5,7 +5,7 @@
 #include "defs.h"
 #include "utf8proc/utf8proc.h"
 
-namespace ikura::utf8
+namespace ikura::unicode
 {
 	size_t is_category(ikura::str_view str, const std::initializer_list<int>& categories)
 	{
@@ -70,41 +70,57 @@ namespace ikura::utf8
 	}
 
 
-	std::string normalise_identifier(ikura::str_view str)
+	std::vector<int32_t> to_utf32(ikura::str_view str)
 	{
 		size_t bufsz = str.size();
 
+		std::vector<int32_t> buffer;
+
 	again:
-		auto buffer = new int32_t[1 + bufsz];
-		auto converted = utf8proc_decompose((const uint8_t*) str.data(), str.size(), buffer, bufsz, (utf8proc_option_t) (
-			UTF8PROC_IGNORE | UTF8PROC_LUMP | UTF8PROC_STRIPMARK | UTF8PROC_COMPOSE | UTF8PROC_STRIPNA));
+		buffer.resize(bufsz + 1);
+
+		auto converted = utf8proc_decompose((const uint8_t*) str.data(), str.size(), &buffer[0], buffer.size(), (utf8proc_option_t) (
+			UTF8PROC_LUMP | UTF8PROC_COMPOSE | UTF8PROC_STRIPNA));
 
 		if(converted < 0)
 		{
-			lg::error("utf", "failed to decompose '%s' (error = %d)", str, (int) converted);
-			return "";
+			lg::error("utf", "failed to convert '%s' to utf-32 (error = %d)", str, (int) converted);
+			return { };
 		}
 
 		if((size_t) converted != bufsz)
 		{
 			bufsz = (size_t) converted;
-			delete[] buffer;
 			goto again;
 		}
 
+		buffer.resize(converted);
+		return buffer;
+	}
+
+	std::string to_utf8(std::vector<int32_t> codepoints)
+	{
+		auto did = utf8proc_reencode(&codepoints[0], codepoints.size(), (utf8proc_option_t) (UTF8PROC_STRIPCC | UTF8PROC_COMPOSE));
+		if(did < 0)
 		{
-			auto did = utf8proc_reencode(buffer, converted, (utf8proc_option_t) (UTF8PROC_STRIPCC | UTF8PROC_COMPOSE));
-			if(did < 0)
-			{
-				lg::error("utf", "failed to encode '%s' (error = %d)", str, (int) converted);
-				return "";
-			}
-
-			auto ret = std::string((const char*) buffer, (size_t) did);
-			delete[] buffer;
-
-			return ret;
+			lg::error("unicode", "failed to convert codepoints to utf-8 (error = %d)", (int) did);
+			return "";
 		}
+
+		return std::string((const char*) &codepoints[0], (size_t) did);
+	}
+
+	size_t get_byte_length(int32_t codepoint)
+	{
+		uint8_t tmp[4];
+		return utf8proc_encode_char(codepoint, &tmp[0]);
+	}
+
+	std::string normalise(ikura::str_view str)
+	{
+		// this is just a case of converting to utf-32
+		// then back to utf-8 with the right flags.
+		return to_utf8(to_utf32(str));
 	}
 }
 

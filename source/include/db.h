@@ -6,6 +6,7 @@
 
 #include "defs.h"
 #include "buffer.h"
+#include "twitch.h"
 #include "markov.h"
 #include "synchro.h"
 
@@ -13,64 +14,32 @@ namespace ikura
 {
 	namespace db
 	{
-		struct TwitchUserCredentials : Serialisable
-		{
-			uint64_t permissions;       // see defs.h/ikura::permissions
-			uint64_t subscribedMonths;
-
-			virtual void serialise(Buffer& buf) const override;
-			static std::optional<TwitchUserCredentials> deserialise(Span& buf);
-
-			static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_USER_CREDS;
-		};
-
-		struct TwitchUser : Serialisable
-		{
-			std::string id;
-			std::string username;
-			std::string displayname;
-
-			virtual void serialise(Buffer& buf) const override;
-			static std::optional<TwitchUser> deserialise(Span& buf);
-
-			static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_USER;
-		};
-
-		struct TwitchChannel : Serialisable
-		{
-			// map from userid to user.
-			ikura::string_map<TwitchUser> knownUsers;
-
-			// map from userid to creds.
-			ikura::string_map<TwitchUserCredentials> userCredentials;
-
-			virtual void serialise(Buffer& buf) const override;
-			static std::optional<TwitchChannel> deserialise(Span& buf);
-
-			static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_CHANNEL;
-		};
-
-		struct TwitchDB : Serialisable
-		{
-			ikura::string_map<TwitchChannel> channels;
-
-			virtual void serialise(Buffer& buf) const override;
-			static std::optional<TwitchDB> deserialise(Span& buf);
-
-			static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_DB;
-		};
-
 		struct DbInterpState : Serialisable
 		{
 			virtual void serialise(Buffer& buf) const override;
 			static std::optional<DbInterpState> deserialise(Span& buf);
 		};
 
+		struct MessageDB : Serialisable
+		{
+			const std::string& data() const { return this->rawData; }
+			ikura::relative_str logMessageContents(ikura::str_view contents);
+
+			virtual void serialise(Buffer& buf) const override;
+			static std::optional<MessageDB> deserialise(Span& buf);
+
+			static constexpr uint8_t TYPE_TAG = serialise::TAG_MESSAGE_DB;
+
+		private:
+			std::string rawData;
+		};
+
 		struct Database : Serialisable
 		{
-			TwitchDB twitchData;
 			DbInterpState interpState;
+			twitch::TwitchDB twitchData;
 			markov::MarkovDB markovData;
+			MessageDB messageData;
 
 			void sync() const;
 
@@ -79,11 +48,13 @@ namespace ikura
 
 			static Database create();
 
+			uint32_t version() const { return this->_version; }
+
 		private:
-			char magic[8];      // 'ikura_db'
-			uint32_t version;   // currently, 1
-			uint32_t flags;     // there are none defined
-			uint64_t timestamp; // modified timestamp (millis since 1970)
+			char _magic[8];
+			uint32_t _version;
+			uint32_t _flags;
+			uint64_t _timestamp;
 		};
 
 		bool load(ikura::str_view path, bool create);

@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "defs.h"
 #include "synchro.h"
 #include "network.h"
 #include "msgqueue.h"
@@ -14,7 +15,7 @@
 namespace ikura::twitch
 {
 	struct TwitchState;
-	struct TwitchChannel : Channel
+	struct Channel : ikura::Channel
 	{
 		std::string name;
 		bool lurk;
@@ -23,8 +24,8 @@ namespace ikura::twitch
 		bool silentInterpErrors;
 		std::string commandPrefix;
 
-		TwitchChannel() : name(""), lurk(false), mod(false), respondToPings(false) { }
-		TwitchChannel(TwitchState* st, std::string n, bool l, bool m, bool p, bool si, std::string cp)
+		Channel() : name(""), lurk(false), mod(false), respondToPings(false) { }
+		Channel(TwitchState* st, std::string n, bool l, bool m, bool p, bool si, std::string cp)
 			: name(std::move(n)), lurk(l), mod(m), respondToPings(p), silentInterpErrors(si),
 			  commandPrefix(std::move(cp)), state(st) { }
 
@@ -33,7 +34,7 @@ namespace ikura::twitch
 		virtual std::string getCommandPrefix() const override;
 		virtual bool shouldReplyMentions() const override;
 		virtual bool shouldPrintInterpErrors() const override;
-		virtual uint64_t getUserPermissions(ikura::str_view user) const override;
+		virtual uint64_t getUserPermissions(ikura::str_view userid) const override;
 
 		virtual void sendMessage(const Message& msg) const override;
 
@@ -47,11 +48,14 @@ namespace ikura::twitch
 
 		bool connected = false;
 		std::string username;
-		ikura::string_map<TwitchChannel> channels;
+		ikura::string_map<Channel> channels;
 
 		void processMessage(ikura::str_view msg);
 		void sendMessage(ikura::str_view channel, ikura::str_view msg);
 		void sendRawMessage(ikura::str_view msg, ikura::str_view associated_channel = "");
+
+		void logMessage(uint64_t timestamp, ikura::str_view userid, Channel* chan, ikura::str_view message,
+			const std::vector<ikura::str_view>& emote_idxs);
 
 	private:
 		WebSocket ws;
@@ -68,7 +72,7 @@ namespace ikura::twitch
 		friend void init();
 		friend void shutdown();
 
-		friend struct TwitchChannel;
+		friend struct Channel;
 	};
 
 	struct QueuedMsg
@@ -88,4 +92,95 @@ namespace ikura::twitch
 	void shutdown();
 
 	MessageQueue<twitch::QueuedMsg>& message_queue();
+
+
+
+
+	// db stuff
+	struct TwitchMessage : Serialisable
+	{
+		// in milliseconds, as usual.
+		uint64_t timestamp;
+
+		std::string userid;
+		std::string username;
+		std::string displayname;
+
+		uint64_t permissions;
+		std::vector<uint64_t> groups;    // not used for now, but future-proofing.
+
+		ikura::relative_str message;
+		std::vector<ikura::relative_str> emotePositions;
+
+		virtual void serialise(Buffer& buf) const override;
+		static std::optional<TwitchMessage> deserialise(Span& buf);
+
+		static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_LOG_MSG;
+	};
+
+	struct TwitchMessageLog : Serialisable
+	{
+		std::vector<TwitchMessage> messages;
+
+		virtual void serialise(Buffer& buf) const override;
+		static std::optional<TwitchMessageLog> deserialise(Span& buf);
+
+		static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_LOG;
+	};
+
+	struct TwitchUserCredentials : Serialisable
+	{
+		uint64_t permissions;       // see defs.h/ikura::permissions
+		uint64_t subscribedMonths;
+
+		virtual void serialise(Buffer& buf) const override;
+		static std::optional<TwitchUserCredentials> deserialise(Span& buf);
+
+		static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_USER_CREDS;
+	};
+
+	struct TwitchUser : Serialisable
+	{
+		std::string id;
+		std::string username;
+		std::string displayname;
+
+		virtual void serialise(Buffer& buf) const override;
+		static std::optional<TwitchUser> deserialise(Span& buf);
+
+		static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_USER;
+	};
+
+	struct TwitchChannel : Serialisable
+	{
+		// map from userid to user.
+		ikura::string_map<TwitchUser> knownUsers;
+
+		// map from userid to creds.
+		ikura::string_map<TwitchUserCredentials> userCredentials;
+
+		const TwitchUser* getUser(ikura::str_view userid) const;
+
+		TwitchUserCredentials* getUserCredentials(ikura::str_view userid);
+		const TwitchUserCredentials* getUserCredentials(ikura::str_view userid) const;
+
+		virtual void serialise(Buffer& buf) const override;
+		static std::optional<TwitchChannel> deserialise(Span& buf);
+
+		static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_CHANNEL;
+	};
+
+	struct TwitchDB : Serialisable
+	{
+		ikura::string_map<TwitchChannel> channels;
+
+		TwitchMessageLog messageLog;
+
+		const TwitchChannel* getChannel(ikura::str_view name) const;
+
+		virtual void serialise(Buffer& buf) const override;
+		static std::optional<TwitchDB> deserialise(Span& buf);
+
+		static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_DB;
+	};
 }

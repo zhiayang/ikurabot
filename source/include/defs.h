@@ -21,42 +21,48 @@ namespace ikura
 
 	namespace serialise
 	{
-		constexpr uint8_t TAG_U8                = 0x01;
-		constexpr uint8_t TAG_U16               = 0x02;
-		constexpr uint8_t TAG_U32               = 0x03;
-		constexpr uint8_t TAG_U64               = 0x04;
-		constexpr uint8_t TAG_S8                = 0x05;
-		constexpr uint8_t TAG_S16               = 0x06;
-		constexpr uint8_t TAG_S32               = 0x07;
-		constexpr uint8_t TAG_S64               = 0x08;
-		constexpr uint8_t TAG_STRING            = 0x09;
-		constexpr uint8_t TAG_STL_UNORD_MAP     = 0x0A;
-		constexpr uint8_t TAG_TSL_HASHMAP       = 0x0B;
-		constexpr uint8_t TAG_F32               = 0x0C;
-		constexpr uint8_t TAG_F64               = 0x0D;
-		constexpr uint8_t TAG_BOOL_TRUE         = 0x0E;
-		constexpr uint8_t TAG_BOOL_FALSE        = 0x0F;
-		constexpr uint8_t TAG_STL_VECTOR        = 0x10;
-		constexpr uint8_t TAG_STL_ORD_MAP       = 0x11;
-		constexpr uint8_t TAG_SMALL_U64         = 0x12;
+		constexpr uint8_t TAG_U8                    = 0x01;
+		constexpr uint8_t TAG_U16                   = 0x02;
+		constexpr uint8_t TAG_U32                   = 0x03;
+		constexpr uint8_t TAG_U64                   = 0x04;
+		constexpr uint8_t TAG_S8                    = 0x05;
+		constexpr uint8_t TAG_S16                   = 0x06;
+		constexpr uint8_t TAG_S32                   = 0x07;
+		constexpr uint8_t TAG_S64                   = 0x08;
+		constexpr uint8_t TAG_STRING                = 0x09;
+		constexpr uint8_t TAG_STL_UNORD_MAP         = 0x0A;
+		constexpr uint8_t TAG_TSL_HASHMAP           = 0x0B;
+		constexpr uint8_t TAG_F32                   = 0x0C;
+		constexpr uint8_t TAG_F64                   = 0x0D;
+		constexpr uint8_t TAG_BOOL_TRUE             = 0x0E;
+		constexpr uint8_t TAG_BOOL_FALSE            = 0x0F;
+		constexpr uint8_t TAG_STL_VECTOR            = 0x10;
+		constexpr uint8_t TAG_STL_ORD_MAP           = 0x11;
+		constexpr uint8_t TAG_SMALL_U64             = 0x12;
+		constexpr uint8_t TAG_STL_PAIR              = 0x13;
+		constexpr uint8_t TAG_REL_STRING            = 0x14;
 
-		constexpr uint8_t TAG_TWITCH_DB         = 0x41;
-		constexpr uint8_t TAG_COMMAND_DB        = 0x42;
-		constexpr uint8_t TAG_TWITCH_USER       = 0x43;
-		constexpr uint8_t TAG_COMMAND           = 0x44;
-		constexpr uint8_t TAG_INTERP_STATE      = 0x45;
-		constexpr uint8_t TAG_MACRO             = 0x46;
-		constexpr uint8_t TAG_FUNCTION          = 0x47;
-		constexpr uint8_t TAG_INTERP_VALUE      = 0x48;
-		constexpr uint8_t TAG_TWITCH_USER_CREDS = 0x49;
-		constexpr uint8_t TAG_TWITCH_CHANNEL    = 0x4A;
-		constexpr uint8_t TAG_MARKOV_DB         = 0x4B;
-		constexpr uint8_t TAG_MARKOV_WORD_LIST  = 0x4C;
-		constexpr uint8_t TAG_MARKOV_WORD       = 0x4D;
+		constexpr uint8_t TAG_TWITCH_DB             = 0x41;
+		constexpr uint8_t TAG_COMMAND_DB            = 0x42;
+		constexpr uint8_t TAG_TWITCH_USER           = 0x43;
+		constexpr uint8_t TAG_COMMAND               = 0x44;
+		constexpr uint8_t TAG_INTERP_STATE          = 0x45;
+		constexpr uint8_t TAG_MACRO                 = 0x46;
+		constexpr uint8_t TAG_FUNCTION              = 0x47;
+		constexpr uint8_t TAG_INTERP_VALUE          = 0x48;
+		constexpr uint8_t TAG_TWITCH_USER_CREDS     = 0x49;
+		constexpr uint8_t TAG_TWITCH_CHANNEL        = 0x4A;
+		constexpr uint8_t TAG_MARKOV_DB             = 0x4B;
+		constexpr uint8_t TAG_MARKOV_WORD_LIST      = 0x4C;
+		constexpr uint8_t TAG_MARKOV_WORD           = 0x4D;
+		constexpr uint8_t TAG_TWITCH_LOG            = 0x4E;
+		constexpr uint8_t TAG_TWITCH_LOG_MSG        = 0x4F;
+		constexpr uint8_t TAG_MESSAGE_DB            = 0x50;
+		constexpr uint8_t TAG_MARKOV_STORED_WORD    = 0x51;
 
 		// if the byte has 0x80 set, then the lower 7 bits represents a truncated 64-bit number. it's a further
 		// extension of the SMALL_U64 thing, but literally only uses 1 byte for sizes between 0 - 127
-		constexpr uint8_t TAG_TINY_U64          = 0x80;
+		constexpr uint8_t TAG_TINY_U64              = 0x80;
 	}
 
 	namespace permissions
@@ -80,7 +86,7 @@ namespace ikura
 
 	namespace config
 	{
-		bool load(std::string_view path);
+		bool load(ikura::str_view path);
 
 		bool haveTwitch();
 		bool haveDiscord();
@@ -104,8 +110,9 @@ namespace ikura
 		}
 	}
 
-	namespace utf8
+	namespace unicode
 	{
+		// all of these functions return 0 on false, and the number of bytes (> 0) on true.
 		size_t is_digit(ikura::str_view str);
 		size_t is_letter(ikura::str_view str);
 		size_t is_symbol(ikura::str_view str);
@@ -114,7 +121,11 @@ namespace ikura
 		size_t is_category(ikura::str_view str, const std::initializer_list<int>& categories);
 		size_t get_codepoint_length(ikura::str_view str);
 
-		std::string normalise_identifier(ikura::str_view str);
+		std::string normalise(ikura::str_view str);
+
+		size_t get_byte_length(int32_t codepoint);
+		std::vector<int32_t> to_utf32(ikura::str_view str);
+		std::string to_utf8(std::vector<int32_t> codepoints);
 	}
 
 	namespace colours
@@ -156,7 +167,7 @@ namespace ikura
 		constexpr bool ENABLE_DEBUG = false;
 
 		template <typename... Args>
-		static inline void __generic_log(int lvl, std::string_view sys, const std::string& fmt, Args&&... args)
+		static inline void __generic_log(int lvl, ikura::str_view sys, const std::string& fmt, Args&&... args)
 		{
 			if(!ENABLE_DEBUG && lvl < 0)
 				return;
@@ -178,34 +189,34 @@ namespace ikura
 		}
 
 		template <typename... Args>
-		static void log(std::string_view sys, const std::string& fmt, Args&&... args)
+		static void log(ikura::str_view sys, const std::string& fmt, Args&&... args)
 		{
 			__generic_log(0, sys, fmt, args...);
 		}
 
 		template <typename... Args>
-		static void warn(std::string_view sys, const std::string& fmt, Args&&... args)
+		static void warn(ikura::str_view sys, const std::string& fmt, Args&&... args)
 		{
 			__generic_log(1, sys, fmt, args...);
 		}
 
 		// for convenience, this returns false.
 		template <typename... Args>
-		static bool error(std::string_view sys, const std::string& fmt, Args&&... args)
+		static bool error(ikura::str_view sys, const std::string& fmt, Args&&... args)
 		{
 			__generic_log(2, sys, fmt, args...);
 			return false;
 		}
 
 		template <typename... Args>
-		static void fatal(std::string_view sys, const std::string& fmt, Args&&... args)
+		static void fatal(ikura::str_view sys, const std::string& fmt, Args&&... args)
 		{
 			__generic_log(3, sys, fmt, args...);
 			exit(1);
 		}
 
 		template <typename... Args>
-		static void dbglog(std::string_view sys, const std::string& fmt, Args&&... args)
+		static void dbglog(ikura::str_view sys, const std::string& fmt, Args&&... args)
 		{
 			__generic_log(-1, sys, fmt, args...);
 		}
@@ -228,6 +239,9 @@ namespace ikura
 
 		std::tuple<int, uint8_t*, size_t> mmapEntireFile(const std::string& path);
 		void munmapEntireFile(int fd, uint8_t* buf, size_t len);
+
+		std::optional<int64_t>  stoi(ikura::str_view s, int base = 10);
+		std::optional<uint64_t> stou(ikura::str_view s, int base = 10);
 	}
 
 	namespace random
@@ -239,7 +253,7 @@ namespace ikura
 	namespace base64
 	{
 		std::string encode(const uint8_t* src, size_t len);
-		std::string decode(std::string_view src);
+		std::string decode(ikura::str_view src);
 	}
 
 
@@ -305,7 +319,7 @@ namespace ikura
 		virtual std::string getName() const = 0;
 		virtual std::string getUsername() const = 0;
 		virtual std::string getCommandPrefix() const = 0;
-		virtual uint64_t getUserPermissions(ikura::str_view user) const = 0;
+		virtual uint64_t getUserPermissions(ikura::str_view userid) const = 0;
 
 		virtual void sendMessage(const Message& msg) const = 0;
 	};

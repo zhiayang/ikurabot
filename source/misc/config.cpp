@@ -151,9 +151,9 @@ namespace ikura::config
 		return false;
 	}
 
-	bool load(std::string_view path)
+	bool load(ikura::str_view path)
 	{
-		std::fs::path configPath = path;
+		std::fs::path configPath = path.sv();
 		if(!std::fs::exists(configPath))
 			return lg::error("cfg", "file does not exist", path);
 

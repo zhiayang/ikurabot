@@ -35,6 +35,12 @@ namespace ikura::serialise
 	struct is_std_map<std::map<K, V>> : std::true_type { };
 
 	template<typename>
+	struct is_std_pair : std::false_type { };
+
+	template<typename K, typename V>
+	struct is_std_pair<std::pair<K, V>> : std::true_type { };
+
+	template<typename>
 	struct is_tsl_hashmap : std::false_type { };
 
 	template<typename K, typename V, typename H, typename E, typename A, bool S, typename G>
@@ -42,7 +48,6 @@ namespace ikura::serialise
 
 	template<typename V>
 	struct is_tsl_hashmap<ikura::string_map<V>> : std::true_type { };
-
 
 
 	struct Writer
@@ -89,17 +94,32 @@ namespace ikura::serialise
 
 		void write(bool x)      { ensure(1); tag(x ? TAG_BOOL_TRUE : TAG_BOOL_FALSE); }
 
-		void write(const std::string& s)
+		template <typename K, typename V>
+		void write(const std::pair<K, V>& p)
 		{
-			this->write(std::string_view(s));
+			tag(TAG_STL_PAIR);
+			write(p.first);
+			write(p.second);
 		}
 
-		void write(std::string_view sv)
+		void write(const std::string& s)
+		{
+			this->write(ikura::str_view(s));
+		}
+
+		void write(ikura::str_view sv)
 		{
 			ensure(8 + sv.size()); tag(TAG_STRING);
 			auto sz = sv.size(); write((uint64_t) sz);
 			for(size_t i = 0; i < sz; i++)
 				buffer.write(&sv[i], 1);
+		}
+
+		void write(ikura::relative_str rs)
+		{
+			tag(TAG_REL_STRING);
+			write((uint64_t) rs.start());
+			write((uint64_t) rs.size());
 		}
 
 		template <typename T>
@@ -129,7 +149,7 @@ namespace ikura::serialise
 				write(k), write(v);
 		}
 
-		template<typename K, typename V, typename H, typename E>
+		template <typename K, typename V, typename H, typename E>
 		void write(const tsl::robin_map<K, V, H, E>& map)
 		{
 			ensure(9); tag(TAG_TSL_HASHMAP);
@@ -138,7 +158,7 @@ namespace ikura::serialise
 				write(k), write(v);
 		}
 
-		template<typename V>
+		template <typename V>
 		void write(const ikura::string_map<V>& map)
 		{
 			ensure(9); tag(TAG_TSL_HASHMAP);
@@ -214,7 +234,9 @@ namespace ikura::serialise
 			else if constexpr (is_unordered_map<T>::value)  { if(the_tag = tag(), the_tag != TAG_STL_UNORD_MAP) return { }; }
 			else if constexpr (is_tsl_hashmap<T>::value)    { if(the_tag = tag(), the_tag != TAG_TSL_HASHMAP) return { }; }
 			else if constexpr (is_std_map<T>::value)        { if(the_tag = tag(), the_tag != TAG_STL_ORD_MAP) return { }; }
+			else if constexpr (is_std_pair<T>::value)       { if(the_tag = tag(), the_tag != TAG_STL_PAIR) return { }; }
 			else if constexpr (is_pointer_v<T>)             { return std::decay_t<decltype(*declval<T>())>::deserialise(span); }
+			else if constexpr (is_same_v<T, ikura::relative_str>) { if(the_tag = tag(), the_tag != TAG_REL_STRING) return { }; }
 			else if constexpr (is_same_v<T, bool>)          {
 				if(the_tag = tag(), (the_tag != TAG_BOOL_TRUE && the_tag != TAG_BOOL_FALSE))
 					return { };
@@ -258,15 +280,26 @@ namespace ikura::serialise
 			{
 				return (the_tag == TAG_BOOL_TRUE);
 			}
-			else if constexpr (is_same_v<T, std::string>)
+			else if constexpr (is_same_v<T, ikura::relative_str>)
 			{
-				auto sz = read<uint64_t>().value();
+				auto start = read<uint64_t>();
+				auto size = read<uint64_t>();
 
-				if(!ensure(sz))
+				if(!start || !size)
 					return { };
 
-				auto ret = std::string((const char*) span.data(), sz);
-				span.remove_prefix(sz);
+				return ikura::relative_str((size_t) start.value(), (size_t) size.value());
+			}
+			else if constexpr (is_same_v<T, std::string>)
+			{
+				auto sz = read<uint64_t>();
+				if(!sz) return { };
+
+				if(!ensure(sz.value()))
+					return { };
+
+				auto ret = std::string((const char*) span.data(), sz.value());
+				span.remove_prefix(sz.value());
 
 				return ret;
 			}
@@ -274,10 +307,11 @@ namespace ikura::serialise
 			{
 				using V = typename T::value_type;
 
-				auto sz = read<uint64_t>().value();
+				auto sz = read<uint64_t>();
+				if(!sz) return { };
 
 				T ret;
-				for(size_t i = 0; i < sz; i++)
+				for(size_t i = 0; i < sz.value(); i++)
 				{
 					auto x = read<V>();
 					if(!x.has_value())
@@ -293,10 +327,11 @@ namespace ikura::serialise
 				using K = typename T::key_type;
 				using V = typename T::mapped_type;
 
-				auto sz = read<uint64_t>().value();
+				auto sz = read<uint64_t>();
+				if(!sz) return { };
 
 				T ret;
-				for(size_t i = 0; i < sz; i++)
+				for(size_t i = 0; i < sz.value(); i++)
 				{
 					auto k = read<K>();
 					auto v = read<V>();
@@ -314,10 +349,11 @@ namespace ikura::serialise
 				using K = typename T::key_type;
 				using V = typename T::mapped_type;
 
-				auto sz = read<uint64_t>().value();
+				auto sz = read<uint64_t>();
+				if(!sz) return { };
 
 				T ret;
-				for(size_t i = 0; i < sz; i++)
+				for(size_t i = 0; i < sz.value(); i++)
 				{
 					auto k = read<K>();
 					auto v = read<V>();
@@ -329,6 +365,19 @@ namespace ikura::serialise
 				}
 
 				return ret;
+			}
+			else if constexpr (is_std_pair<T>::value)
+			{
+				using K = typename T::first_type;
+				using V = typename T::second_type;
+
+				auto k = read<K>();
+				auto v = read<V>();
+
+				if(!k.has_value() || !v.has_value())
+					return { };
+
+				return std::pair<K, V>(k.value(), v.value());
 			}
 			else
 			{

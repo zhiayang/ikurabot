@@ -9,9 +9,6 @@
 
 namespace ikura::markov
 {
-	constexpr uint64_t WORD_FIRST = 0xFFFF'FFFF'FFFF'FFFF;    // index used to mark the beginning of a sentence
-	constexpr uint64_t WORD_LAST  = 0xFFFF'FFFF'FFFF'FFFE;    // index used to mark the end of a sentence
-
 	struct MarkovDB : Serialisable
 	{
 		virtual void serialise(Buffer& buf) const override;
@@ -23,6 +20,6 @@ namespace ikura::markov
 	void init();
 	void shutdown();
 
-	void process(ikura::str_view input);
+	void process(ikura::str_view input, const std::vector<ikura::relative_str>& emote_idxs);
 	std::string generate(ikura::str_view seed);
 }

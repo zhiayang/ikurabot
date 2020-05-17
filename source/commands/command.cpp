@@ -16,20 +16,20 @@ namespace ikura::interp
 
 namespace ikura::cmd
 {
-	static void process_command(str_view user, const Channel* chan, str_view cmd);
-	static Message generateResponse(str_view user, const Channel* chan, str_view msg);
+	static void process_command(ikura::str_view user, ikura::str_view username, const Channel* chan, ikura::str_view cmd);
+	static Message generateResponse(ikura::str_view user, const Channel* chan, ikura::str_view msg);
 
-	void processMessage(str_view user, const Channel* chan, str_view message)
+	void processMessage(ikura::str_view userid, ikura::str_view username, const Channel* chan, ikura::str_view message)
 	{
 		auto pref = chan->getCommandPrefix();
 		if(!pref.empty() && message.find(pref) == 0)
 		{
-			process_command(user, chan, message.drop(pref.size()));
+			process_command(userid, username, chan, message.drop(pref.size()));
 		}
 		else if(message.find(chan->getUsername()) != std::string::npos)
 		{
 			if(chan->shouldReplyMentions())
-				chan->sendMessage(generateResponse(user, chan, message));
+				chan->sendMessage(generateResponse(userid, chan, message));
 		}
 	}
 
@@ -79,10 +79,11 @@ namespace ikura::cmd
 		return evaluateMacro(fs, cs, code);
 	}
 
-	static void process_command(str_view user, const Channel* chan, str_view input)
+	static void process_command(ikura::str_view userid, ikura::str_view username, const Channel* chan, ikura::str_view input)
 	{
 		interp::CmdContext cs;
-		cs.caller = user;
+		cs.callername = username;
+		cs.callerid = userid;
 		cs.channel = chan;
 
 		auto cmd_str = input.substr(0, input.find(' ')).trim();
@@ -93,11 +94,11 @@ namespace ikura::cmd
 		if(command)
 		{
 			auto req = command->getPermissions();
-			auto giv = chan->getUserPermissions(user);
+			auto giv = chan->getUserPermissions(userid);
 			if(!verifyPermissions(req, giv))
 			{
 				lg::warn("cmd", "user '%s' tried to execute command '%s' with insufficient permissions (%x vs %x)",
-					user, command->getName(), req, giv);
+					username, command->getName(), req, giv);
 
 				chan->sendMessage(Message("insufficient permissions"));
 				return;
@@ -120,7 +121,7 @@ namespace ikura::cmd
 			auto found = run_builtin_command(cs, chan, cmd_str, arg_str);
 			if(found) return;
 
-			lg::warn("cmd", "user '%s' tried non-existent command '%s'", user, cmd_str);
+			lg::warn("cmd", "user '%s' tried non-existent command '%s'", username, cmd_str);
 		}
 	}
 
@@ -132,7 +133,7 @@ namespace ikura::cmd
 		// otherwise, it is just a simple & of the perms. this does mean that you
 		// can have commands that can only be executed by subscribers but not moderators, for example.
 		if(required == 0)   return is_owner;
-		else                return /*is_owner ||*/ ((required & given) != 0);
+		else                return is_owner || ((required & given) != 0);
 	}
 
 
@@ -167,7 +168,7 @@ namespace ikura::cmd
 
 
 
-	static Message generateResponse(str_view user, const Channel* chan, str_view msg)
+	static Message generateResponse(str_view userid, const Channel* chan, str_view msg)
 	{
 		// return Message(zpr::sprint("%s AYAYA /", user));
 		return Message(markov::generate(""));

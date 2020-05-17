@@ -43,7 +43,7 @@ namespace ikura
 	constexpr auto DEFAULT_TIMEOUT      = 2000ms;
 
 
-	WebSocket::WebSocket(std::string_view host, uint16_t port, bool ssl, std::chrono::nanoseconds timeout)
+	WebSocket::WebSocket(ikura::str_view host, uint16_t port, bool ssl, std::chrono::nanoseconds timeout)
 		: conn(host, port, ssl, timeout), buffer(DEFAULT_FRAME_BUFFER_SIZE) { }
 
 	WebSocket::WebSocket(const URL& url, std::chrono::nanoseconds timeout) : buffer(DEFAULT_FRAME_BUFFER_SIZE)
@@ -350,6 +350,8 @@ namespace ikura
 			this->conn.send(Span(buf, hdrsz));
 			this->conn.send(payload.span());
 		}
+
+		delete[] buf;
 	}
 
 	void WebSocket::handle_frame(uint8_t opcode, bool fin, Span data)
@@ -368,7 +370,7 @@ namespace ikura
 		else if(opcode == OP_TEXT)
 		{
 			if(this->text_callback)
-				this->text_callback(fin, std::string_view((const char*) data.data(), data.size()));
+				this->text_callback(fin, ikura::str_view((const char*) data.data(), data.size()));
 
 			if(!fin) this->cur_rx_cont_op = OP_TEXT;
 			else     this->cur_rx_cont_op = 0;
@@ -384,7 +386,7 @@ namespace ikura
 		else if(opcode == OP_CONTINUATION)
 		{
 			if(this->cur_rx_cont_op == OP_TEXT && this->text_callback)
-				this->text_callback(fin, std::string_view((const char*) data.data(), data.size()));
+				this->text_callback(fin, ikura::str_view((const char*) data.data(), data.size()));
 
 			else if(this->cur_rx_cont_op == OP_BINARY && this->binary_callback)
 				this->binary_callback(fin, data);

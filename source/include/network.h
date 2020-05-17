@@ -16,7 +16,7 @@ namespace ikura
 {
 	struct URL
 	{
-		explicit URL(std::string_view url);
+		explicit URL(ikura::str_view url);
 
 		std::string& protocol()             { return this->_protocol; }
 		const std::string& protocol() const { return this->_protocol; }
@@ -46,7 +46,7 @@ namespace ikura
 		using RxCallbackFn = void(Span);
 
 		Socket(const URL& url, bool ssl = false, std::chrono::nanoseconds timeout = { });
-		Socket(std::string_view host, uint16_t port, bool ssl, std::chrono::nanoseconds timeout = { });
+		Socket(ikura::str_view host, uint16_t port, bool ssl, std::chrono::nanoseconds timeout = { });
 		~Socket();
 
 		bool connect();
@@ -88,7 +88,7 @@ namespace ikura
 		using RxBinaryCallbackFn = void(bool, Span);
 
 		WebSocket(const URL& url, std::chrono::nanoseconds timeout = { });
-		WebSocket(std::string_view host, uint16_t port, bool ssl, std::chrono::nanoseconds timeout = { });
+		WebSocket(ikura::str_view host, uint16_t port, bool ssl, std::chrono::nanoseconds timeout = { });
 		~WebSocket();
 
 		void resizeBuffer(size_t sz);
@@ -127,7 +127,7 @@ namespace ikura
 
 	struct HttpHeaders
 	{
-		HttpHeaders(std::string_view status);
+		HttpHeaders(ikura::str_view status);
 
 		HttpHeaders& add(std::string&& key, std::string&& value);
 		HttpHeaders& add(const std::string& key, const std::string& value);
@@ -136,10 +136,10 @@ namespace ikura
 		std::string status() const;
 		const std::vector<std::pair<std::string, std::string>>& headers() const;
 
-		static std::optional<HttpHeaders> parse(std::string_view data);
+		static std::optional<HttpHeaders> parse(ikura::str_view data);
 		static std::optional<HttpHeaders> parse(const Buffer& data);
 
-		std::string get(std::string_view key) const;
+		std::string get(ikura::str_view key) const;
 
 	private:
 		size_t expected_len = 0;

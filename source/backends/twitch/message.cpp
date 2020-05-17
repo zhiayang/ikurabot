@@ -3,6 +3,7 @@
 // Licensed under the Apache License Version 2.0.
 
 #include "db.h"
+#include "zfu.h"
 #include "cmd.h"
 #include "irc.h"
 #include "defs.h"
@@ -15,7 +16,7 @@ namespace ikura::twitch
 	template <typename... Args> void warn(const std::string& fmt, Args&&... args) { lg::warn("twitch", fmt, args...); }
 	template <typename... Args> void error(const std::string& fmt, Args&&... args) { lg::error("twitch", fmt, args...); }
 
-	static void update_user_creds(ikura::str_view user, ikura::str_view channel, const ikura::string_map<std::string>& tags)
+	static std::string update_user_creds(ikura::str_view user, ikura::str_view channel, const ikura::string_map<std::string>& tags)
 	{
 		// all users get the everyone credential.
 		uint64_t perms = permissions::EVERYONE;
@@ -65,13 +66,16 @@ namespace ikura::twitch
 				{
 					// only care about this
 					if(badge.find("subscriber") == 0 || badge.find("founder") == 0)
-						sublen = std::stoi(badge.drop(badge.find('/') + 1).str());
+						sublen = util::stou(badge.drop(badge.find('/') + 1)).value();
 				}
 			}
 		}
 
 		if(userid.empty())
-			return warn("message from '%s' contained no user id", user);
+		{
+			warn("message from '%s' contained no user id", user);
+			return "";
+		}
 
 		// acquire a big lock.
 		database().perform_write([&](auto& db) {
@@ -80,7 +84,7 @@ namespace ikura::twitch
 			// update the user:
 			{
 				auto& tchan = db.twitchData.channels[channel];
-				auto& tuser = tchan.knownUsers[user];
+				auto& tuser = tchan.knownUsers[userid];
 
 				tuser.username = user.str();
 				tuser.displayname = displayname;
@@ -105,6 +109,94 @@ namespace ikura::twitch
 				creds.subscribedMonths = sublen;
 			}
 		});
+
+		return userid;
+	}
+
+	// this returns a vector of str_views with the text of the emote position, but more importantly,
+	// each "view" has a pointer and a size, which represents the position of the emote in the original
+	// byte stream. eg. if you use KEKW twice in a message, then you will get one str_view for each
+	// instance of the emote.
+	static std::vector<ikura::str_view> get_emote_indices(const ikura::string_map<std::string>& tags,
+		ikura::str_view utf8, const std::vector<int32_t>& utf32)
+	{
+		// first split the tags.
+		auto pos_arr = [&tags]() -> std::vector<std::pair<size_t, size_t>> {
+
+			std::vector<std::pair<size_t, size_t>> ret;
+
+			// first get the 'emotes' tag
+			if(auto it = tags.find(ikura::str_view("emotes")); it != tags.end() && !it->second.empty())
+			{
+				// format: emotes=ID:begin-end,begin-end/ID:begin-end/...
+				auto list = util::split(it->second, '/');
+				for(const auto& emt : list)
+				{
+					// get the id:
+					auto id = emt.take(emt.find(':'));
+					auto indices = emt.drop(id.size() + 1);
+					auto pos = util::split(indices, ',');
+					for(const auto& p : pos)
+					{
+						// split by the '-'
+						auto k = p.find('-');
+						if(k != std::string::npos)
+						{
+							auto a = util::stou(p.take(k));
+							auto b = util::stou(p.drop(k + 1));
+
+							if(a && b) ret.emplace_back(a.value(), b.value());
+						}
+					}
+				}
+
+				return ret;
+			}
+
+			return { };
+		}();
+
+		// no emotes.
+		if(pos_arr.empty())
+			return { };
+
+		// sort by the start index. since you can't have overlapping ranges, this will suffice.
+		std::sort(pos_arr.begin(), pos_arr.end(), [](auto& a, auto& b) -> bool { return a.first < b.first; });
+		ikura::span positions = pos_arr;
+
+		std::vector<ikura::str_view> ret;
+
+		// TODO: support ffz and bttv emotes. we just need to scan the utf8 stream in-parallel with the
+		// utf-32 stream, i think.
+
+		size_t idx8 = 0;
+		size_t idx32 = 0;
+		size_t first_idx8 = 0;
+
+		while(idx8 < utf8.size() && idx32 < utf32.size())
+		{
+			if(positions.empty())
+				break;
+
+			// how this will go is that we keep the "current" emote index pair at positions[0]; when we
+			// find a match, then it gets removed from the span. that way we don't need a 4th index.
+
+			if(idx32 == positions[0].first)
+			{
+				first_idx8 = idx8;
+			}
+			else if(idx32 == positions[0].second)
+			{
+				// it's begin,end inclusive, so calc the length and substr that.
+				ret.push_back(utf8.substr(first_idx8, idx8 + 1 - first_idx8));
+				positions.remove_prefix(1);
+			}
+
+			idx8 += unicode::get_byte_length(utf32[idx32]);
+			idx32 += 1;
+		}
+
+		return ret;
 	}
 
 	void TwitchState::processMessage(ikura::str_view input)
@@ -113,8 +205,6 @@ namespace ikura::twitch
 		if(!m) return error("malformed: '%s'", input);
 
 		auto msg = m.value();
-		// for(size_t i = 0; i < input.size(); i++)
-		// 	printf(" %02x", input[i]);
 
 		if(msg.command == "PING")
 		{
@@ -150,10 +240,10 @@ namespace ikura::twitch
 			if(msg.params.size() < 2)
 				return error("malformed: less than 2 params for PRIVMSG");
 
-			auto user = msg.user;
+			auto username = msg.user;
 
 			// check for self
-			if(user == this->username)
+			if(username == this->username)
 				return;
 
 			auto channel = msg.params[0];
@@ -163,27 +253,44 @@ namespace ikura::twitch
 			// drop the '#'
 			channel.remove_prefix(1);
 
-			auto message = msg.params[1];
-			lg::log("msg", "twitch/#%s: <%s>  %s", channel, user, message);
-
 			// update the credentials of the user (for the channel)
-			update_user_creds(user, channel, msg.tags);
+			auto userid = update_user_creds(username, channel, msg.tags);
 
-			if(this->channels[channel].lurk)
-				return;
+			// if there was something wrong with the message (no id, for example), then bail.
+			if(userid.empty()) return;
 
-			auto n_message = utf8::normalise_identifier(message);
+			auto message = msg.params[1].trim();
+			lg::log("msg", "twitch/#%s: <%s>  %s", channel, username, message);
 
+
+			// zpr::println("%s", input);
 			// for(size_t i = 0; i < message.size(); i++)
 			// 	printf(" %02x", (uint8_t) message[i]);
 
-			markov::process(n_message);
+			auto message_u32 = unicode::to_utf32(message);
+			auto message_u8  = unicode::to_utf8(message_u32);
+			auto emote_idxs  = get_emote_indices(msg.tags, message_u8, message_u32);
 
-			cmd::processMessage(user, &this->channels[channel], n_message);
+			// only process commands if we're not lurking
+			if(!this->channels[channel].lurk)
+				cmd::processMessage(userid, username, &this->channels[channel], message_u8);
+
+			auto tmp = util::stou(msg.tags["tmi-sent-ts"]);
+			uint64_t ts = (tmp.has_value()
+				? tmp.value()
+				: util::getMillisecondTimestamp()
+			);
+
+			std::vector<ikura::relative_str> rel_emote_idxs;
+			for(const auto& em : emote_idxs)
+				rel_emote_idxs.emplace_back(em.data() - message_u8.data(), em.size());
+
+			markov::process(message_u8, std::move(rel_emote_idxs));
+			this->logMessage(ts, userid, &this->channels[channel], message_u8, emote_idxs);
 		}
 		else if(msg.command == "353" || msg.command == "366")
 		{
-			// ignore
+			// ignore. these are MOTD markers i think
 		}
 		else
 		{
@@ -215,51 +322,60 @@ namespace ikura::twitch
 		this->sendRawMessage(zpr::sprint("PRIVMSG #%s :%s", channel, msg), channel);
 	}
 
-	std::string TwitchChannel::getCommandPrefix() const
+	std::string Channel::getCommandPrefix() const
 	{
 		return this->commandPrefix;
 	}
 
-	std::string TwitchChannel::getUsername() const
+	std::string Channel::getUsername() const
 	{
 		return config::twitch::getUsername();
 	}
 
-	std::string TwitchChannel::getName() const
+	std::string Channel::getName() const
 	{
 		return this->name;
 	}
 
-	uint64_t TwitchChannel::getUserPermissions(ikura::str_view user) const
+	uint64_t Channel::getUserPermissions(ikura::str_view userid) const
 	{
 		// mfw "const correctness", so we can't use operator[]
 		return database().map_read([&](auto& db) -> uint64_t {
-			if(auto it = db.twitchData.channels.find(this->name); it != db.twitchData.channels.end())
-			{
-				auto& chan = it.value();
-				if(auto it = chan.knownUsers.find(user); it != chan.knownUsers.end())
-				{
-					auto userid = it->second.id;
-					if(auto it = chan.userCredentials.find(userid); it != chan.userCredentials.end())
-						return it->second.permissions;
-				}
-			}
+			auto chan = db.twitchData.getChannel(this->name);
+			if(!chan) return 0;
 
-			return 0;
+			auto creds = chan->getUserCredentials(userid);
+			if(!creds) return 0;
+
+			return creds->permissions;
+
+
+			// if(auto it = db.twitchData.channels.find(this->name); it != db.twitchData.channels.end())
+			// {
+			// 	auto& chan = it.value();
+			// 	if(auto it = chan.knownUsers.find(user); it != chan.knownUsers.end())
+			// 	{
+			// 		auto userid = it->second.id;
+			// 		if(auto it = chan.userCredentials.find(userid); it != chan.userCredentials.end())
+			// 			return it->second.permissions;
+			// 	}
+			// }
+
+			// return 0;
 		});
 	}
 
-	bool TwitchChannel::shouldPrintInterpErrors() const
+	bool Channel::shouldPrintInterpErrors() const
 	{
 		return !this->silentInterpErrors;
 	}
 
-	bool TwitchChannel::shouldReplyMentions() const
+	bool Channel::shouldReplyMentions() const
 	{
 		return this->respondToPings;
 	}
 
-	void TwitchChannel::sendMessage(const Message& msg) const
+	void Channel::sendMessage(const Message& msg) const
 	{
 		std::string str;
 		for(size_t i = 0; i < msg.fragments.size(); i++)

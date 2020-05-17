@@ -189,7 +189,9 @@ namespace ikura::interp
 	struct Command;
 	struct CmdContext
 	{
-		ikura::str_view caller;
+		ikura::str_view callerid;
+		ikura::str_view callername;
+
 		const Channel* channel = nullptr;
 
 		// the arguments, split by spaces and Value::of_string-ed

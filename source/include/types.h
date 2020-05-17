@@ -334,6 +334,30 @@ namespace ikura
 
 		std::string str() const { return std::string(*this); }
 	};
+
+	struct relative_str
+	{
+		relative_str() : _start(0), _size(0) { }
+		relative_str(size_t start, size_t size) : _start(start), _size(size) { }
+
+		relative_str(relative_str&&) = default;
+		relative_str(const relative_str&) = default;
+
+		relative_str& operator = (relative_str&&) = default;
+		relative_str& operator = (const relative_str&) = default;
+
+		size_t start() const    { return this->_start; }
+		size_t size()  const    { return this->_size; }
+		size_t end_excl() const { return this->_start + this->_size; }
+		size_t end_incl() const { return this->_start + this->_size - 1; }
+
+		str_view get(const char* ptr) const { return str_view(ptr + _start, _size); };
+		str_view get(const std::string& str) const { return str_view(str).substr(_start, _size); };
+
+	private:
+		size_t _start;
+		size_t _size;
+	};
 }
 
 namespace std

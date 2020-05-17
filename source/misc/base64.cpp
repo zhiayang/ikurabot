@@ -63,7 +63,7 @@ namespace ikura::base64
 	}
 
 
-	std::string decode(std::string_view src)
+	std::string decode(ikura::str_view src)
 	{
 		std::string ret;
 		int bits_collected = 0;

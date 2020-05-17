@@ -41,12 +41,10 @@ namespace ikura::interp
 
 	bool run_builtin_command(CmdContext& cs, const Channel* chan, ikura::str_view cmd_str, ikura::str_view arg_str)
 	{
-		// auto cmd_str = utf8::normalise_identifier(cmd_sv);
-
-		auto user_perms = chan->getUserPermissions(cs.caller);
+		auto user_perms = chan->getUserPermissions(cs.callerid);
 		auto denied = [&]() -> bool {
 			lg::warn("cmd", "user '%s' tried to execute command '%s' with insufficient permissions (%x)",
-				cs.caller, cmd_str, user_perms);
+				cs.callername, cmd_str, user_perms);
 
 			chan->sendMessage(Message("insufficient permissions"));
 			return true;
@@ -97,12 +95,11 @@ namespace ikura::interp
 
 		if(cmd.empty() || perm_str.empty())
 			return chan->sendMessage(Message("not enough arguments to chmod"));
-		auto tmp = perm_str.str();
-		char* tmp2 = nullptr;
 
-		auto perm = strtol(tmp.data(), &tmp2, /* base: */ 0x10);
-		if(tmp2 != &tmp.back() + 1)
-			return chan->sendMessage(Message(zpr::sprint("invalid permission string '%s'", tmp)));
+		auto perm_ = util::stou(perm_str, /* base: */ 0x10);
+		if(!perm_) return chan->sendMessage(Message(zpr::sprint("invalid permission string '%s'", perm_str)));
+
+		auto perm = perm_.value();
 
 		if(is_builtin_command(cmd))
 		{
@@ -495,14 +492,10 @@ namespace ikura::interp
 		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_string())
 			return zpr::sprint("invalid argument");
 
-		auto s = cs.macro_args[0].raw_str();
+		auto ret = util::stoi(cs.macro_args[0].raw_str());
+		if(!ret) return zpr::sprint("invalid argument");
 
-		char* end = nullptr;
-		auto ret = strtoll(s.c_str(), &end, 10);
-		if(end != &s.back() + 1)
-			return zpr::sprint("invalid argument");
-
-		return Value::of_integer(ret);
+		return Value::of_integer(ret.value());
 	}
 
 	static Result<interp::Value> fn_dbl_to_int(InterpState* fs, CmdContext& cs)

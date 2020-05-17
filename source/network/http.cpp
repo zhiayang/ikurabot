@@ -17,7 +17,7 @@ namespace ikura
 		{ "wss", 443 },
 	};
 
-	URL::URL(std::string_view url)
+	URL::URL(ikura::str_view url)
 	{
 		do {
 			auto i = url.find("://");
@@ -45,17 +45,12 @@ namespace ikura
 
 			if(i != std::string::npos)
 			{
-				char* end = 0;
-
 				// tmp only contains 'basename:PORT'
-				auto copy = std::string(tmp.substr(i+1));
-				auto val = std::strtol(copy.c_str(), &end, 10);
+				auto val = util::stoi(tmp.drop(i + 1));
+				if(!val) break;
 
-				if(end != (copy.c_str() + copy.size()))
-					break;
-
-				this->_port = val;
-				this->_hostname = std::string(tmp.substr(0, i));
+				this->_port = val.value();
+				this->_hostname = std::string(tmp.take(i));
 			}
 			else
 			{
@@ -91,7 +86,7 @@ namespace ikura
 
 
 
-	HttpHeaders::HttpHeaders(std::string_view status)
+	HttpHeaders::HttpHeaders(ikura::str_view status)
 	{
 		this->_status = status;
 		this->expected_len = this->_status.size() + 2;
@@ -138,7 +133,7 @@ namespace ikura
 		return this->_headers;
 	}
 
-	std::string HttpHeaders::get(std::string_view key) const
+	std::string HttpHeaders::get(ikura::str_view key) const
 	{
 		for(const auto& [ k, v ] : this->_headers)
 			if(k == key)
@@ -149,11 +144,11 @@ namespace ikura
 
 	std::optional<HttpHeaders> HttpHeaders::parse(const Buffer& buf)
 	{
-		return parse(std::string_view((const char*) buf.data(), buf.size()));
+		return parse(ikura::str_view((const char*) buf.data(), buf.size()));
 	}
 
 
-	std::optional<HttpHeaders> HttpHeaders::parse(std::string_view data)
+	std::optional<HttpHeaders> HttpHeaders::parse(ikura::str_view data)
 	{
 		auto x = data.find("\r\n");
 		if(x == std::string::npos)

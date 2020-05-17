@@ -12,6 +12,7 @@
 
 #include "db.h"
 #include "defs.h"
+#include "timer.h"
 #include "serialise.h"
 
 using namespace std::chrono_literals;
@@ -29,7 +30,7 @@ namespace ikura::db
 
 	static_assert(sizeof(Superblock) == 24);
 
-	constexpr uint64_t DB_VERSION   = 4;
+	constexpr uint64_t DB_VERSION   = 6;
 	constexpr const char* DB_MAGIC  = "ikura_db";
 
 	constexpr auto SYNC_INTERVAL    = 60s;
@@ -56,10 +57,10 @@ namespace ikura::db
 	{
 		Database db;
 
-		memcpy(db.magic, DB_MAGIC, 8);
-		db.flags = 0;
-		db.version = DB_VERSION;
-		db.timestamp = util::getMillisecondTimestamp();
+		memcpy(db._magic, DB_MAGIC, 8);
+		db._flags = 0;
+		db._version = DB_VERSION;
+		db._timestamp = util::getMillisecondTimestamp();
 
 		return db;
 	}
@@ -87,6 +88,8 @@ namespace ikura::db
 			lg::warn("db", "database '%s' exists, ignoring '--create' flag", path.string());
 		}
 
+		auto t = timer();
+
 		// ok, for sure now there's something.
 		auto [ fd, buf, len ] = util::mmapEntireFile(path.string());
 		if(buf == nullptr || len == 0)
@@ -112,7 +115,7 @@ namespace ikura::db
 			});
 
 			thr.detach();
-			lg::log("db", "database loaded");
+			lg::log("db", "database loaded in %.2f ms", t.measure());
 		}
 
 		return succ;
@@ -123,18 +126,19 @@ namespace ikura::db
 		auto wr = serialise::Writer(buf);
 
 		Superblock sb;
-		memcpy(sb.magic, this->magic, 8);
-		sb.flags = this->flags;
-		sb.version = this->version;
+		memcpy(sb.magic, this->_magic, 8);
+		sb.flags = this->_flags;
+		sb.version = this->_version;
 		sb.timestamp = util::getMillisecondTimestamp();
 
-		currentDatabaseVersion = this->version;
+		currentDatabaseVersion = this->_version;
 
 		buf.write(&sb, sizeof(Superblock));
 
 		wr.write(this->twitchData);
 		wr.write(this->interpState);
 		wr.write(this->markovData);
+		wr.write(this->messageData);
 	}
 
 	std::optional<Database> Database::deserialise(Span& buf)
@@ -152,14 +156,14 @@ namespace ikura::db
 			return error("invalid version %lu (expected <= %lu)", sb->version, DB_VERSION);
 
 		Database db;
-		memcpy(db.magic, sb->magic, 8);
-		db.flags = sb->flags;
-		db.version = sb->version;
-		db.timestamp = sb->timestamp;
+		memcpy(db._magic, sb->magic, 8);
+		db._flags = sb->flags;
+		db._version = sb->version;
+		db._timestamp = sb->timestamp;
 
 		buf.remove_prefix(sizeof(Superblock));
 
-		currentDatabaseVersion = db.version;
+		currentDatabaseVersion = db._version;
 		if(currentDatabaseVersion < DB_VERSION)
 			lg::log("db", "upgrading database from version %d to %d", currentDatabaseVersion, DB_VERSION);
 
@@ -173,10 +177,12 @@ namespace ikura::db
 		if(!rd.read(&db.markovData))
 			return error("failed to read markov data");
 
+		if(!rd.read(&db.messageData))
+			return error("failed to read markov data");
 
 		// once we are done reading the database from disk, the in-memory state is considered gospel.
 		// thus, we can "upgrade" the version.
-		db.version = DB_VERSION;
+		db._version = DB_VERSION;
 
 		return db;
 	}
@@ -184,6 +190,8 @@ namespace ikura::db
 
 	void Database::sync() const
 	{
+		auto t = timer();
+
 		auto buf = Buffer(512);
 		this->serialise(buf);
 
@@ -212,115 +220,7 @@ namespace ikura::db
 			return;
 		}
 
-		lg::log("db", "sync");
-	}
-
-	void TwitchDB::serialise(Buffer& buf) const
-	{
-		auto wr = serialise::Writer(buf);
-		wr.tag(TYPE_TAG);
-
-		wr.write(this->channels);
-	}
-
-	std::optional<TwitchDB> TwitchDB::deserialise(Span& buf)
-	{
-		auto rd = serialise::Reader(buf);
-		if(auto t = rd.tag(); t != TYPE_TAG)
-			return error("type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-
-		TwitchDB ret;
-
-		if(!rd.read(&ret.channels))
-			return error("failed to read twitch channels");
-
-		return ret;
-	}
-
-
-
-
-
-	void TwitchChannel::serialise(Buffer& buf) const
-	{
-		auto wr = serialise::Writer(buf);
-		wr.tag(TYPE_TAG);
-
-		wr.write(this->knownUsers);
-		wr.write(this->userCredentials);
-	}
-
-	std::optional<TwitchChannel> TwitchChannel::deserialise(Span& buf)
-	{
-		auto rd = serialise::Reader(buf);
-		if(auto t = rd.tag(); t != TYPE_TAG)
-			return error("type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-
-		TwitchChannel ret;
-		if(!rd.read(&ret.knownUsers))
-			return { };
-
-		if(!rd.read(&ret.userCredentials))
-			return { };
-
-		return ret;
-	}
-
-
-	void TwitchUser::serialise(Buffer& buf) const
-	{
-		auto wr = serialise::Writer(buf);
-		wr.tag(TYPE_TAG);
-
-		wr.write(this->id);
-		wr.write(this->username);
-		wr.write(this->displayname);
-	}
-
-	std::optional<TwitchUser> TwitchUser::deserialise(Span& buf)
-	{
-		auto rd = serialise::Reader(buf);
-		if(auto t = rd.tag(); t != TYPE_TAG)
-			return error("type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-
-		TwitchUser ret;
-		if(!rd.read(&ret.id))
-			return { };
-
-		if(!rd.read(&ret.username))
-			return { };
-
-		if(!rd.read(&ret.displayname))
-			return { };
-
-		return ret;
-	}
-
-
-	void TwitchUserCredentials::serialise(Buffer& buf) const
-	{
-		auto wr = serialise::Writer(buf);
-		wr.tag(TYPE_TAG);
-
-		wr.write(this->permissions);
-		wr.write(this->subscribedMonths);
-	}
-
-	std::optional<TwitchUserCredentials> TwitchUserCredentials::deserialise(Span& buf)
-	{
-		auto rd = serialise::Reader(buf);
-		if(auto t = rd.tag(); t != TYPE_TAG)
-			return error("type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-
-		TwitchUserCredentials ret;
-
-		if(!rd.read(&ret.permissions))
-			return { };
-
-		if(!rd.read(&ret.subscribedMonths))
-			return { };
-
-		return ret;
+		lg::log("db", "sync in %.2f ms", t.measure());
 	}
 }
 

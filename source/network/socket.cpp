@@ -13,7 +13,7 @@ namespace ikura
 
 	Socket::Socket(const URL& url, bool ssl, std::chrono::nanoseconds timeout) : Socket(url.hostname(), url.port(), ssl, timeout) { }
 
-	Socket::Socket(std::string_view h, uint16_t p, bool ssl, std::chrono::nanoseconds timeout) : _host(h), _port(p)
+	Socket::Socket(ikura::str_view h, uint16_t p, bool ssl, std::chrono::nanoseconds timeout) : _host(h), _port(p)
 	{
 		this->is_connected = false;
 		this->rx_callback = [](Span) { };

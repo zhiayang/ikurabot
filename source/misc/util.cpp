@@ -20,6 +20,34 @@ namespace ikura
 {
 	namespace util
 	{
+		std::optional<int64_t> stoi(ikura::str_view s, int base)
+		{
+			if(s.empty())
+				return { };
+
+			char* tmp = 0;
+			auto ss = s.str();
+			int64_t ret = strtoll(ss.c_str(), &tmp, base);
+			if(tmp != ss.data() + ss.size())
+				return { };
+
+			return ret;
+		}
+
+		std::optional<uint64_t> stou(ikura::str_view s, int base)
+		{
+			if(s.empty())
+				return { };
+
+			char* tmp = 0;
+			auto ss = s.str();
+			uint64_t ret = strtoull(ss.c_str(), &tmp, base);
+			if(tmp != ss.data() + ss.size())
+				return { };
+
+			return ret;
+		}
+
 		std::string join(const ikura::span<ikura::str_view>& xs, const std::string& delim)
 		{
 			std::string ret;

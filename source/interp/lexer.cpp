@@ -9,11 +9,11 @@ namespace ikura::interp::lexer
 {
 	size_t is_valid_first_ident_char(ikura::str_view str)
 	{
-		auto k = utf8::is_letter(str);
+		auto k = unicode::is_letter(str);
 		if(k > 0) return k;
 
 		// don't use math symbols for obvious reasons
-		k = utf8::is_category(str, { UTF8PROC_CATEGORY_SO });
+		k = unicode::is_category(str, { UTF8PROC_CATEGORY_SO });
 		if(k > 0) return k;
 
 		return 0;
@@ -21,13 +21,13 @@ namespace ikura::interp::lexer
 
 	size_t is_valid_identifier(ikura::str_view str)
 	{
-		auto k = utf8::is_letter(str);
+		auto k = unicode::is_letter(str);
 		if(k > 0) return k;
 
-		k = utf8::is_digit(str);
+		k = unicode::is_digit(str);
 		if(k > 0) return k;
 
-		k = utf8::is_category(str, {
+		k = unicode::is_category(str, {
 			UTF8PROC_CATEGORY_MN, UTF8PROC_CATEGORY_MC, UTF8PROC_CATEGORY_ME,
 			UTF8PROC_CATEGORY_SC, UTF8PROC_CATEGORY_SK, UTF8PROC_CATEGORY_SO
 		});
@@ -65,7 +65,7 @@ namespace ikura::interp::lexer
 	{
 		// skip all whitespace.
 		size_t k = 0;
-		while(src.size() > 0 && (k = utf8::is_category(src, {
+		while(src.size() > 0 && (k = unicode::is_category(src, {
 			UTF8PROC_CATEGORY_ZS, UTF8PROC_CATEGORY_ZL, UTF8PROC_CATEGORY_ZP
 		}), k > 0))
 		{
@@ -378,7 +378,7 @@ namespace ikura::interp::lexer
 					lg::warn("lexer", "invalid token - stream: '%s'", src);
 
 					// try to unicode my way out of this.
-					sz = utf8::get_codepoint_length(src);
+					sz = unicode::get_codepoint_length(src);
 					ret = Token(TT::Invalid, src.take(sz));
 					break;
 			}

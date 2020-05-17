@@ -49,7 +49,7 @@ namespace ikura::interp
 
 	static std::optional<Value> get_builtin_var(ikura::str_view name, CmdContext& cs)
 	{
-		if(name == "user")      return Value::of_string(cs.caller.str());
+		if(name == "user")      return Value::of_string(cs.callername.str());
 		if(name == "self")      return Value::of_string(cs.channel->getUsername());
 		if(name == "channel")   return Value::of_string(cs.channel->getName());
 		if(name == "args")      return Value::of_list(Type::get_string(), cs.macro_args);

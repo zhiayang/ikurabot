@@ -14,6 +14,14 @@
 using namespace std::chrono_literals;
 
 
+/*
+	TODO:
+
+	1. chat log!! and chat log replay for markov
+	2. handle urls for markov properly
+	3. apparently you can kill threads by calling the destructor as long as it's not joined
+*/
+
 int main(int argc, char** argv)
 {
 	if(argc < 3)

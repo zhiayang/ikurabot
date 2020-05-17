@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "types.h"
+
 namespace ikura
 {
 	struct Span;
@@ -87,7 +89,7 @@ namespace ikura
 		uint8_t peek(size_t i = 0) const { return this->ptr[i]; }
 
 
-		static Span fromString(std::string_view sv)
+		static Span fromString(ikura::str_view sv)
 		{
 			return Span((const uint8_t*) sv.data(), sv.size());
 		}
