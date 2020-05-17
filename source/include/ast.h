@@ -123,24 +123,26 @@ namespace ikura::interp
 
 		struct LitInteger : Expr
 		{
-			LitInteger(int64_t v) : value(v) { }
+			LitInteger(int64_t v, bool imag) : value(v), imag(imag) { }
 			virtual ~LitInteger() override { }
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			int64_t value;
+			bool imag;
 		};
 
 		struct LitDouble : Expr
 		{
-			LitDouble(double v) : value(v) { }
+			LitDouble(double v, bool imag) : value(v), imag(imag) { }
 			virtual ~LitDouble() override { }
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
 			double value;
+			bool imag;
 		};
 
 		struct LitBoolean : Expr

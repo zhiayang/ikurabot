@@ -18,6 +18,7 @@ namespace ikura::interp
 	bool Type::is_double() const    { return this->_type == T_DOUBLE; }
 	bool Type::is_integer() const   { return this->_type == T_INTEGER; }
 	bool Type::is_function() const  { return this->_type == T_FUNCTION; }
+	bool Type::is_complex() const   { return this->_type == T_COMPLEX; }
 
 	int Type::get_cast_dist(Ptr other) const
 	{
@@ -28,6 +29,10 @@ namespace ikura::interp
 		else if(this->is_integer() && other->is_double())
 		{
 			return 1;
+		}
+		else if((this->is_integer() || this->is_double()) && other->is_complex())
+		{
+			return 2;
 		}
 		else if(this->is_list() && other->is_list())
 		{
@@ -88,10 +93,11 @@ namespace ikura::interp
 		if(this->is_char())     return "char";
 		if(this->is_bool())     return "bool";
 		if(this->is_string())   return "str";
-		if(this->is_double())   return "dbl";
+		if(this->is_double())   return "double";
 		if(this->is_integer())  return "int";
 		if(this->is_list())     return zpr::sprint("[%s]", this->elm_type()->str());
 		if(this->is_map())      return zpr::sprint("[%s: %s]", this->key_type()->str(), this->elm_type()->str());
+		if(this->is_complex())  return "complex";
 		if(this->is_function())
 		{
 			return zpr::sprint("fn(%s) -> %s",
@@ -108,12 +114,14 @@ namespace ikura::interp
 	static Type::Ptr t_char;
 	static Type::Ptr t_double;
 	static Type::Ptr t_integer;
+	static Type::Ptr t_complex;
 
 	Type::Ptr Type::get_void()    { if(!t_void) t_void = std::make_shared<const Type>(Type::T_VOID); return t_void; }
 	Type::Ptr Type::get_bool()    { if(!t_bool) t_bool = std::make_shared<const Type>(Type::T_BOOLEAN); return t_bool; }
 	Type::Ptr Type::get_char()    { if(!t_char) t_char = std::make_shared<const Type>(Type::T_CHAR); return t_char; }
 	Type::Ptr Type::get_double()  { if(!t_double) t_double = std::make_shared<const Type>(Type::T_DOUBLE); return t_double; }
 	Type::Ptr Type::get_integer() { if(!t_integer) t_integer = std::make_shared<const Type>(Type::T_INTEGER); return t_integer; }
+	Type::Ptr Type::get_complex() { if(!t_complex) t_complex = std::make_shared<const Type>(Type::T_COMPLEX); return t_complex; }
 	Type::Ptr Type::get_string()  { return Type::get_list(Type::get_char()); }
 
 	Type::Ptr Type::get_list(Ptr elm_type)
@@ -180,6 +188,7 @@ namespace ikura::interp
 		if(t == T_CHAR)     return t_char;
 		if(t == T_DOUBLE)   return t_double;
 		if(t == T_INTEGER)  return t_integer;
+		if(t == T_COMPLEX)  return t_complex;
 
 		if(t == T_LIST)
 		{

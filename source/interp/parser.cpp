@@ -435,8 +435,13 @@ namespace ikura::interp::ast
 		if(num.find("0b") == 0 || num.find("0B") == 0) num.remove_prefix(2), base = 2;
 		if(num.find("0x") == 0 || num.find("0X") == 0) num.remove_prefix(2), base = 16;
 
-		if(is_floating) return makeAST<LitDouble>(std::stod(num.str()));
-		else            return makeAST<LitInteger>(std::stoll(num.str(), nullptr, base));
+		// a little hacky, but whatever.
+		bool imag = false;
+		if(st.peek() == TT::Identifier && st.peek().str() == "i")
+			imag = true, st.pop();
+
+		if(is_floating) return makeAST<LitDouble>(std::stod(num.str()), imag);
+		else            return makeAST<LitInteger>(std::stoll(num.str(), nullptr, base), imag);
 	}
 
 	static Result<Expr*> parseString(State& st)

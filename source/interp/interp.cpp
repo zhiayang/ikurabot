@@ -183,9 +183,10 @@ namespace ikura::interp
 
 	bool is_builtin_global(ikura::str_view name)
 	{
-		return name == "e" || name == "pi" || name == "tau";
+		return name == "e" || name == "i" || name == "pi" || name == "tau";
 	}
 
+	static auto const_i   = Value::of_complex(0, 1);
 	static auto const_e   = Value::of_double(2.71828182845904523536028747135266);
 	static auto const_pi  = Value::of_double(3.14159265358979323846264338327950);
 	static auto const_tau = Value::of_double(6.28318530717958647692528676655900);
@@ -193,6 +194,7 @@ namespace ikura::interp
 	InterpState::InterpState()
 	{
 		// setup some globals.
+		this->globals["i"]   = &const_i;
 		this->globals["e"]   = &const_e;
 		this->globals["pi"]  = &const_pi;
 		this->globals["tau"] = &const_tau;

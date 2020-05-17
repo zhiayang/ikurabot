@@ -11,6 +11,9 @@ namespace ikura::interp::ast
 	using TT = lexer::TokenType;
 	using interp::Value;
 
+	Value make_cmp(double re, double im) { return Value::of_complex(re, im); }
+	Value make_cmp(ikura::complex cmp) { return Value::of_complex(std::move(cmp)); }
+
 	auto make_int = Value::of_integer;
 	auto make_flt = Value::of_double;
 	auto make_bool = Value::of_bool;
@@ -25,13 +28,14 @@ namespace ikura::interp::ast
 
 		if(this->op == TT::Plus)
 		{
-			if(e.is_integer() || e.is_double())
+			if(e.is_integer() || e.is_double() || e.is_complex())
 				return e;
 		}
 		else if(this->op == TT::Minus)
 		{
 			if(e.is_integer())      return make_int(-e.get_integer());
 			else if(e.is_double())  return make_flt(-e.get_double());
+			else if(e.is_complex()) return make_cmp(-e.get_complex());
 		}
 		else if(this->op == TT::Exclamation)
 		{
@@ -63,7 +67,12 @@ namespace ikura::interp::ast
 			else if(lhs.is_integer() && rhs.is_double())    return make_flt(lhs.get_integer() + rhs.get_double());
 			else if(lhs.is_double() && rhs.is_integer())    return make_flt(lhs.get_double() + rhs.get_integer());
 			else if(lhs.is_double() && rhs.is_double())     return make_flt(lhs.get_double() + rhs.get_double());
-			if(lhs.is_list())
+			else if(lhs.is_integer() && rhs.is_complex())   return make_cmp((double) lhs.get_integer() + rhs.get_complex());
+			else if(lhs.is_double() && rhs.is_complex())    return make_cmp(lhs.get_double() + rhs.get_complex());
+			else if(lhs.is_complex() && rhs.is_integer())   return make_cmp(lhs.get_complex() + (double) rhs.get_integer());
+			else if(lhs.is_complex() && rhs.is_double())    return make_cmp(lhs.get_complex() + rhs.get_double());
+			else if(lhs.is_complex() && rhs.is_complex())   return make_cmp(lhs.get_complex() + rhs.get_complex());
+			else if(lhs.is_list())
 			{
 				Value* left = nullptr;
 				if(op == TT::PlusEquals)
@@ -133,6 +142,11 @@ namespace ikura::interp::ast
 			else if(lhs.is_integer() && rhs.is_double())    return make_flt(lhs.get_integer() - rhs.get_double());
 			else if(lhs.is_double() && rhs.is_integer())    return make_flt(lhs.get_double() - rhs.get_integer());
 			else if(lhs.is_double() && rhs.is_double())     return make_flt(lhs.get_double() - rhs.get_double());
+			else if(lhs.is_integer() && rhs.is_complex())   return make_cmp((double) lhs.get_integer() - rhs.get_complex());
+			else if(lhs.is_double() && rhs.is_complex())    return make_cmp(lhs.get_double() - rhs.get_complex());
+			else if(lhs.is_complex() && rhs.is_integer())   return make_cmp(lhs.get_complex() - (double) rhs.get_integer());
+			else if(lhs.is_complex() && rhs.is_double())    return make_cmp(lhs.get_complex() - rhs.get_double());
+			else if(lhs.is_complex() && rhs.is_complex())   return make_cmp(lhs.get_complex() - rhs.get_complex());
 		}
 		else if(op == TT::Asterisk || op == TT::TimesEquals)
 		{
@@ -140,6 +154,11 @@ namespace ikura::interp::ast
 			else if(lhs.is_integer() && rhs.is_double())    return make_flt(lhs.get_integer() * rhs.get_double());
 			else if(lhs.is_double() && rhs.is_integer())    return make_flt(lhs.get_double() * rhs.get_integer());
 			else if(lhs.is_double() && rhs.is_double())     return make_flt(lhs.get_double() * rhs.get_double());
+			else if(lhs.is_integer() && rhs.is_complex())   return make_cmp((double) lhs.get_integer() * rhs.get_complex());
+			else if(lhs.is_double() && rhs.is_complex())    return make_cmp(lhs.get_double() * rhs.get_complex());
+			else if(lhs.is_complex() && rhs.is_integer())   return make_cmp(lhs.get_complex() * (double) rhs.get_integer());
+			else if(lhs.is_complex() && rhs.is_double())    return make_cmp(lhs.get_complex() * rhs.get_double());
+			else if(lhs.is_complex() && rhs.is_complex())   return make_cmp(lhs.get_complex() * rhs.get_complex());
 		}
 		else if(op == TT::Slash || op == TT::DivideEquals)
 		{
@@ -147,6 +166,11 @@ namespace ikura::interp::ast
 			else if(lhs.is_integer() && rhs.is_double())    return make_flt(lhs.get_integer() / rhs.get_double());
 			else if(lhs.is_double() && rhs.is_integer())    return make_flt(lhs.get_double() / rhs.get_integer());
 			else if(lhs.is_double() && rhs.is_double())     return make_flt(lhs.get_double() / rhs.get_double());
+			else if(lhs.is_integer() && rhs.is_complex())   return make_cmp((double) lhs.get_integer() / rhs.get_complex());
+			else if(lhs.is_double() && rhs.is_complex())    return make_cmp(lhs.get_double() / rhs.get_complex());
+			else if(lhs.is_complex() && rhs.is_integer())   return make_cmp(lhs.get_complex() / (double) rhs.get_integer());
+			else if(lhs.is_complex() && rhs.is_double())    return make_cmp(lhs.get_complex() / rhs.get_double());
+			else if(lhs.is_complex() && rhs.is_complex())   return make_cmp(lhs.get_complex() / rhs.get_complex());
 		}
 		else if(op == TT::Percent || op == TT::RemainderEquals)
 		{
@@ -161,6 +185,11 @@ namespace ikura::interp::ast
 			else if(lhs.is_integer() && rhs.is_double())    return make_flt(powl(lhs.get_integer(), rhs.get_double()));
 			else if(lhs.is_double() && rhs.is_integer())    return make_flt(powl(lhs.get_double(), rhs.get_integer()));
 			else if(lhs.is_double() && rhs.is_double())     return make_flt(powl(lhs.get_double(), rhs.get_double()));
+			else if(lhs.is_integer() && rhs.is_complex())   return make_cmp(std::pow(lhs.get_integer(), rhs.get_complex()));
+			else if(lhs.is_double() && rhs.is_complex())    return make_cmp(std::pow(lhs.get_double(), rhs.get_complex()));
+			else if(lhs.is_complex() && rhs.is_integer())   return make_cmp(std::pow(lhs.get_complex(), rhs.get_integer()));
+			else if(lhs.is_complex() && rhs.is_double())    return make_cmp(std::pow(lhs.get_complex(), rhs.get_double()));
+			else if(lhs.is_complex() && rhs.is_complex())   return make_cmp(std::pow(lhs.get_complex(), rhs.get_complex()));
 		}
 		else if((op == TT::ShiftLeft || op == TT::ShiftLeftEquals) && lhs.is_integer() && rhs.is_integer())
 		{
@@ -264,6 +293,11 @@ namespace ikura::interp::ast
 					if(lhs.is_double() && rhs.is_integer())     return lhs.get_double() == (double) rhs.get_integer();
 					if(lhs.is_integer() && rhs.is_double())     return (double) lhs.get_integer() == rhs.get_double();
 					if(lhs.is_double() && rhs.is_double())      return lhs.get_double() == rhs.get_double();
+					if(lhs.is_complex() && rhs.is_integer())    return lhs.get_complex() == (double) rhs.get_integer();
+					if(lhs.is_complex() && rhs.is_double())     return lhs.get_complex() == rhs.get_double();
+					if(lhs.is_double() && rhs.is_complex())     return lhs.get_double() == rhs.get_complex();
+					if(lhs.is_integer() && rhs.is_complex())    return (double) lhs.get_integer() == rhs.get_complex();
+					if(lhs.is_complex() && rhs.is_complex())    return lhs.get_complex() == rhs.get_complex();
 					if(lhs.is_list() && rhs.is_list())          return lhs.get_list() == rhs.get_list();
 					if(lhs.is_bool() && rhs.is_bool())          return lhs.get_bool() == rhs.get_bool();
 					if(lhs.is_map() && rhs.is_map())            return lhs.get_map() == rhs.get_map();
@@ -539,12 +573,19 @@ namespace ikura::interp::ast
 		}
 	}
 
+	Result<Value> LitInteger::evaluate(InterpState* fs, CmdContext& cs) const
+	{
+		if(imag) return make_cmp(0, this->value);
+		else     return make_int(this->value);
+	}
 
-
+	Result<Value> LitDouble::evaluate(InterpState* fs, CmdContext& cs) const
+	{
+		if(imag) return make_cmp(0, this->value);
+		else     return make_flt(this->value);
+	}
 
 
 	Result<Value> LitString::evaluate(InterpState* fs, CmdContext& cs) const     { return Value::of_string(this->value); }
-	Result<Value> LitInteger::evaluate(InterpState* fs, CmdContext& cs) const    { return make_int(this->value); }
-	Result<Value> LitDouble::evaluate(InterpState* fs, CmdContext& cs) const     { return make_flt(this->value); }
 	Result<Value> LitBoolean::evaluate(InterpState* fs, CmdContext& cs) const    { return make_bool(this->value); }
 }
