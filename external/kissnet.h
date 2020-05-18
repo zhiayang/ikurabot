@@ -768,6 +768,11 @@ namespace kissnet
 			return is_valid();
 		}
 
+		SOCKET fd() const
+		{
+			return this->sock;
+		}
+
 		///Construct socket and (if applicable) connect to the endpoint
 		socket(protocol proto, endpoint bind_to) : bind_loc(std::move(bind_to))
 		{
@@ -919,9 +924,7 @@ namespace kissnet
 		socket accept()
 		{
 			if(this->sock_proto != protocol::tcp)
-			{
-				return { INVALID_SOCKET, {} };
-			}
+				return socket(this->sock_proto, INVALID_SOCKET, { });
 
 			SOCKADDR socket_address;
 			SOCKET s;
@@ -941,7 +944,7 @@ namespace kissnet
 				kissnet_fatal_error("accept() returned an invalid socket\n");
 			}
 
-			return { s, endpoint(&socket_address) };
+			return socket(this->sock_proto, s, endpoint(&socket_address));
 		}
 
 		void close()

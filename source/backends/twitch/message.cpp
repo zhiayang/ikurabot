@@ -7,6 +7,7 @@
 #include "cmd.h"
 #include "irc.h"
 #include "defs.h"
+#include "timer.h"
 #include "markov.h"
 #include "twitch.h"
 
@@ -201,6 +202,8 @@ namespace ikura::twitch
 
 	void TwitchState::processMessage(ikura::str_view input)
 	{
+		auto time = timer();
+
 		auto m = irc::parseMessage(input);
 		if(!m) return error("malformed: '%s'", input);
 
@@ -260,7 +263,6 @@ namespace ikura::twitch
 			if(userid.empty()) return;
 
 			auto message = msg.params[1].trim();
-			lg::log("msg", "twitch/#%s: <%s> %s", channel, username, message);
 
 			// zpr::println("%s", input);
 			// for(size_t i = 0; i < message.size(); i++)
@@ -289,7 +291,9 @@ namespace ikura::twitch
 			if(!ran_cmd)
 				markov::process(message_u8, std::move(rel_emote_idxs));
 
-			this->logMessage(ts, userid, &this->channels[channel], message_u8, emote_idxs);
+			this->logMessage(ts, userid, &this->channels[channel], message_u8, emote_idxs, ran_cmd);
+
+			lg::log("msg", "(%.2f ms) twitch/#%s: <%s> %s", time.measure(), channel, username, message_u8);
 		}
 		else if(msg.command == "353" || msg.command == "366")
 		{

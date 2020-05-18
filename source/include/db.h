@@ -57,6 +57,7 @@ namespace ikura
 			uint64_t _timestamp;
 		};
 
+		uint32_t getVersion();
 		bool load(ikura::str_view path, bool create);
 	}
 

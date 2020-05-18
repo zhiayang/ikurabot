@@ -4,7 +4,6 @@
 
 #include "db.h"
 #include "rate.h"
-#include "timer.h"
 #include "twitch.h"
 #include "network.h"
 
@@ -56,10 +55,7 @@ namespace ikura::twitch
 			if(msg.disconnected)
 				break;
 
-			auto t = timer();
 			state().wlock()->processMessage(msg.msg);
-
-			lg::log("twitch", "processed message in %.3f ms", t.measure());
 		}
 
 		lg::log("twitch", "receive worker exited");
@@ -189,7 +185,7 @@ namespace ikura::twitch
 
 	void shutdown()
 	{
-		if(!config::haveTwitch() || !state().rlock()->connected)
+		if(!config::haveTwitch() || !_state || !state().rlock()->connected)
 			return;
 
 		state().wlock()->disconnect();

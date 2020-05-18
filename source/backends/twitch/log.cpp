@@ -9,7 +9,7 @@
 namespace ikura::twitch
 {
 	void TwitchState::logMessage(uint64_t timestamp, ikura::str_view userid, Channel* chan, ikura::str_view message,
-		const std::vector<ikura::str_view>& emote_idxs)
+		const std::vector<ikura::str_view>& emote_idxs, bool isCmd)
 	{
 		TwitchMessage tmsg;
 
@@ -25,8 +25,12 @@ namespace ikura::twitch
 		tmsg.username = user->username;
 		tmsg.displayname = user->displayname;
 
+		tmsg.channel = chan->getName();
+
 		tmsg.permissions = tchan->getUserCredentials(userid)->permissions;
 		tmsg.groups = { };  // not implemented
+
+		tmsg.isCommand = isCmd;
 
 		tmsg.message = database().wlock()->messageData.logMessageContents(message);
 		for(const auto& em : emote_idxs)
@@ -56,10 +60,12 @@ namespace ikura::twitch
 		wr.write(this->userid);
 		wr.write(this->username);
 		wr.write(this->displayname);
+		wr.write(this->channel);
 		wr.write(this->permissions);
 		wr.write(this->groups);
 		wr.write(this->message);
 		wr.write(this->emotePositions);
+		wr.write(this->isCommand);
 	}
 
 	std::optional<TwitchMessage> TwitchMessage::deserialise(Span& buf)
@@ -77,10 +83,12 @@ namespace ikura::twitch
 		if(!rd.read(&ret.userid))           return { };
 		if(!rd.read(&ret.username))         return { };
 		if(!rd.read(&ret.displayname))      return { };
+		if(!rd.read(&ret.channel))          return { };
 		if(!rd.read(&ret.permissions))      return { };
 		if(!rd.read(&ret.groups))           return { };
 		if(!rd.read(&ret.message))          return { };
 		if(!rd.read(&ret.emotePositions))   return { };
+		if(!rd.read(&ret.isCommand))        return { };
 
 		return ret;
 	}

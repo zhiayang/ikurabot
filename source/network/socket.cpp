@@ -2,6 +2,8 @@
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
 
+#include <poll.h>
+
 #include "defs.h"
 #include "network.h"
 
@@ -9,6 +11,8 @@ using namespace std::chrono_literals;
 
 namespace ikura
 {
+	constexpr std::chrono::microseconds LOOP_PERIOD = 200'000us;
+
 	Socket::Socket() { this->is_connected = false; }
 
 	Socket::Socket(const URL& url, bool ssl, std::chrono::nanoseconds timeout) : Socket(url.hostname(), url.port(), ssl, timeout) { }
@@ -32,6 +36,23 @@ namespace ikura
 		}
 	}
 
+	Socket::Socket(std::string host, uint16_t port, kissnet::socket<>&& socket, std::chrono::nanoseconds timeout)
+	{
+		this->is_connected = false;
+		this->rx_callback = [](Span) { };
+
+		this->_port = port;
+		this->_host = std::move(host);
+		this->socket = std::move(socket);
+
+		if(timeout > 0ns)
+		{
+			auto micros = std::chrono::duration_cast<std::chrono::microseconds>(timeout).count();
+			this->socket.set_timeout(micros);
+			this->timeout = timeout;
+		}
+	}
+
 	Socket::~Socket()
 	{
 		if(this->is_connected)
@@ -46,21 +67,12 @@ namespace ikura
 		return this->is_connected;
 	}
 
-	bool Socket::connect()
+	void Socket::setup_receiver()
 	{
-		this->is_connected = this->socket.connect();
-
-		if(!this->is_connected)
-		{
-			this->socket.close();
-			lg::error("socket", "connection failed");
-			return false;
-		}
-
 		// make sure there is some timeout, so that the socket can be disconnected externally
 		// and the thread will be able to respond and break out of its loop. this timeout is
 		// cannot be set by user code; that only controls the timeout for the initial connection.
-		this->socket.set_timeout((200'000us).count());
+		this->socket.set_timeout(LOOP_PERIOD.count());
 
 		this->thread = std::thread([this]() {
 			while(true)
@@ -77,7 +89,9 @@ namespace ikura
 				}
 				else if(!status)
 				{
-					lg::error("socket", "read failed: status: %d", status.get_value());
+					if(status.get_value() != 0)
+						lg::error("socket", "read failed: status: %d", status.get_value());
+
 					break;
 				}
 				else if(len > 0 && this->rx_callback)
@@ -86,7 +100,20 @@ namespace ikura
 				}
 			}
 		});
+	}
 
+	bool Socket::connect()
+	{
+		this->is_connected = this->socket.connect();
+
+		if(!this->is_connected)
+		{
+			this->socket.close();
+			lg::error("socket", "connection failed");
+			return false;
+		}
+
+		this->setup_receiver();
 		return true;
 	}
 
@@ -118,5 +145,55 @@ namespace ikura
 	void Socket::onReceive(std::function<RxCallbackFn>&& fn)
 	{
 		this->rx_callback = std::move(fn);
+	}
+
+
+	void Socket::listen()
+	{
+		this->socket.set_non_blocking(true);
+
+		int yes = 1;
+		setsockopt(this->socket.fd(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
+		this->socket.bind();
+		this->socket.listen();
+		this->is_connected = true;
+	}
+
+	Socket* Socket::accept(std::chrono::nanoseconds timeout)
+	{
+		if(!this->is_connected)
+		{
+			lg::error("socket", "cannot accept() when not listening");
+			return nullptr;
+		}
+
+		auto fd = this->socket.fd();
+		auto fds = pollfd {
+			.fd     = fd,
+			.events = POLLIN
+		};
+
+		auto ret = poll(&fds, 1, std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count());
+		if(ret == 0)    return nullptr;
+		if(ret == -1)   { lg::error("socket", "poll error: %s", strerror(errno)); return nullptr; }
+
+		if(fds.revents & POLLIN)
+		{
+			auto sock = this->socket.accept();
+			if(!sock.is_valid())
+				return nullptr;
+
+			sock.set_non_blocking(false);
+			sock.set_timeout(LOOP_PERIOD.count());
+			auto ret = new Socket(this->_host, this->_port, std::move(sock));
+			ret->is_connected = true;
+			ret->setup_receiver();
+			return ret;
+		}
+		else
+		{
+			return nullptr;
+		}
 	}
 }

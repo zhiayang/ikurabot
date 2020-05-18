@@ -26,6 +26,10 @@ namespace ikura::config
 
 	} TwitchConfig;
 
+	static struct {
+		int consolePort = 0;
+	} GlobalConfig;
+
 	namespace twitch
 	{
 		std::string getOwner()          { return TwitchConfig.owner; }
@@ -38,7 +42,10 @@ namespace ikura::config
 		}
 	}
 
-
+	namespace global
+	{
+		int getConsolePort() { return GlobalConfig.consolePort; }
+	}
 
 
 
@@ -75,6 +82,20 @@ namespace ikura::config
 		return { };
 	}
 
+	static int64_t get_integer(const pj::object& opts, const std::string& key, int64_t def)
+	{
+		if(auto it = opts.find(key); it != opts.end())
+		{
+			if(it->second.is<int64_t>())
+				return it->second.get<int64_t>();
+
+			else
+				lg::error("cfg", "expected integer value for '%s'", key);
+		}
+
+		return def;
+	}
+
 	static bool get_bool(const pj::object& opts, const std::string& key, bool def)
 	{
 		if(auto it = opts.find(key); it != opts.end())
@@ -89,6 +110,12 @@ namespace ikura::config
 		return def;
 	}
 
+
+	static bool loadGlobalConfig(const pj::object& global)
+	{
+		GlobalConfig.consolePort = get_integer(global, "console_port", 0);
+		return true;
+	}
 
 	static bool loadTwitchConfig(const pj::object& twitch)
 	{
@@ -171,13 +198,16 @@ namespace ikura::config
 		if(!err.empty())
 			return lg::error("cfg", "json error: %s", err);
 
-		// read twitch
+		if(auto global = config.get("global"); !global.is<pj::null>() && global.is<pj::object>())
+		{
+			loadGlobalConfig(global.get<pj::object>());
+		}
+
 		if(auto twitch = config.get("twitch"); !twitch.is<pj::null>() && twitch.is<pj::object>())
 		{
 			loadTwitchConfig(twitch.get<pj::object>());
 		}
 
-		// read discord
 		if(auto discord = config.get("discord"); !discord.is<pj::null>() && discord.is<pj::object>())
 		{
 		}

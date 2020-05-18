@@ -55,7 +55,7 @@ namespace ikura::twitch
 		void sendRawMessage(ikura::str_view msg, ikura::str_view associated_channel = "");
 
 		void logMessage(uint64_t timestamp, ikura::str_view userid, Channel* chan, ikura::str_view message,
-			const std::vector<ikura::str_view>& emote_idxs);
+			const std::vector<ikura::str_view>& emote_idxs, bool isCmd);
 
 	private:
 		WebSocket ws;
@@ -100,17 +100,20 @@ namespace ikura::twitch
 	struct TwitchMessage : Serialisable
 	{
 		// in milliseconds, as usual.
-		uint64_t timestamp;
+		uint64_t timestamp = 0;
 
 		std::string userid;
 		std::string username;
 		std::string displayname;
 
-		uint64_t permissions;
+		std::string channel;
+		uint64_t permissions = 0;
 		std::vector<uint64_t> groups;    // not used for now, but future-proofing.
 
 		ikura::relative_str message;
 		std::vector<ikura::relative_str> emotePositions;
+
+		bool isCommand = false;
 
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<TwitchMessage> deserialise(Span& buf);

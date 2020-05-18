@@ -30,7 +30,7 @@ namespace ikura::db
 
 	static_assert(sizeof(Superblock) == 24);
 
-	constexpr uint64_t DB_VERSION   = 6;
+	constexpr uint32_t DB_VERSION   = 8;
 	constexpr const char* DB_MAGIC  = "ikura_db";
 
 	constexpr auto SYNC_INTERVAL    = 60s;
@@ -43,6 +43,7 @@ namespace ikura::db
 	// us selectively read fields when we add/remove stuff. this is only set in Database::deserialise,
 	// immediately after it reads the superblock.
 	static uint32_t currentDatabaseVersion = 0;
+	uint32_t getVersion() { return currentDatabaseVersion; }
 
 
 	// just a simple wrapper
@@ -115,7 +116,7 @@ namespace ikura::db
 			});
 
 			thr.detach();
-			lg::log("db", "database loaded in %.2f ms", t.measure());
+			lg::log("db", "database (version %d) loaded in %.2f ms", currentDatabaseVersion, t.measure());
 		}
 
 		return succ;

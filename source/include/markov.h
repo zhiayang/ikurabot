@@ -20,6 +20,10 @@ namespace ikura::markov
 	void init();
 	void shutdown();
 
+	void reset();
+	void retrain();
+	double retrainingProgress();
+
 	void process(ikura::str_view input, const std::vector<ikura::relative_str>& emote_idxs);
 	Message generateMessage();
 }

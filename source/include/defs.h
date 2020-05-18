@@ -84,6 +84,11 @@ namespace ikura
 		void shutdown();
 	}
 
+	namespace console
+	{
+		void init();
+	}
+
 	namespace config
 	{
 		bool load(ikura::str_view path);
@@ -107,6 +112,11 @@ namespace ikura
 			std::string getUsername();
 			std::string getOAuthToken();
 			std::vector<Chan> getJoinChannels();
+		}
+
+		namespace global
+		{
+			int getConsolePort();
 		}
 	}
 

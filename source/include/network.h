@@ -49,6 +49,7 @@ namespace ikura
 		Socket(ikura::str_view host, uint16_t port, bool ssl, std::chrono::nanoseconds timeout = { });
 		~Socket();
 
+		// client stuff
 		bool connect();
 		void disconnect();
 
@@ -61,8 +62,15 @@ namespace ikura
 		const std::string& host() const { return this->_host; }
 		uint16_t port() const { return this->_port; }
 
+		// server stuff
+		void listen();
+		Socket* accept(std::chrono::nanoseconds timeout);
+
 	private:
 		Socket();
+		Socket(std::string host, uint16_t port, kissnet::socket<>&& socket, std::chrono::nanoseconds = { });
+
+		void setup_receiver();
 
 		std::string _host;
 		uint16_t _port;
@@ -71,6 +79,7 @@ namespace ikura
 		kissnet::socket<> socket;
 		bool is_connected = false;
 
+		bool server_mode = false;
 		std::chrono::nanoseconds timeout;
 
 		std::function<RxCallbackFn> rx_callback;

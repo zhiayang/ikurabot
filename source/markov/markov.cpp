@@ -5,7 +5,7 @@
 #include <thread>
 #include <random>
 
-#include "zfu.h"
+#include "db.h"
 #include "markov.h"
 #include "synchro.h"
 #include "serialise.h"
@@ -92,9 +92,9 @@ namespace ikura::markov
 
 	static constexpr size_t MIN_INPUT_LENGTH        = 2;
 	static constexpr size_t GOOD_INPUT_LENGTH       = 6;
-	static constexpr size_t DISCARD_CHANCE_PERCENT  = 60;
+	static constexpr size_t DISCARD_CHANCE_PERCENT  = 80;
 
-	static constexpr size_t MAX_PREFIX_LENGTH       = 6;
+	static constexpr size_t MAX_PREFIX_LENGTH       = 3;
 
 	static constexpr size_t IDX_START_MARKER        = 0;
 	static constexpr size_t IDX_END_MARKER          = 1;
@@ -102,13 +102,47 @@ namespace ikura::markov
 	static constexpr uint64_t WORD_FLAG_EMOTE           = 0x1;
 	static constexpr uint64_t WORD_FLAG_SENTENCE_START  = 0x2;
 	static constexpr uint64_t WORD_FLAG_SENTENCE_END    = 0x4;
+
+	static void initialise_model(MarkovModel* model)
+	{
+		model->wordList.emplace_back("", WORD_FLAG_SENTENCE_START);
+		model->wordList.emplace_back("", WORD_FLAG_SENTENCE_END);
+	}
 }
 
 namespace ikura::markov
 {
+	struct QueuedMsg
+	{
+		QueuedMsg(std::string m, std::vector<ikura::relative_str> e) : msg(std::move(m)), emotes(std::move(e)) { }
+
+		std::string msg;
+		std::vector<ikura::relative_str> emotes;
+
+		bool shouldStop = false;
+		bool retraining = false;
+
+		static QueuedMsg retrain(std::string m, std::vector<ikura::relative_str> e)
+		{
+			auto ret = QueuedMsg(std::move(m), std::move(e));
+			ret.retraining = true;
+			return ret;
+		}
+
+		static QueuedMsg stop()
+		{
+			auto ret = QueuedMsg("__stop__", { });
+			ret.shouldStop = true;
+			return ret;
+		}
+	};
+
 	static struct {
 		std::thread worker;
-		wait_queue<std::pair<std::string, std::vector<ikura::relative_str>>> queue;
+		wait_queue<QueuedMsg> queue;
+
+		size_t retrainingTotalSize = 0;
+		std::atomic<size_t> retrainingCompleted = 0;
 	} State;
 
 	static Synchronised<MarkovModel> theMarkovModel;
@@ -121,10 +155,20 @@ namespace ikura::markov
 		while(true)
 		{
 			auto input = State.queue.pop();
-			if(input.first.empty())
-				break;
+			if(input.shouldStop)  break;
+			if(input.msg.empty()) continue;
 
-			process_one(ikura::str_view(input.first), std::move(input.second));
+			process_one(ikura::str_view(input.msg), std::move(input.emotes));
+			if(input.retraining)
+			{
+				State.retrainingCompleted++;
+				if(State.retrainingCompleted == State.retrainingTotalSize)
+				{
+					lg::log("markov", "retraining complete");
+					State.retrainingTotalSize = 0;
+					State.retrainingCompleted = 0;
+				}
+			}
 		}
 
 		lg::log("markov", "worker thread exited");
@@ -135,10 +179,54 @@ namespace ikura::markov
 		State.worker = std::thread(worker_thread);
 	}
 
+	void reset()
+	{
+		lg::log("markov", "resetting model");
+		markovModel().perform_write([](auto& markov) {
+			markov.table.clear();
+			markov.wordList.clear();
+			markov.wordIndices.clear();
+
+			initialise_model(&markov);
+		});
+	}
+
+	double retrainingProgress()
+	{
+		if(State.retrainingTotalSize == 0)
+			return 1.0;
+
+		return (double) State.retrainingCompleted / (double) State.retrainingTotalSize;
+	}
+
+	void retrain()
+	{
+		reset();
+
+		lg::log("markov", "starting model retraining");
+		database().perform_read([](auto& db) {
+			auto& msgs = db.twitchData.messageLog.messages;
+
+			for(auto& msg : msgs)
+			{
+				if(msg.isCommand)
+					continue;
+
+				State.retrainingTotalSize++;
+				State.queue.push_quiet(QueuedMsg::retrain(
+					msg.message.get(db.messageData.data()).str(),
+					msg.emotePositions
+				));
+			}
+		});
+
+		State.queue.notify_pending();
+	}
+
 	void shutdown()
 	{
 		// push an empty string to terminate.
-		State.queue.emplace(std::string(), std::vector<ikura::relative_str>());
+		State.queue.push(QueuedMsg::stop());
 		State.worker.join();
 	}
 
@@ -149,7 +237,7 @@ namespace ikura::markov
 
 	static bool should_split(char c)
 	{
-		return zfu::match(c, '.', ',', '!', '?');
+		return c == '.' || c == ',' || c == '!' || c == '?';
 	}
 
 	static uint64_t get_word_index(MarkovModel* markov, ikura::str_view sv, bool is_emote)
@@ -217,7 +305,7 @@ namespace ikura::markov
 					advance();
 				}
 				// this weird condition is to not split constructs like "a?b" and "a.b.c", to handle URLs properly.
-				else if(should_split(c) && ((c != '.' && c != '?') || (end + 1 == input.size() || input[end + 1] == ' ')))
+				else if(should_split(c) && (end + 1 == input.size() || input[end + 1] == ' '))
 				{
 					word_arr.emplace_back(input.take(end), false);
 					advance();
@@ -331,16 +419,20 @@ namespace ikura::markov
 		}
 	}
 
-	template <typename T> struct rd_state_t { rd_state_t() : mersenne(std::random_device()()) { } std::mt19937 mersenne; };
-	template <typename T> static rd_state_t<T> rd_state;
+	struct rd_state_t { rd_state_t() : mersenne(std::random_device()()) { } std::mt19937 mersenne; };
+
+	static_assert(MAX_PREFIX_LENGTH == 3, "unsupported prefix length");
+	static auto rd_distr = std::discrete_distribution<>({ 0.60, 0.30, 0.10 });
+	static auto rd_state = rd_state_t();
 
 	static uint64_t generate_one(ikura::span<uint64_t> prefix)
 	{
 		if(prefix.empty())
 			return IDX_END_MARKER;
 
-		// auto prb = std::uniform_real_distribution<>(0.2, 0.57)(rd_state<double>.mersenne);
-		auto pfl = (size_t) (1); // + prb * (MAX_PREFIX_LENGTH - 1));
+		// auto prb = std::random<>(0.2, 0.57)(rd_state<double>.mersenne);
+		// auto pfl = (size_t) (1); // + prb * (MAX_PREFIX_LENGTH - 1));
+		auto pfl = 1 + rd_distr(rd_state.mersenne);
 		prefix = prefix.take_last(pfl);
 
 		// lg::log("markov", "prefix len = %.3f / %zu", prb, pfl);
@@ -536,13 +628,9 @@ namespace ikura::markov
 		if(!rd.read(&ret.wordList))
 			return { };
 
-		// seed the thing -- these two are always first. but of course, only if
-		// the existing list is totally empty.
+		// if we're empty, then set it up.
 		if(ret.wordList.empty())
-		{
-			ret.wordList.emplace_back("", WORD_FLAG_SENTENCE_START);
-			ret.wordList.emplace_back("", WORD_FLAG_SENTENCE_END);
-		}
+			initialise_model(&ret);
 
 		*markovModel().wlock().get() = ret;
 

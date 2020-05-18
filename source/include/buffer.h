@@ -15,6 +15,7 @@ namespace ikura
 
 	struct Buffer
 	{
+		Buffer() : Buffer(64) { }
 		explicit Buffer(size_t cap);
 		~Buffer();
 
