@@ -38,43 +38,43 @@ small dependencies are included in this repo (under the `external` folder), unde
 
 ```javascript
 {
-	"global": {
-		// the port on which to run the admin console. this will only
-		// listen on localhost, nothing else. use 0 to disable.
-		"console_port": 42069
-	},
+  "global": {
+    // the port on which to run the admin console. this will only
+    // listen on localhost, nothing else. use 0 to disable.
+    "console_port": 42069
+  },
 
-	"twitch": {
-		// the username for the bot
-		"username": "asdf",
+  "twitch": {
+    // the username for the bot
+    "username": "asdf",
 
-		// the oauth token for the bot's account
-		"oauth_token": "<oath token for bot account>",
+    // the oauth token for the bot's account
+    "oauth_token": "<oath token for bot account>",
 
-		// the username of the bot's owner; the owner always run all
-		// commands, regardless of their badges in the deployed channel
-		"owner": "<bot owner's username>",
+    // the username of the bot's owner; the owner always run all
+    // commands, regardless of their badges in the deployed channel
+    "owner": "<bot owner's username>",
 
-		// a list of channel objects
-		"channels": [
-			{
-				// the name of the channel (without the #)
-				"name": "<channel name>",
+    // a list of channel objects
+    "channels": [
+      {
+        // the name of the channel (without the #)
+        "name": "<channel name>",
 
-				// true if the bot should ignore pings and commands
-				"lurk": false,
+        // true if the bot should ignore pings and commands
+        "lurk": false,
 
-				// true if the bot is a moderator in this channel (concerns rate limiting)
-				"mod": true,
+        // true if the bot is a moderator in this channel (concerns rate limiting)
+        "mod": true,
 
-				// the prefix to use for a command (eg. !eval 1+1). if this is empty, then
-				// commands will not be available on this channel.
-				"command_prefix": "!",
+        // the prefix to use for a command (eg. !eval 1+1). if this is empty, then
+        // commands will not be available on this channel.
+        "command_prefix": "!",
 
-				// true if the bot should reply to mentions in chat with a markov response.
-				"respond_to_pings": true
-			},
-		]
-	}
+        // true if the bot should reply to mentions in chat with a markov response.
+        "respond_to_pings": true
+      },
+    ]
+  }
 }
 ```
