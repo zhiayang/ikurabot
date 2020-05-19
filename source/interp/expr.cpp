@@ -522,6 +522,20 @@ namespace ikura::interp::ast
 	}
 
 
+	Result<Value> SplatOp::evaluate(InterpState* fs, CmdContext& cs) const
+	{
+		auto out = this->expr->evaluate(fs, cs);
+		if(!out) return out;
+
+		if(!out->is_list())
+			return zpr::sprint("invalid splat on type '%s'", out->type()->str());
+
+		return out;
+	}
+
+
+	static constexpr size_t RECURSION_LIMIT = 50;
+
 	Result<Value> FunctionCall::evaluate(InterpState* fs, CmdContext& cs) const
 	{
 		auto target = this->callee->evaluate(fs, cs);
@@ -532,6 +546,9 @@ namespace ikura::interp::ast
 
 		Command* function = target->get_function();
 		if(!function) return zpr::sprint("error retrieving function");
+
+		if(cs.recursionCount > RECURSION_LIMIT)
+			return zpr::sprint("recursion limit exceeded");
 
 		// special handling for macros.
 		if(auto macro = dynamic_cast<Macro*>(function))
@@ -545,12 +562,24 @@ namespace ikura::interp::ast
 				auto res = e->evaluate(fs, cs);
 				if(!res) return res;
 
-				args.push_back(Value::of_string(res->raw_str()));
+				// check for splat
+				if(auto splat = dynamic_cast<SplatOp*>(e))
+				{
+					assert(res->is_list());
+					auto xs = res->get_list();
+					for(const auto& x : xs)
+						args.push_back(Value::of_string(x.raw_str()));
+				}
+				else
+				{
+					args.push_back(Value::of_string(res->raw_str()));
+				}
 			}
 
 			// clone the thing, and replace the args. this way we keep the rest of the stuff
 			// like caller, channel, etc.
 			CmdContext params = cs;
+			params.recursionCount++;
 			params.macro_args = std::move(args);
 
 			return macro->run(fs, params);
@@ -563,10 +592,21 @@ namespace ikura::interp::ast
 				auto res = e->evaluate(fs, cs);
 				if(!res) return res;
 
-				args.push_back(res.unwrap());
+				if(auto splat = dynamic_cast<SplatOp*>(e))
+				{
+					assert(res->is_list());
+					auto xs = res->get_list();
+					for(const auto& x : xs)
+						args.push_back(x);
+				}
+				else
+				{
+					args.push_back(res.unwrap());
+				}
 			}
 
 			CmdContext params = cs;
+			params.recursionCount++;
 			params.macro_args = std::move(args);
 
 			return function->run(fs, params);

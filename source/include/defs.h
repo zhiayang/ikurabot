@@ -158,23 +158,36 @@ namespace ikura
 		constexpr const char* CYAN_BOLD     = "\x1b[1m\x1b[36m";
 		constexpr const char* WHITE_BOLD    = "\x1b[1m\x1b[37m";
 		constexpr const char* GREY_BOLD     = "\x1b[30;1m";
+	}
 
-		constexpr const char* WHITE_BOLD_RED_BG = "\x1b[1m\x1b[37m\x1b[48;5;9m";
+	namespace util
+	{
+		template <typename T> T to_native(T x);
+		template <typename T> T to_network(T x);
 
-		constexpr bool USE_COLOURS = true;
-		constexpr const char* RESET = (USE_COLOURS ? COLOUR_RESET : "");
-		constexpr const char* SUBSYS = (USE_COLOURS ? BLUE_BOLD : "");
+		std::vector<ikura::str_view> split(ikura::str_view view, char delim);
+		std::vector<std::string> split_copy(ikura::str_view view, char delim);
+		std::string join(const ikura::span<ikura::str_view>&, const std::string& delim);
+		std::string join(const ikura::span<std::string>&, const std::string& delim);
 
-		constexpr const char* DBG = (USE_COLOURS ? WHITE : "");
-		constexpr const char* LOG = (USE_COLOURS ? GREY_BOLD : "");
-		constexpr const char* WRN = (USE_COLOURS ? YELLOW_BOLD : "");
-		constexpr const char* ERR = (USE_COLOURS ? RED_BOLD : "");
-		constexpr const char* FTL = (USE_COLOURS ? WHITE_BOLD_RED_BG : "");
+		uint64_t getMillisecondTimestamp();
+		std::string getCurrentTimeString();
+
+		size_t getFileSize(const std::string& path);
+		std::pair<uint8_t*, size_t> readEntireFile(const std::string& path);
+
+		std::tuple<int, uint8_t*, size_t> mmapEntireFile(const std::string& path);
+		void munmapEntireFile(int fd, uint8_t* buf, size_t len);
+
+		std::optional<int64_t>  stoi(ikura::str_view s, int base = 10);
+		std::optional<uint64_t> stou(ikura::str_view s, int base = 10);
 	}
 
 	namespace lg
 	{
 		constexpr bool ENABLE_DEBUG = false;
+
+		std::string getLogMessagePreambleString(int lvl, ikura::str_view sys);
 
 		template <typename... Args>
 		static inline void __generic_log(int lvl, ikura::str_view sys, const std::string& fmt, Args&&... args)
@@ -182,16 +195,8 @@ namespace ikura
 			if(!ENABLE_DEBUG && lvl < 0)
 				return;
 
-			const char* col = 0;
-			const char* str = 0;
+			auto out = getLogMessagePreambleString(lvl, sys);
 
-			if(lvl == -1)       { col = colours::DBG;  str = "[dbg]"; }
-			else if(lvl == 0)   { col = colours::LOG;  str = "[log]"; }
-			else if(lvl == 1)   { col = colours::WRN;  str = "[wrn]"; }
-			else if(lvl == 2)   { col = colours::ERR;  str = "[err]"; }
-			else if(lvl == 3)   { col = colours::FTL;  str = "[ftl]"; }
-
-			auto out = zpr::sprint("%s%s%s %s%s%s: ", col, str, colours::RESET, colours::SUBSYS, sys, colours::RESET);
 			out += zpr::sprint(fmt, args...);
 
 			if(lvl >= 2)    fprintf(stderr, "%s\n", out.c_str());
@@ -232,27 +237,6 @@ namespace ikura
 		}
 	}
 
-	namespace util
-	{
-		template <typename T> T to_native(T x);
-		template <typename T> T to_network(T x);
-
-		std::vector<ikura::str_view> split(ikura::str_view view, char delim);
-		std::vector<std::string> split_copy(ikura::str_view view, char delim);
-		std::string join(const ikura::span<ikura::str_view>&, const std::string& delim);
-		std::string join(const ikura::span<std::string>&, const std::string& delim);
-
-		uint64_t getMillisecondTimestamp();
-
-		size_t getFileSize(const std::string& path);
-		std::pair<uint8_t*, size_t> readEntireFile(const std::string& path);
-
-		std::tuple<int, uint8_t*, size_t> mmapEntireFile(const std::string& path);
-		void munmapEntireFile(int fd, uint8_t* buf, size_t len);
-
-		std::optional<int64_t>  stoi(ikura::str_view s, int base = 10);
-		std::optional<uint64_t> stou(ikura::str_view s, int base = 10);
-	}
 
 	namespace random
 	{

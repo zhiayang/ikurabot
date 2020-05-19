@@ -9,16 +9,17 @@
 
 namespace ikura::interp
 {
-	bool Type::is_map() const       { return this->_type == T_MAP; }
-	bool Type::is_void() const      { return this->_type == T_VOID; }
-	bool Type::is_bool() const      { return this->_type == T_BOOLEAN; }
-	bool Type::is_list() const      { return this->_type == T_LIST; }
-	bool Type::is_char() const      { return this->_type == T_CHAR; }
-	bool Type::is_string() const    { return this->_type == T_LIST && this->_elm_type->is_char(); }
-	bool Type::is_double() const    { return this->_type == T_DOUBLE; }
-	bool Type::is_integer() const   { return this->_type == T_INTEGER; }
-	bool Type::is_function() const  { return this->_type == T_FUNCTION; }
-	bool Type::is_complex() const   { return this->_type == T_COMPLEX; }
+	bool Type::is_map() const           { return this->_type == T_MAP; }
+	bool Type::is_void() const          { return this->_type == T_VOID; }
+	bool Type::is_bool() const          { return this->_type == T_BOOLEAN; }
+	bool Type::is_char() const          { return this->_type == T_CHAR; }
+	bool Type::is_string() const        { return this->_type == T_LIST && this->_elm_type->is_char(); }
+	bool Type::is_double() const        { return this->_type == T_DOUBLE; }
+	bool Type::is_integer() const       { return this->_type == T_INTEGER; }
+	bool Type::is_function() const      { return this->_type == T_FUNCTION; }
+	bool Type::is_complex() const       { return this->_type == T_COMPLEX; }
+	bool Type::is_variadic_list() const { return this->_type == T_VAR_LIST; }
+	bool Type::is_list() const          { return this->_type == T_LIST || this->_type == T_VAR_LIST; }
 
 	int Type::get_cast_dist(Ptr other) const
 	{
@@ -89,15 +90,16 @@ namespace ikura::interp
 
 	std::string Type::str() const
 	{
-		if(this->is_void())     return "void";
-		if(this->is_char())     return "char";
-		if(this->is_bool())     return "bool";
-		if(this->is_string())   return "str";
-		if(this->is_double())   return "double";
-		if(this->is_integer())  return "int";
-		if(this->is_list())     return zpr::sprint("[%s]", this->elm_type()->str());
-		if(this->is_map())      return zpr::sprint("[%s: %s]", this->key_type()->str(), this->elm_type()->str());
-		if(this->is_complex())  return "complex";
+		if(this->is_void())         return "void";
+		if(this->is_char())         return "char";
+		if(this->is_bool())         return "bool";
+		if(this->is_string())       return "str";
+		if(this->is_double())       return "double";
+		if(this->is_integer())      return "int";
+		if(this->is_variadic_list())return zpr::sprint("[%s...]", this->elm_type()->str());
+		if(this->is_list())         return zpr::sprint("[%s]", this->elm_type()->str());
+		if(this->is_map())          return zpr::sprint("[%s: %s]", this->key_type()->str(), this->elm_type()->str());
+		if(this->is_complex())      return "complex";
 		if(this->is_function())
 		{
 			return zpr::sprint("fn(%s) -> %s",
@@ -127,6 +129,11 @@ namespace ikura::interp
 	Type::Ptr Type::get_list(Ptr elm_type)
 	{
 		return std::make_shared<const Type>(T_LIST, std::move(elm_type));
+	}
+
+	Type::Ptr Type::get_variadic_list(Ptr elm_type)
+	{
+		return std::make_shared<const Type>(T_VAR_LIST, std::move(elm_type));
 	}
 
 	Type::Ptr Type::get_map(Ptr key_type, Ptr elm_type)
@@ -190,12 +197,12 @@ namespace ikura::interp
 		if(t == T_INTEGER)  return t_integer;
 		if(t == T_COMPLEX)  return t_complex;
 
-		if(t == T_LIST)
+		if(t == T_LIST || t == T_VAR_LIST)
 		{
 			auto e = Type::deserialise(buf);
 			if(!e) return { };
 
-			return Type::get_list(e.value());
+			return (t == T_VAR_LIST ? Type::get_variadic_list : Type::get_list)(e.value());
 		}
 		else if(t == T_FUNCTION)
 		{

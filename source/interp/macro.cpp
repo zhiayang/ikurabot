@@ -75,8 +75,10 @@ namespace ikura::interp
 
 	std::vector<interp::Value> evaluateMacro(InterpState* fs, CmdContext& cs, const std::vector<std::string>& code)
 	{
+		using interp::Value;
+
 		// just echo words wholesale until we get to a '$'
-		std::vector<interp::Value> list;
+		std::vector<Value> list;
 
 		for(const auto& x : code)
 		{
@@ -87,16 +89,24 @@ namespace ikura::interp
 
 			if(a.find("\\\\") == 0)
 			{
-				list.push_back(interp::Value::of_string(a.drop(1).str()));
+				list.push_back(Value::of_string(a.drop(1)));
 			}
 			else if(a[0] == '\\')
 			{
-				auto v = fs->evaluateExpr(a.drop(1), cs);
-				if(v) list.push_back(v.unwrap());
+				if(auto v = fs->evaluateExpr(a.drop(1), cs); v.has_value())
+				{
+					list.push_back(v.unwrap());
+				}
+				else
+				{
+					// not sure if we should continue expanding... for now, we do.
+					lg::warn("macro", "expansion error: %s", v.error());
+					list.push_back(Value::of_string("<error>"));
+				}
 			}
 			else
 			{
-				list.push_back(interp::Value::of_string(a.str()));
+				list.push_back(Value::of_string(a.str()));
 			}
 		}
 

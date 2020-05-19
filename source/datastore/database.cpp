@@ -33,8 +33,12 @@ namespace ikura::db
 	constexpr uint32_t DB_VERSION   = 8;
 	constexpr const char* DB_MAGIC  = "ikura_db";
 
-	constexpr auto SYNC_INTERVAL    = 60s;
+	// the database will only sync to disk if it was modified
+	// or rather, if anyone took a write lock on it. so we can afford
+	// to set the interval a little shorter.
+	constexpr auto SYNC_INTERVAL    = 10s;
 
+	static std::atomic<bool> databaseDirty = false;
 	static Synchronised<Database> TheDatabase;
 	static std::fs::path databasePath;
 
@@ -106,12 +110,18 @@ namespace ikura::db
 
 		if(succ)
 		{
+			TheDatabase.on_write_lock([]() { databaseDirty = true; });
+
 			// setup an idiot to periodically synchronise the database to disk.
 			auto thr = std::thread([]() {
 				while(true)
 				{
 					std::this_thread::sleep_for(SYNC_INTERVAL);
-					ikura::database().rlock()->sync();
+					if(databaseDirty)
+					{
+						databaseDirty = false;
+						ikura::database().rlock()->sync();
+					}
 				}
 			});
 

@@ -6,6 +6,7 @@
 #include <random>
 
 #include "db.h"
+#include "zfu.h"
 #include "markov.h"
 #include "synchro.h"
 #include "serialise.h"
@@ -203,7 +204,6 @@ namespace ikura::markov
 	{
 		reset();
 
-		lg::log("markov", "starting model retraining");
 		database().perform_read([](auto& db) {
 			auto& msgs = db.twitchData.messageLog.messages;
 
@@ -220,6 +220,7 @@ namespace ikura::markov
 			}
 		});
 
+		lg::log("markov", "retraining model (%zu)...", State.retrainingTotalSize);
 		State.queue.notify_pending();
 	}
 
@@ -465,12 +466,30 @@ namespace ikura::markov
 		});
 	}
 
-	Message generateMessage()
+	Message generateMessage(const std::vector<std::string>& seed)
 	{
 		size_t max_length = 50;
 
 		std::vector<uint64_t> output;
-		output.push_back(IDX_START_MARKER);
+		if(!seed.empty())
+		{
+			// get the word
+			markovModel().perform_read([&](auto& markov) {
+				for(const auto& s : seed)
+				{
+					if(auto it = markov.wordIndices.find(s); it != markov.wordIndices.end())
+						output.push_back(it->second);
+
+					else
+						lg::warn("markov", "ignoring unseen seed word '%s'", s);
+				}
+			});
+		}
+
+		// the seed might not exist in the training data; if so, then just do a normal thing.
+		if(output.empty())
+			output.push_back(IDX_START_MARKER);
+
 
 		while(output.size() < max_length)
 		{
@@ -496,7 +515,7 @@ namespace ikura::markov
 				}
 				else
 				{
-					if(word.find_first_of(".,?!") == 0)
+					if(word.find_first_of(".,?!") == 0 && word.size() == 1)
 						msg.addNoSpace(word);
 
 					else

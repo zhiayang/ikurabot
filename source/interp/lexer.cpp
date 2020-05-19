@@ -87,6 +87,12 @@ namespace ikura::interp::lexer
 			src.remove_prefix(3);
 			return ret;
 		}
+		else if(src.find("...") == 0)
+		{
+			auto ret = Token(TT::Ellipsis, src.take(3));
+			src.remove_prefix(3);
+			return ret;
+		}
 		else if(src.find("&&") == 0)
 		{
 			auto ret = Token(TT::LogicalAnd, src.take(2));

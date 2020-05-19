@@ -25,5 +25,5 @@ namespace ikura::markov
 	double retrainingProgress();
 
 	void process(ikura::str_view input, const std::vector<ikura::relative_str>& emote_idxs);
-	Message generateMessage();
+	Message generateMessage(const std::vector<std::string>& seed = { });
 }

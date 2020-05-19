@@ -13,15 +13,6 @@
 
 using namespace std::chrono_literals;
 
-
-/*
-	TODO:
-
-	1. chat log!! and chat log replay for markov
-	2. handle urls for markov properly
-	3. apparently you can kill threads by calling the destructor as long as it's not joined
-*/
-
 int main(int argc, char** argv)
 {
 	if(argc < 3)
@@ -37,49 +28,11 @@ int main(int argc, char** argv)
 	if(!ikura::db::load(argv[2], (argc > 3 && std::string(argv[3]) == "--create")))
 		ikura::lg::fatal("db", "failed to load database '%s'", argv[2]);
 
-	// if(ikura::config::haveTwitch())
-	// 	ikura::twitch::init();
+	if(ikura::config::haveTwitch())
+		ikura::twitch::init();
 
 	// this just starts a worker thread to process input in the background.
 	ikura::markov::init();
-
-	// auto thr = std::thread([]() {
-	// 	while(true)
-	// 	{
-	// 		auto ch = fgetc(stdin);
-	// 		if(ch == '\n' || ch == '\r')
-	// 			continue;
-
-	// 		if(ch == 'q')
-	// 		{
-	// 			ikura::lg::log("ikura", "stopping...");
-	// 			break;
-	// 		}
-	// 		else if(ch == 's')
-	// 		{
-	// 			ikura::database().rlock()->sync();
-	// 		}
-	// 		else if(ch == 'r')
-	// 		{
-	// 			ikura::markov::retrain();
-	// 			auto thr = std::thread([]() {
-	// 				while(true)
-	// 				{
-	// 					std::this_thread::sleep_for(5s);
-	// 					auto p = ikura::markov::retrainingProgress();
-	// 					ikura::lg::log("markov", "retraining progress: %.2f", 100 * p);
-
-	// 					if(p == 1.0)
-	// 						break;
-	// 				}
-	// 			});
-
-	// 			thr.join();
-	// 		}
-	// 	}
-	// });
-
-	// thr.join();
 
 	// when this returns, then the bot should shutdown.
 	ikura::console::init();

@@ -18,8 +18,61 @@
 
 namespace ikura
 {
+	namespace lg
+	{
+		constexpr bool USE_COLOURS = true;
+
+		constexpr const char* WHITE_BOLD_RED_BG = "\x1b[1m\x1b[37m\x1b[48;5;9m";
+
+		constexpr const char* DBG    = (USE_COLOURS ? colours::WHITE : "");
+		constexpr const char* LOG    = (USE_COLOURS ? colours::GREY_BOLD : "");
+		constexpr const char* WRN    = (USE_COLOURS ? colours::YELLOW_BOLD : "");
+		constexpr const char* ERR    = (USE_COLOURS ? colours::RED_BOLD : "");
+		constexpr const char* FTL    = (USE_COLOURS ? WHITE_BOLD_RED_BG : "");
+
+		constexpr const char* RESET  = (USE_COLOURS ? colours::COLOUR_RESET : "");
+		constexpr const char* SUBSYS = (USE_COLOURS ? colours::BLUE_BOLD : "");
+
+		std::string getLogMessagePreambleString(int lvl, ikura::str_view sys)
+		{
+			const char* lvlcolour = 0;
+			const char* str = 0;
+
+			if(lvl == -1)       { lvlcolour = DBG;  str = "[dbg]"; }
+			else if(lvl == 0)   { lvlcolour = LOG;  str = "[log]"; }
+			else if(lvl == 1)   { lvlcolour = WRN;  str = "[wrn]"; }
+			else if(lvl == 2)   { lvlcolour = ERR;  str = "[err]"; }
+			else if(lvl == 3)   { lvlcolour = FTL;  str = "[ftl]"; }
+
+			auto timestamp = zpr::sprint("%s %s|%s", util::getCurrentTimeString(), colours::WHITE_BOLD, RESET);
+			auto loglevel  = zpr::sprint("%s%s%s", lvlcolour, str, RESET);
+			auto subsystem = zpr::sprint("%s%s%s", SUBSYS, sys, RESET);
+
+			return zpr::sprint("%s %s %s: ", timestamp, loglevel, subsystem);
+		}
+	}
+
 	namespace util
 	{
+		std::mutex localTimeLock;
+		std::string getCurrentTimeString()
+		{
+			auto tp = std::chrono::system_clock::now();
+			auto t = std::chrono::system_clock::to_time_t(tp);
+
+			std::tm* tm = nullptr;
+			{
+				// this shit ain't threadsafe.
+				auto lk = std::unique_lock<std::mutex>(localTimeLock);
+				tm = std::localtime(&t);
+			}
+
+			if(!tm) return "??";
+
+			return zpr::sprint("%02d:%02d:%02d",
+				tm->tm_hour, tm->tm_min, tm->tm_sec);
+		}
+
 		std::optional<int64_t> stoi(ikura::str_view s, int base)
 		{
 			if(s.empty())

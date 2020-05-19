@@ -201,6 +201,7 @@ namespace ikura
 
 		Lk lk;
 		T value;
+		std::function<void ()> write_lock_callback = { };
 
 	public:
 		Synchronised() { }
@@ -212,14 +213,16 @@ namespace ikura
 		template <typename... Args>
 		Synchronised(Args&&... xs) : value(std::forward<Args&&>(xs)...) { }
 
-
-
 		Synchronised(Synchronised&&) = delete;
 		Synchronised(const Synchronised&) = delete;
 
 		Synchronised& operator = (Synchronised&&) = delete;
 		Synchronised& operator = (const Synchronised&) = delete;
 
+		void on_write_lock(std::function<void ()> fn)
+		{
+			this->write_lock_callback = std::move(fn);
+		}
 
 		template <typename Functor>
 		void perform_read(Functor&& fn)
@@ -231,6 +234,9 @@ namespace ikura
 		template <typename Functor>
 		void perform_write(Functor&& fn)
 		{
+			if(this->write_lock_callback)
+				this->write_lock_callback();
+
 			std::unique_lock lk(this->lk);
 			fn(this->value);
 		}
@@ -245,6 +251,9 @@ namespace ikura
 		template <typename Functor>
 		auto map_write(Functor&& fn) -> decltype(fn(this->value))
 		{
+			if(this->write_lock_callback)
+				this->write_lock_callback();
+
 			std::unique_lock lk(this->lk);
 			return fn(this->value);
 		}
@@ -262,6 +271,9 @@ namespace ikura
 
 		WriteLockedInstance wlock()
 		{
+			if(this->write_lock_callback)
+				this->write_lock_callback();
+
 			return WriteLockedInstance(*this);
 		}
 

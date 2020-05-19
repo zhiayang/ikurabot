@@ -38,6 +38,22 @@ namespace ikura::cmd
 
 
 
+	interp::Value message_to_value(const Message& msg)
+	{
+		using interp::Type;
+		using interp::Value;
+
+		std::vector<Value> list;
+
+		for(const auto& f : msg.fragments)
+		{
+			if(f.isEmote)   list.push_back(Value::of_string(zpr::sprint(":%s", f.emote.name)));
+			else            list.push_back(Value::of_string(f.str));
+		}
+
+		return Value::of_list(Type::get_string(), list);
+	}
+
 	Message value_to_message(const interp::Value& val)
 	{
 		Message msg;

@@ -337,6 +337,7 @@ namespace ikura::interp::ast
 		else if(st.match(TT::Minus))    return makeAST<UnaryOp>(TT::Minus, "-", parseUnary(st));
 		else if(st.match(TT::Plus))     return makeAST<UnaryOp>(TT::Plus, "+", parseUnary(st));
 		else if(st.match(TT::Tilde))    return makeAST<UnaryOp>(TT::Tilde, "~", parseUnary(st));
+		else if(st.match(TT::Ellipsis)) return makeAST<SplatOp>(parseUnary(st));
 		else                            return parsePrimary(st);
 	}
 

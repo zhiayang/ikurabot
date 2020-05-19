@@ -2,9 +2,14 @@
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
 
+#include <poll.h>
+#include <stdio.h>
+#include <unistd.h>
 #include <unordered_map>
 
+#include "db.h"
 #include "defs.h"
+#include "markov.h"
 #include "synchro.h"
 #include "network.h"
 
@@ -16,28 +21,77 @@ namespace ikura::console
 	static Synchronised<std::unordered_map<Socket*, Buffer>> socketBuffers;
 	static ikura::wait_queue<Socket*> danglingSockets;
 
-	static const ikura::str_view PROMPT = "λ ikura$ ";
+	static const char* PROMPT = "λ ikura$ ";
 
-	static void process_command(Socket* sock, ikura::str_view cmd)
+	static void echo_message(Socket* sock, ikura::str_view sv)
+	{
+		if(sock) sock->send(Span::fromString(sv));
+		else     fprintf(stderr, "%s", sv.str().c_str());
+	}
+
+	// returns false if we should quit.
+	static bool process_command(Socket* sock, ikura::str_view cmd)
 	{
 		if(cmd == "exit" || cmd == "q")
 		{
-			// remove the fella
-			socketBuffers.wlock()->erase(sock);
+			// only try to do socket stuff if we're a local connection.
+			if(sock != nullptr)
+			{
+				// remove the fella
+				socketBuffers.wlock()->erase(sock);
 
-			// we can't kill the socket from here (since function will be called from
-			// socket's own thread. so, pass it on to someone else.
-			danglingSockets.push(sock);
+				// we can't kill the socket from here (since function will be called from
+				// socket's own thread). so, pass it on to someone else.
+				danglingSockets.push(sock);
+			}
+			else
+			{
+				// if you exit the local session, you kill the bot.
+				is_connected = false;
+			}
+
+			echo_message(sock, "\n");
+			return false;
 		}
-		else if(cmd == "stop")
+		else if(cmd == "stop" || cmd == "s")
 		{
 			// kill the entire bot, so disconnect the entire server.
 			is_connected = false;
+
+			echo_message(sock, "\n");
+			return false;
 		}
 		else
 		{
-			zpr::println("command: %s", cmd);
-			sock->send(Span::fromString(PROMPT));
+			if(cmd == "sync")
+			{
+				database().rlock()->sync();
+			}
+			else if(cmd == "retrain")
+			{
+				markov::retrain();
+				auto thr = std::thread([]() {
+					while(true)
+					{
+						std::this_thread::sleep_for(250ms);
+
+						auto p = ikura::markov::retrainingProgress();
+						if(p == 1.0)
+							break;
+
+						ikura::lg::log("markov", "retraining progress: %.2f", 100 * p);
+					}
+				});
+
+				thr.detach();
+			}
+			else if(!cmd.empty())
+			{
+				echo_message(sock, zpr::sprint("unknown command '%s'\n", cmd));
+			}
+
+			echo_message(sock, PROMPT);
+			return true;
 		}
 	}
 
@@ -104,6 +158,34 @@ namespace ikura::console
 			}
 		});
 
+		auto local_con = std::thread([]() {
+			while(true)
+			{
+				if(!is_connected)
+					break;
+
+				// messy as FUCK
+				{
+					auto fds = pollfd { .fd = STDIN_FILENO, .events = POLLIN };
+					auto ret = poll(&fds, 1, (200ms).count());
+					if(ret == 0) continue;
+				}
+
+				char buf[512] = { }; fgets(buf, 512, stdin);
+
+				auto len = strlen(buf);
+				if(len == 0)
+					continue;
+
+				if(buf[len - 1] == '\n')
+					len -= 1;
+
+				auto res = process_command(nullptr, ikura::str_view(buf, len));
+				if(!res) break;
+			}
+		});
+
+
 		while(true)
 		{
 			if(!is_connected)
@@ -115,7 +197,7 @@ namespace ikura::console
 				socketBuffers.wlock()->emplace(sock, Buffer(512));
 				setup_receiver(sock);
 
-				sock->send(Span::fromString(PROMPT));
+				echo_message(sock, PROMPT);
 			}
 		}
 
@@ -126,6 +208,8 @@ namespace ikura::console
 		});
 
 		danglingSockets.push(nullptr);
+
+		local_con.join();
 		reaper.join();
 	}
 }

@@ -63,6 +63,7 @@ namespace ikura::interp
 			RightArrow,
 			DoublePlus,
 			DoubleMinus,
+			Ellipsis,
 
 			PlusEquals,
 			MinusEquals,
@@ -190,6 +191,17 @@ namespace ikura::interp
 			Expr* list;
 			Expr* start;
 			Expr* end;
+		};
+
+		struct SplatOp : Expr
+		{
+			SplatOp(Expr* e) : expr(e) { }
+			virtual ~SplatOp() override { }
+
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+
+		private:
+			Expr* expr;
 		};
 
 		struct UnaryOp : Expr

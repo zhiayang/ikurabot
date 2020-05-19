@@ -15,16 +15,6 @@
 namespace ikura
 {
 	using complex = std::complex<double>;
-
-	// static inline complex operator + (const complex& a, int64_t b) { return a + complex(b, 0); }
-	// static inline complex operator + (int64_t a, const complex& b) { return b + complex(a, 0); }
-	// static inline complex operator - (const complex& a, int64_t b) { return a - complex(b, 0); }
-	// static inline complex operator - (int64_t a, const complex& b) { return b + complex(a, 0); }
-
-	// static inline complex operator + (const complex& a, double b) { return a + complex(b, 0); }
-	// static inline complex operator + (double a, const complex& b) { return b + complex(a, 0); }
-	// static inline complex operator - (const complex& a, double b) { return a - complex(b, 0); }
-	// static inline complex operator - (double a, const complex& b) { return b + complex(a, 0); }
 }
 
 namespace ikura::interp
@@ -44,6 +34,7 @@ namespace ikura::interp
 		static constexpr uint8_t T_CHAR     = 6;
 		static constexpr uint8_t T_FUNCTION = 7;
 		static constexpr uint8_t T_COMPLEX  = 8;
+		static constexpr uint8_t T_VAR_LIST = 9;
 
 		uint8_t type_id() const { return this->_type; }
 		Ptr key_type() const { return this->_key_type; }
@@ -61,6 +52,7 @@ namespace ikura::interp
 		bool is_integer() const;
 		bool is_function() const;
 		bool is_complex() const;
+		bool is_variadic_list() const;
 
 		bool is_same(Ptr other) const;
 		int get_cast_dist(Ptr to) const;
@@ -75,6 +67,7 @@ namespace ikura::interp
 		static Ptr get_integer();
 		static Ptr get_complex();
 		static Ptr get_list(Ptr elm_type);
+		static Ptr get_variadic_list(Ptr elm_type);
 		static Ptr get_map(Ptr key_type, Ptr elm_type);
 		static Ptr get_macro_function();
 		static Ptr get_function(Ptr return_type, std::vector<Ptr> arg_types);
@@ -140,11 +133,13 @@ namespace ikura::interp
 		static Value of_double(double d);
 		static Value of_complex(const ikura::complex& c);
 		static Value of_complex(double re, double im);
+		static Value of_string(const char* s);
 		static Value of_string(ikura::str_view s);
 		static Value of_string(const std::string& s);
 		static Value of_integer(int64_t i);
 		static Value of_lvalue(Value* v);
 		static Value of_list(Type::Ptr, std::vector<Value> l);
+		static Value of_variadic_list(Type::Ptr, std::vector<Value> l);
 		static Value of_function(Command* function);
 		static Value of_map(Type::Ptr key_type, Type::Ptr value_type, std::map<Value, Value> m);
 
@@ -219,6 +214,8 @@ namespace ikura::interp
 		ikura::str_view callername;
 
 		const Channel* channel = nullptr;
+
+		size_t recursionCount = 0;
 
 		// the arguments, split by spaces and Value::of_string-ed
 		std::vector<interp::Value> macro_args;

@@ -164,6 +164,11 @@ namespace ikura::interp
 		return ret;
 	}
 
+	Value Value::of_string(const char* s)
+	{
+		return of_string(ikura::str_view(s, strlen(s)));
+	}
+
 	Value Value::of_string(const std::string& s)
 	{
 		return of_string(ikura::str_view(s));
@@ -191,6 +196,14 @@ namespace ikura::interp
 		auto ret = Value(v->type());
 		ret.v_is_lvalue = true;
 		ret.v_lvalue = v;
+
+		return ret;
+	}
+
+	Value Value::of_variadic_list(Type::Ptr type, std::vector<Value> l)
+	{
+		auto ret = Value(Type::get_variadic_list(type));
+		ret.v_list = std::move(l);
 
 		return ret;
 	}
@@ -353,7 +366,7 @@ namespace ikura::interp
 			auto x = rd.read<std::vector<Value>>();
 			if(!x) return { };
 
-			return Value::of_list(type->elm_type(), x.value());
+			return (type->is_variadic_list() ? Value::of_variadic_list : Value::of_list)(type->elm_type(), x.value());
 		}
 		else if(type->is_map())
 		{

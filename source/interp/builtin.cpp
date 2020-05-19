@@ -12,6 +12,7 @@ namespace ikura::cmd
 {
 	// defined in command.cpp
 	Message value_to_message(const interp::Value& val);
+	interp::Value message_to_value(const Message& msg);
 }
 
 namespace ikura::interp
@@ -23,11 +24,10 @@ namespace ikura::interp
 	static void command_undef(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_chmod(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_global(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
-	static void command_markov(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 
 	bool is_builtin_command(ikura::str_view x)
 	{
-		return zfu::match(x, "def", "eval", "show", "redef", "undef", "chmod", "global", "markov");
+		return zfu::match(x, "def", "eval", "show", "redef", "undef", "chmod", "global");
 	}
 
 	// tsl::robin_map doesn't let us do this for some reason, so just fall back to std::unordered_map.
@@ -39,7 +39,6 @@ namespace ikura::interp
 		{ "redef",  command_redef  },
 		{ "undef",  command_undef  },
 		{ "show",   command_show   },
-		{ "markov", command_markov },
 	};
 
 	bool run_builtin_command(CmdContext& cs, const Channel* chan, ikura::str_view cmd_str, ikura::str_view arg_str)
@@ -75,15 +74,6 @@ namespace ikura::interp
 
 
 
-
-
-
-	static void command_markov(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
-	{
-		// syntax: markov
-		auto t = ikura::timer();
-		chan->sendMessage(markov::generateMessage());
-	}
 
 	static void command_eval(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
 	{
@@ -244,6 +234,9 @@ namespace ikura::interp
 	static constexpr auto t_bool = Type::get_bool;
 	static constexpr auto t_void = Type::get_void;
 	static constexpr auto t_list = Type::get_list;
+	static constexpr auto t_vla  = Type::get_variadic_list;
+
+	static Result<interp::Value> fn_markov(InterpState* fs, CmdContext& cs);
 
 	static Result<interp::Value> fn_int_to_int(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_str_to_int(InterpState* fs, CmdContext& cs);
@@ -364,9 +357,10 @@ namespace ikura::interp
 	};
 
 	static std::unordered_map<std::string, BuiltinFunction> builtin_fns = {
-		{ "atan2", BuiltinFunction("atan2", t_fn(t_dbl(), { t_dbl(), t_dbl() }), &fn_atan2) },
-		{ "rtod",  BuiltinFunction("rtod",  t_fn(t_dbl(), { t_dbl() }), &fn_rtod) },
-		{ "dtor",  BuiltinFunction("dtor",  t_fn(t_dbl(), { t_dbl() }), &fn_dtor) },
+		{ "atan2",  BuiltinFunction("atan2",  t_fn(t_dbl(), { t_dbl(), t_dbl() }), &fn_atan2) },
+		{ "rtod",   BuiltinFunction("rtod",   t_fn(t_dbl(), { t_dbl() }), &fn_rtod) },
+		{ "dtor",   BuiltinFunction("dtor",   t_fn(t_dbl(), { t_dbl() }), &fn_dtor) },
+		{ "__builtin_markov", BuiltinFunction("__builtin_markov", t_fn(t_list(t_str()), { t_vla(t_str()) }), &fn_markov) },
 	};
 
 
@@ -384,28 +378,107 @@ namespace ikura::interp
 
 
 
+	static int get_overload_dist(const std::vector<Type::Ptr>& target, const std::vector<Type::Ptr>& given)
+	{
+		int cost = 0;
+		auto target_size = target.size();
+		if(!target.empty() && target.back()->is_variadic_list())
+			target_size--;
+
+		auto cnt = std::min(target_size, given.size());
+
+		// if there are no variadics involved, you failed if the counts are different.
+		if(target.empty() || !target.back()->is_variadic_list())
+			if(target.size() != given.size())
+				return -1;
+
+		// make sure the normal args are correct first
+		for(size_t i = 0; i < cnt; i++)
+		{
+			int k = given[i]->get_cast_dist(target[i]);
+			if(k == -1) return -1;
+			else        cost += k;
+		}
+
+		if(target_size != target.size())
+		{
+			// we got variadics.
+			auto vla = target.back();
+			auto elm = vla->elm_type();
+
+			// the cost of doing business.
+			cost += 10;
+			for(size_t i = cnt; i < given.size(); i++)
+			{
+				int k = given[i]->get_cast_dist(elm);
+				if(k == -1) return -1;
+				else        cost += k;
+			}
+		}
+
+		return cost;
+	}
+
 	Result<interp::Value> BuiltinFunction::run(InterpState* fs, CmdContext& cs) const
 	{
-		auto sig_args = this->signature->arg_types();
-		if(sig_args.size() != cs.macro_args.size())
+		const auto& given = cs.macro_args;
+		auto target = this->signature->arg_types();
+
+		auto target_size = target.size();
+		if(!target.empty() && target.back()->is_variadic_list())
+			target_size--;
+
+		auto cnt = std::min(target_size, given.size());
+
+		// if there are no variadics involved, you failed if the counts are different.
+		if((target.empty() || !target.back()->is_variadic_list()) && target.size() != given.size())
 		{
 			return zpr::sprint("call to '%s' with wrong number of arguments (expected %zu, found %zu)",
-				this->name, sig_args.size(), cs.macro_args.size());
+				this->name, target.size(), cs.macro_args.size());
 		}
 
-		for(size_t i = 0; i < sig_args.size(); i++)
+		auto type_mismatch = [](size_t i, const Type::Ptr& exp, const Type::Ptr& got) -> Result<interp::Value> {
+			return zpr::sprint("argument %zu: type mismatch, expected '%s', found '%s'",
+				i, exp->str(), got->str());
+		};
+
+		std::vector<Value> final_args;
+
+		// make sure the normal args are correct first
+		for(size_t i = 0; i < cnt; i++)
 		{
-			auto tmp = cs.macro_args[i].cast_to(sig_args[i]);
+			auto tmp = given[i].cast_to(target[i]);
 			if(!tmp)
+				return type_mismatch(i, target[i], given[i].type());
+
+			final_args.push_back(tmp.value());
+		}
+
+		if(target_size != target.size())
+		{
+			// we got variadics.
+			assert(target.back()->is_variadic_list());
+			auto elm = target.back()->elm_type();
+
+			std::vector<Value> vla;
+
+			// the cost of doing business.
+			for(size_t i = cnt; i < given.size(); i++)
 			{
-				return zpr::sprint("argument %zu: type mismatch, expected '%s', found '%s'",
-					i, sig_args[i]->str(), cs.macro_args[i].type()->str());
+				auto tmp = given[i].cast_to(elm);
+				if(!tmp)
+					return type_mismatch(i, elm, given[i].type());
+
+				vla.push_back(tmp.value());
 			}
 
-			cs.macro_args[i] = tmp.value();
+			final_args.push_back(Value::of_variadic_list(elm, vla));
 		}
 
-		return this->action(fs, cs);
+		CmdContext params = cs;
+		params.macro_args = final_args;
+
+		return this->action(fs, params);
 	}
 
 	Result<interp::Value> FunctionOverloadSet::run(InterpState* fs, CmdContext& cs) const
@@ -419,26 +492,16 @@ namespace ikura::interp
 
 		for(auto cand : this->functions)
 		{
-			auto cand_args = cand->getSignature()->arg_types();
-
-			if(arg_types.size() != cand_args.size())
-				continue;
-
-			int cost = 0;
-			for(size_t i = 0; i < arg_types.size(); i++)
+			auto cost = get_overload_dist(cand->getSignature()->arg_types(), arg_types);
+			if(cost == -1)
 			{
-				int k = arg_types[i]->get_cast_dist(cand_args[i]);
-				if(k == -1) goto fail;
-				else        cost += k;
+				continue;
 			}
-
-			if(cost < score)
+			else if(cost < score)
 			{
 				score = cost;
 				best = cand;
 			}
-		fail:
-			;
 		}
 
 		if(!best)
@@ -449,6 +512,26 @@ namespace ikura::interp
 		// TODO: need to do casting here
 		return best->run(fs, cs);
 	}
+
+	static Result<interp::Value> fn_markov(InterpState* fs, CmdContext& cs)
+	{
+		std::vector<std::string> seeds;
+		if(!cs.macro_args.empty() && cs.macro_args[0].is_list())
+		{
+			for(const auto& v : cs.macro_args[0].get_list())
+				seeds.push_back(v.raw_str());
+		}
+
+		return cmd::message_to_value(markov::generateMessage(seeds));
+	}
+
+
+
+
+
+
+
+
 
 
 	static Result<interp::Value> fn_ln_real(InterpState* fs, CmdContext& cs)
