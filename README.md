@@ -36,7 +36,7 @@ small dependencies are included in this repo (under the `external` folder), unde
 
 ### sample config ###
 
-```json
+```javascript
 {
 	"global": {
 		// the port on which to run the admin console. this will only
