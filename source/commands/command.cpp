@@ -19,7 +19,7 @@ namespace ikura::cmd
 	static void process_command(ikura::str_view user, ikura::str_view username, const Channel* chan, ikura::str_view cmd);
 	static Message generateResponse(ikura::str_view user, const Channel* chan, ikura::str_view msg);
 
-	bool processMessage(ikura::str_view userid, ikura::str_view username, const Channel* chan, ikura::str_view message)
+	bool processMessage(ikura::str_view userid, ikura::str_view username, const Channel* chan, ikura::str_view message, bool enablePings)
 	{
 		auto pref = chan->getCommandPrefix();
 		if(!pref.empty() && message.find(pref) == 0)
@@ -27,9 +27,9 @@ namespace ikura::cmd
 			process_command(userid, username, chan, message.drop(pref.size()));
 			return true;
 		}
-		else if(message.find(chan->getUsername()) != std::string::npos)
+		else if(enablePings && chan->shouldReplyMentions())
 		{
-			if(chan->shouldReplyMentions())
+			if(message.find(chan->getUsername()) != std::string::npos)
 				chan->sendMessage(generateResponse(userid, chan, message));
 		}
 
@@ -100,6 +100,9 @@ namespace ikura::cmd
 
 	static void process_command(ikura::str_view userid, ikura::str_view username, const Channel* chan, ikura::str_view input)
 	{
+		if(input.empty())
+			return;
+
 		interp::CmdContext cs;
 		cs.callername = username;
 		cs.callerid = userid;

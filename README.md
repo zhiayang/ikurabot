@@ -49,11 +49,11 @@ small dependencies are included in this repo (under the `external` folder), unde
     "username": "asdf",
 
     // the oauth token for the bot's account
-    "oauth_token": "<oath token for bot account>",
+    "oauth_token": "123456789abcdefgh",
 
     // the username of the bot's owner; the owner always run all
     // commands, regardless of their badges in the deployed channel
-    "owner": "<bot owner's username>",
+    "owner": "kami_sama",
 
     // a list of channel objects
     "channels": [

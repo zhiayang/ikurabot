@@ -136,6 +136,7 @@ namespace ikura
 
 	struct HttpHeaders
 	{
+		HttpHeaders() { }
 		HttpHeaders(ikura::str_view status);
 
 		HttpHeaders& add(std::string&& key, std::string&& value);
@@ -143,6 +144,7 @@ namespace ikura
 
 		std::string bytes() const;
 		std::string status() const;
+		int statusCode() const;
 		const std::vector<std::pair<std::string, std::string>>& headers() const;
 
 		static std::optional<HttpHeaders> parse(ikura::str_view data);
@@ -157,6 +159,34 @@ namespace ikura
 		std::vector<std::pair<std::string, std::string>> _headers;
 	};
 
+
+
+	namespace request
+	{
+		struct Param
+		{
+			Param(std::string name, std::string value) : name(std::move(name)), value(std::move(value)) { }
+
+			std::string name;
+			std::string value;
+		};
+
+		struct Header
+		{
+			Header(std::string name, std::string value) : name(std::move(name)), value(std::move(value)) { }
+
+			std::string name;
+			std::string value;
+		};
+
+		struct Response
+		{
+			HttpHeaders headers;
+			std::string content;
+		};
+
+		Response get(const URL& url, const std::vector<Param>& params, const std::vector<Header>& headers);
+	}
 }
 
 

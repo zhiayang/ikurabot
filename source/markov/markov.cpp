@@ -209,14 +209,18 @@ namespace ikura::markov
 
 			for(auto& msg : msgs)
 			{
+				// ignore commands
 				if(msg.isCommand)
 					continue;
 
+				// also, forcibly ignore messages starting with $ or !
+				// to ignore commands directed at other bots.
+				auto txt = msg.message.get(db.messageData.data());
+				if(txt.find('!') == 0 || txt.find('$') == 0)
+					continue;
+
 				State.retrainingTotalSize++;
-				State.queue.push_quiet(QueuedMsg::retrain(
-					msg.message.get(db.messageData.data()).str(),
-					msg.emotePositions
-				));
+				State.queue.push_quiet(QueuedMsg::retrain(txt.str(), msg.emotePositions));
 			}
 		});
 
@@ -423,7 +427,7 @@ namespace ikura::markov
 	struct rd_state_t { rd_state_t() : mersenne(std::random_device()()) { } std::mt19937 mersenne; };
 
 	static_assert(MAX_PREFIX_LENGTH == 3, "unsupported prefix length");
-	static auto rd_distr = std::discrete_distribution<>({ 0.60, 0.30, 0.10 });
+	static auto rd_distr = std::discrete_distribution<>({ 0.55, 0.30, 0.15 });
 	static auto rd_state = rd_state_t();
 
 	static uint64_t generate_one(ikura::span<uint64_t> prefix)
@@ -507,6 +511,9 @@ namespace ikura::markov
 			{
 				auto& [ word, em ] = markov.wordList[output[i]];
 				if(word.empty())
+					continue;
+
+				else if(config::global::stripMentionsFromMarkov() && word.find('@') == 0)
 					continue;
 
 				if(em)

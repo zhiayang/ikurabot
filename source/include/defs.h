@@ -112,11 +112,31 @@ namespace ikura
 			std::string getUsername();
 			std::string getOAuthToken();
 			std::vector<Chan> getJoinChannels();
+			std::vector<std::string> getIgnoredUsers();
+			bool isUserIgnored(ikura::str_view username);
+		}
+
+		namespace discord
+		{
+			struct Guild
+			{
+				std::string id;
+				bool lurk;
+				bool mod;
+				bool respondToPings;
+				bool silentInterpErrors;
+				std::string commandPrefix;
+			};
+
+			std::string getUsername();
+			std::string getOAuthToken();
+			std::vector<Guild> getJoinGuilds();
 		}
 
 		namespace global
 		{
 			int getConsolePort();
+			bool stripMentionsFromMarkov();
 		}
 	}
 
@@ -132,6 +152,7 @@ namespace ikura
 		size_t get_codepoint_length(ikura::str_view str);
 
 		std::string normalise(ikura::str_view str);
+		size_t codepoint_count(ikura::str_view str);
 
 		size_t get_byte_length(int32_t codepoint);
 		std::vector<int32_t> to_utf32(ikura::str_view str);
@@ -172,6 +193,10 @@ namespace ikura
 
 		uint64_t getMillisecondTimestamp();
 		std::string getCurrentTimeString();
+
+		// only does latin characters. i'm lazy.
+		std::string lowercase(ikura::str_view s);
+		std::string uppercase(ikura::str_view s);
 
 		size_t getFileSize(const std::string& path);
 		std::pair<uint8_t*, size_t> readEntireFile(const std::string& path);

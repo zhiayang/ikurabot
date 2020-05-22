@@ -23,11 +23,25 @@ namespace ikura::config
 		std::string username;
 		std::string oauthToken;
 		std::vector<twitch::Chan> channels;
+		std::vector<std::string> ignoredUsers;
 
 	} TwitchConfig;
 
 	static struct {
+
+		bool present = false;
+
+		std::string owner;
+		std::string username;
+		std::string oauthToken;
+		std::vector<discord::Guild> guilds;
+		std::vector<std::string> ignoredUsers;
+
+	} DiscordConfig;
+
+	static struct {
 		int consolePort = 0;
+		bool stripMentionsFromMarkov = false;
 	} GlobalConfig;
 
 	namespace twitch
@@ -36,15 +50,27 @@ namespace ikura::config
 		std::string getUsername()       { return TwitchConfig.username; }
 		std::string getOAuthToken()     { return TwitchConfig.oauthToken; }
 
-		std::vector<Chan> getJoinChannels()
+		std::vector<Chan> getJoinChannels()         { return TwitchConfig.channels; }
+		std::vector<std::string> getIgnoredUsers()  { return TwitchConfig.ignoredUsers; }
+
+		bool isUserIgnored(ikura::str_view username)
 		{
-			return TwitchConfig.channels;
+			return std::find(TwitchConfig.ignoredUsers.begin(), TwitchConfig.ignoredUsers.end(),
+				username.str()) != TwitchConfig.ignoredUsers.end();
 		}
+	}
+
+	namespace discord
+	{
+		std::string getUsername()           { return DiscordConfig.username; }
+		std::string getOAuthToken()         { return DiscordConfig.oauthToken; }
+		std::vector<Guild> getJoinGuilds()  { return DiscordConfig.guilds; }
 	}
 
 	namespace global
 	{
 		int getConsolePort() { return GlobalConfig.consolePort; }
+		bool stripMentionsFromMarkov() { return GlobalConfig.stripMentionsFromMarkov; }
 	}
 
 
@@ -114,8 +140,66 @@ namespace ikura::config
 	static bool loadGlobalConfig(const pj::object& global)
 	{
 		GlobalConfig.consolePort = get_integer(global, "console_port", 0);
+		GlobalConfig.stripMentionsFromMarkov = get_bool(global, "strip_markov_pings", false);
+
 		return true;
 	}
+
+	static bool loadDiscordConfig(const pj::object& discord)
+	{
+		auto username = get_string(discord, "username", "");
+		if(username.empty())
+			return lg::error("cfg/discord", "username cannot be empty");
+
+		auto oauthToken = get_string(discord, "oauth_token", "");
+		if(oauthToken.empty())
+			return lg::error("cfg/discord", "oauth_token cannot be empty");
+
+		DiscordConfig.username = username;
+		DiscordConfig.oauthToken = oauthToken;
+
+		auto guilds = get_array(discord, "guilds");
+		if(!guilds.empty())
+		{
+			for(const auto& ch : guilds)
+			{
+				if(!ch.is<pj::object>())
+				{
+					lg::error("cfg/discord", "channel should be a json object");
+					continue;
+				}
+
+				auto obj = ch.get<pj::object>();
+
+				discord::Guild guild;
+				guild.id = get_string(obj, "id", "");
+				if(guild.id.empty())
+				{
+					lg::error("cfg/discord", "guild id cannot be empty");
+				}
+				else
+				{
+					guild.silentInterpErrors = get_bool(obj, "silent_interp_errors", false);
+					guild.respondToPings = get_bool(obj, "respond_to_pings", false);
+					guild.lurk = get_bool(obj, "lurk", false);
+					guild.mod = get_bool(obj, "mod", false);
+					guild.commandPrefix = get_string(obj, "command_prefix", "");
+
+					DiscordConfig.guilds.push_back(std::move(guild));
+				}
+			}
+		}
+
+		DiscordConfig.present = true;
+		return true;
+	}
+
+
+
+
+
+
+
 
 	static bool loadTwitchConfig(const pj::object& twitch)
 	{
@@ -135,13 +219,32 @@ namespace ikura::config
 		TwitchConfig.username = username;
 		TwitchConfig.oauthToken = oauthToken;
 
+		auto ignored = get_array(twitch, "ignored_users");
+		if(!ignored.empty())
+		{
+			for(const auto& ign : ignored)
+			{
+				if(!ign.is<std::string>())
+				{
+					lg::error("cfg/twitch", "ignored_users should contain strings");
+					continue;
+				}
+
+				auto str = ign.get<std::string>();
+				TwitchConfig.ignoredUsers.push_back(std::move(str));
+			}
+		}
+
 		auto channels = get_array(twitch, "channels");
 		if(!channels.empty())
 		{
 			for(const auto& ch : channels)
 			{
 				if(!ch.is<pj::object>())
+				{
 					lg::error("cfg/twitch", "channel should be a json object");
+					continue;
+				}
 
 				auto obj = ch.get<pj::object>();
 
@@ -210,8 +313,8 @@ namespace ikura::config
 
 		if(auto discord = config.get("discord"); !discord.is<pj::null>() && discord.is<pj::object>())
 		{
+			loadDiscordConfig(discord.get<pj::object>());
 		}
-
 
 		delete[] buf;
 		return true;

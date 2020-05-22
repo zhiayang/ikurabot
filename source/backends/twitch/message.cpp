@@ -108,6 +108,8 @@ namespace ikura::twitch
 				auto& creds = db.twitchData.channels[channel].userCredentials[userid];
 				creds.permissions = perms;
 				creds.subscribedMonths = sublen;
+
+				lg::log("twitch", "perms: %s -> %x", user, creds.permissions);
 			}
 		});
 
@@ -211,7 +213,7 @@ namespace ikura::twitch
 
 		if(msg.command == "PING")
 		{
-			log("responded to PING");
+			log("ping-pong");
 			return this->sendRawMessage(zpr::sprint("PONG %s", msg.params.size() > 0 ? msg.params[0] : ""));
 		}
 		else if(msg.command == "CAP")
@@ -249,6 +251,11 @@ namespace ikura::twitch
 			if(username == this->username)
 				return;
 
+			// check for ignored users
+			if(config::twitch::isUserIgnored(username))
+				return;
+
+
 			auto channel = msg.params[0];
 			if(channel[0] != '#')
 				return error("malformed: channel '%s'", channel);
@@ -275,7 +282,7 @@ namespace ikura::twitch
 			// only process commands if we're not lurking
 			bool ran_cmd = false;
 			if(!this->channels[channel].lurk)
-				ran_cmd = cmd::processMessage(userid, username, &this->channels[channel], message_u8);
+				ran_cmd = cmd::processMessage(userid, username, &this->channels[channel], message_u8, /* enablePings: */ true);
 
 			auto tmp = util::stou(msg.tags["tmi-sent-ts"]);
 			uint64_t ts = (tmp.has_value()
@@ -326,7 +333,38 @@ namespace ikura::twitch
 
 	void TwitchState::sendMessage(ikura::str_view channel, ikura::str_view msg)
 	{
-		this->sendRawMessage(zpr::sprint("PRIVMSG #%s :%s", channel, msg), channel);
+		// twitch actually says it's 500 characters, ie. codepoints.
+		constexpr size_t LIMIT = 500;
+		msg = msg.trim();
+
+		if(msg.size() > LIMIT)
+		{
+			auto codepoints = unicode::to_utf32(msg);
+			auto span = ikura::span(codepoints);
+			while(span.size() > 0)
+			{
+				// try to split at a space if possible.
+				auto frag = span;
+
+				if(frag.size() > LIMIT)
+				{
+					auto spl = span.take(LIMIT).find_last((int32_t) ' ');
+					if(spl == (size_t) -1) spl = LIMIT;
+
+					frag = span.take(spl);
+				}
+
+				span = span.drop(frag.size() + 1);
+				if(frag.empty())
+					continue;
+
+				this->sendMessage(channel, unicode::to_utf8(frag.vec()));
+			}
+		}
+		else
+		{
+			this->sendRawMessage(zpr::sprint("PRIVMSG #%s :%s", channel, msg), channel);
+		}
 	}
 
 	std::string Channel::getCommandPrefix() const
@@ -346,6 +384,10 @@ namespace ikura::twitch
 
 	uint64_t Channel::getUserPermissions(ikura::str_view userid) const
 	{
+		// massive hack but idgaf
+		if(userid == MAGIC_OWNER_USERID)
+			return permissions::OWNER;
+
 		// mfw "const correctness", so we can't use operator[]
 		return database().map_read([&](auto& db) -> uint64_t {
 			auto chan = db.twitchData.getChannel(this->name);
@@ -355,20 +397,6 @@ namespace ikura::twitch
 			if(!creds) return 0;
 
 			return creds->permissions;
-
-
-			// if(auto it = db.twitchData.channels.find(this->name); it != db.twitchData.channels.end())
-			// {
-			// 	auto& chan = it.value();
-			// 	if(auto it = chan.knownUsers.find(user); it != chan.knownUsers.end())
-			// 	{
-			// 		auto userid = it->second.id;
-			// 		if(auto it = chan.userCredentials.find(userid); it != chan.userCredentials.end())
-			// 			return it->second.permissions;
-			// 	}
-			// }
-
-			// return 0;
 		});
 	}
 

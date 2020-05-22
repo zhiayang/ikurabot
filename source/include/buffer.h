@@ -31,6 +31,7 @@ namespace ikura
 
 		Span span() const;
 		Buffer clone() const;
+		ikura::str_view sv() const;
 
 		uint8_t* data();
 		const uint8_t* data() const;
@@ -77,6 +78,7 @@ namespace ikura
 
 		size_t size() const { return this->len; }
 		const uint8_t* data() const { return this->ptr; }
+		ikura::str_view sv() const  { return ikura::str_view((const char*) this->ptr, this->len); }
 
 		Span& remove_prefix(size_t n) { n = std::min(n, this->len); this->ptr += n; this->len -= n; return *this; }
 		Span& remove_suffix(size_t n) { n = std::min(n, this->len); this->len -= n; return *this; }

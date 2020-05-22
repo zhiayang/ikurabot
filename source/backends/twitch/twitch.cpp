@@ -26,7 +26,7 @@ namespace ikura::twitch
 		// twitch says 20 messages every 30 seconds, so set it a little lower.
 		// for channels that it moderates, the bot gets 100 every 30s.
 		auto pleb_rate = new RateLimit(18, 30s);
-		auto mod_rate  = new RateLimit(90, 30s);
+		auto mod_rate  = new RateLimit(95, 30s);
 
 		while(true)
 		{
@@ -41,6 +41,10 @@ namespace ikura::twitch
 				std::this_thread::sleep_until(rate->next());
 			}
 
+			// if(msg.msg.size() > 512)
+			// 	lg::warn("twitch", "exceeded message limit");
+
+			// lg::log("twitch", "> %s", msg.msg);
 			state().wlock()->ws.send(msg.msg);
 		}
 
@@ -63,7 +67,15 @@ namespace ikura::twitch
 
 
 
+	const Channel* getChannel(ikura::str_view name)
+	{
+		return state().map_read([&name](auto& st) -> const Channel* {
+			if(auto it = st.channels.find(name); it != st.channels.end())
+				return &it->second;
 
+			return nullptr;
+		});
+	}
 
 
 	TwitchState::TwitchState(URL url, std::chrono::nanoseconds timeout,
@@ -141,8 +153,8 @@ namespace ikura::twitch
 		this->ws.send("CAP REQ :twitch.tv/tags");
 
 		// join channels
-		for(auto [ _, chan ] : this->channels)
-			this->ws.send(zpr::sprint("JOIN #%s\r\n", chan.name));
+		for(auto& [ _, chan ] : this->channels)
+			this->ws.send(zpr::sprint("JOIN #%s\r\n", chan.getName()));
 	}
 
 	void TwitchState::disconnect()
@@ -157,7 +169,7 @@ namespace ikura::twitch
 
 		// part from channels. we don't particularly care about the response anyway.
 		for(auto& [ name, chan ] : this->channels)
-			this->ws.send(zpr::sprint("PART #%s\r\n", chan.name));
+			this->ws.send(zpr::sprint("PART #%s\r\n", chan.getName()));
 
 		std::this_thread::sleep_for(350ms);
 		this->ws.disconnect();

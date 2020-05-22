@@ -118,13 +118,13 @@ namespace ikura
 				success = false;
 				lg::error("ws", "unexpected http status '%s' (expected 101)", hdrs.status());
 			}
-			else if((hdrs.get("Upgrade") != "websocket" && hdrs.get("Upgrade") != "Websocket")
-				|| (hdrs.get("Connection") != "upgrade" && hdrs.get("Connection") != "Upgrade"))
+			else if((hdrs.get("upgrade") != "websocket" && hdrs.get("upgrade") != "Websocket")
+				|| (hdrs.get("connection") != "upgrade" && hdrs.get("connection") != "Upgrade"))
 			{
 				success = false;
 				lg::error("ws", "no upgrade header: %s", hdrs.bytes());
 			}
-			else if(auto key = hdrs.get("Sec-WebSocket-Accept"); key != "BIrH2fXtdYwV1IU9u+MiGYCsuTA=")
+			else if(auto key = hdrs.get("sec-websocket-accept"); key != "BIrH2fXtdYwV1IU9u+MiGYCsuTA=")
 			{
 				// 'aWt1cmEK' + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 				// -> sha1 = 048ac7d9f5ed758c15d4853dbbe3221980acb930
@@ -370,7 +370,7 @@ namespace ikura
 		else if(opcode == OP_TEXT)
 		{
 			if(this->text_callback)
-				this->text_callback(fin, ikura::str_view((const char*) data.data(), data.size()));
+				this->text_callback(fin, data.sv());
 
 			if(!fin) this->cur_rx_cont_op = OP_TEXT;
 			else     this->cur_rx_cont_op = 0;
@@ -386,7 +386,7 @@ namespace ikura
 		else if(opcode == OP_CONTINUATION)
 		{
 			if(this->cur_rx_cont_op == OP_TEXT && this->text_callback)
-				this->text_callback(fin, ikura::str_view((const char*) data.data(), data.size()));
+				this->text_callback(fin, data.sv());
 
 			else if(this->cur_rx_cont_op == OP_BINARY && this->binary_callback)
 				this->binary_callback(fin, data);

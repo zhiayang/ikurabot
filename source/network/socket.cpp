@@ -55,11 +55,7 @@ namespace ikura
 
 	Socket::~Socket()
 	{
-		if(this->is_connected)
-		{
-			this->is_connected = false;
-			this->socket.close();
-		}
+		this->disconnect();
 	}
 
 	bool Socket::connected()

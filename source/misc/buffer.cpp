@@ -56,6 +56,11 @@ namespace ikura
 		return Span(this->ptr, this->len);
 	}
 
+	ikura::str_view Buffer::sv() const
+	{
+		return ikura::str_view((const char*) this->ptr, this->len);
+	}
+
 	uint8_t* Buffer::data()             { return this->ptr; }
 	const uint8_t* Buffer::data() const { return this->ptr; }
 

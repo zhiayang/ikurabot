@@ -162,8 +162,7 @@ namespace ikura::interp::ast
 		}
 		else if(op == TT::Slash || op == TT::DivideEquals)
 		{
-			if(lhs.is_integer() && rhs.is_integer())        return make_int(lhs.get_integer() / rhs.get_integer());
-			else if(lhs.is_integer() && rhs.is_double())    return make_flt(lhs.get_integer() / rhs.get_double());
+			if(lhs.is_integer() && rhs.is_double())         return make_flt(lhs.get_integer() / rhs.get_double());
 			else if(lhs.is_double() && rhs.is_integer())    return make_flt(lhs.get_double() / rhs.get_integer());
 			else if(lhs.is_double() && rhs.is_double())     return make_flt(lhs.get_double() / rhs.get_double());
 			else if(lhs.is_integer() && rhs.is_complex())   return make_cmp((double) lhs.get_integer() / rhs.get_complex());
@@ -171,6 +170,12 @@ namespace ikura::interp::ast
 			else if(lhs.is_complex() && rhs.is_integer())   return make_cmp(lhs.get_complex() / (double) rhs.get_integer());
 			else if(lhs.is_complex() && rhs.is_double())    return make_cmp(lhs.get_complex() / rhs.get_double());
 			else if(lhs.is_complex() && rhs.is_complex())   return make_cmp(lhs.get_complex() / rhs.get_complex());
+			else if(lhs.is_integer() && rhs.is_integer())
+			{
+				auto r = rhs.get_integer();
+				if(r == 0)  return make_int(INT64_MAX);
+				else        return make_int(lhs.get_integer() / r);
+			}
 		}
 		else if(op == TT::Percent || op == TT::RemainderEquals)
 		{
@@ -628,4 +633,29 @@ namespace ikura::interp::ast
 
 	Result<Value> LitString::evaluate(InterpState* fs, CmdContext& cs) const     { return Value::of_string(this->value); }
 	Result<Value> LitBoolean::evaluate(InterpState* fs, CmdContext& cs) const    { return make_bool(this->value); }
+
+
+
+
+
+
+
+
+
+	// destructors
+	LitString::~LitString() { }
+	LitInteger::~LitInteger() { }
+	LitDouble::~LitDouble() { }
+	LitBoolean::~LitBoolean() { }
+	VarRef::~VarRef() { }
+
+	SubscriptOp::~SubscriptOp()     { delete list; delete index; }
+	SliceOp::~SliceOp()             { delete list; if(start) delete start; if(end) delete end; }
+	UnaryOp::~UnaryOp()             { delete expr; }
+	SplatOp::~SplatOp()             { delete expr; }
+	BinaryOp::~BinaryOp()           { delete lhs; delete rhs; }
+	TernaryOp::~TernaryOp()         { delete op1; delete op2; delete op3; }
+	ComparisonOp::~ComparisonOp()   { for(auto e : exprs) delete e; }
+	AssignOp::~AssignOp()           { delete lhs; delete rhs; }
+	FunctionCall::~FunctionCall()   { delete callee; for(auto e : arguments) delete e; }
 }

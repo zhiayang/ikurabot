@@ -85,7 +85,6 @@ namespace ikura
 
 
 
-
 	HttpHeaders::HttpHeaders(ikura::str_view status)
 	{
 		this->_status = status;
@@ -128,6 +127,19 @@ namespace ikura
 		return this->_status;
 	}
 
+	int HttpHeaders::statusCode() const
+	{
+		if(this->_status.empty())
+			return 0;
+
+		auto xs = util::split(this->_status, ' ');
+		if(xs.size() < 3)
+			return 0;
+
+		// http version <space> code <space> message
+		return (int) util::stoi(xs[1]).value();
+	}
+
 	const std::vector<std::pair<std::string, std::string>>& HttpHeaders::headers() const
 	{
 		return this->_headers;
@@ -144,7 +156,7 @@ namespace ikura
 
 	std::optional<HttpHeaders> HttpHeaders::parse(const Buffer& buf)
 	{
-		return parse(ikura::str_view((const char*) buf.data(), buf.size()));
+		return parse(buf.sv());
 	}
 
 
@@ -163,7 +175,7 @@ namespace ikura
 			if(ki == std::string::npos)
 				return std::nullopt;
 
-			auto key = std::string(data.substr(0, ki));
+			auto key = util::lowercase(data.substr(0, ki));
 			data.remove_prefix(ki + 1);
 
 			// strip spaces

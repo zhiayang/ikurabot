@@ -102,5 +102,6 @@ namespace ikura::cmd
 	bool verifyPermissions(uint64_t required, uint64_t given);
 
 	// returns true if a command was run.
-	bool processMessage(ikura::str_view userid, ikura::str_view username, const Channel* channel, ikura::str_view message);
+	bool processMessage(ikura::str_view userid, ikura::str_view username, const Channel* channel,
+		ikura::str_view message, bool enablePings);
 }

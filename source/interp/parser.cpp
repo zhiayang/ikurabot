@@ -152,7 +152,7 @@ namespace ikura::interp::ast
 
 	static bool is_postfix_op(TT op)
 	{
-		return zfu::match(op, TT::LSquare, TT::LParen, TT::DoublePlus, TT::DoubleMinus);
+		return zfu::match(op, TT::LSquare, TT::LParen, TT::DoublePlus, TT::DoubleMinus, TT::Ellipsis);
 	}
 
 	static bool is_assignment_op(TT op)
@@ -337,7 +337,6 @@ namespace ikura::interp::ast
 		else if(st.match(TT::Minus))    return makeAST<UnaryOp>(TT::Minus, "-", parseUnary(st));
 		else if(st.match(TT::Plus))     return makeAST<UnaryOp>(TT::Plus, "+", parseUnary(st));
 		else if(st.match(TT::Tilde))    return makeAST<UnaryOp>(TT::Tilde, "~", parseUnary(st));
-		else if(st.match(TT::Ellipsis)) return makeAST<SplatOp>(parseUnary(st));
 		else                            return parsePrimary(st);
 	}
 
@@ -351,11 +350,11 @@ namespace ikura::interp::ast
 
 		while(true)
 		{
-			auto prec = get_binary_precedence(st.peek());
-			if(prec < prio && !is_right_associative(st.peek()))
+			auto oper = st.peek();
+			auto prec = get_binary_precedence(oper);
+			if(prec < prio && !is_right_associative(oper) && !is_postfix_op(oper))
 				return lhs;
 
-			auto oper = st.peek();
 			st.pop();
 
 			if(is_postfix_op(oper.type) && lhs)
@@ -494,7 +493,11 @@ namespace ikura::interp::ast
 
 	static Result<Expr*> parsePostfix(State& st, Expr* lhs, TT op)
 	{
-		if(op == TT::LParen)
+		if(op == TT::Ellipsis)
+		{
+			return makeAST<SplatOp>(lhs);
+		}
+		else if(op == TT::LParen)
 		{
 			std::vector<Expr*> args;
 

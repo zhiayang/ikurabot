@@ -54,6 +54,33 @@ namespace ikura
 
 	namespace util
 	{
+		std::string lowercase(ikura::str_view s)
+		{
+			std::string ret; ret.reserve(s.size());
+			for(char c : s)
+			{
+				if('A' <= c && c <= 'Z')
+					ret += (char) (c | 0x20);
+				else
+					ret += c;
+			}
+			return ret;
+		}
+
+		std::string uppercase(ikura::str_view s)
+		{
+			std::string ret; ret.reserve(s.size());
+			for(char c : s)
+			{
+				if('a' <= c && c <= 'z')
+					ret += (char) (c & ~0x20);
+				else
+					ret += c;
+			}
+			return ret;
+		}
+
+
 		std::mutex localTimeLock;
 		std::string getCurrentTimeString()
 		{

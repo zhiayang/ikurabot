@@ -9,6 +9,7 @@
 #include "ast.h"
 #include "defs.h"
 #include "markov.h"
+#include "discord.h"
 #include "network.h"
 
 using namespace std::chrono_literals;
@@ -25,11 +26,23 @@ int main(int argc, char** argv)
 	if(!ikura::config::load(argv[1]))
 		ikura::lg::fatal("cfg", "failed to load config file '%s'", argv[1]);
 
+
+	ikura::discord::init();
+	return 0;
+
+
+
+
 	if(!ikura::db::load(argv[2], (argc > 3 && std::string(argv[3]) == "--create")))
 		ikura::lg::fatal("db", "failed to load database '%s'", argv[2]);
 
 	if(ikura::config::haveTwitch())
 		ikura::twitch::init();
+
+
+
+
+
 
 	// this just starts a worker thread to process input in the background.
 	ikura::markov::init();

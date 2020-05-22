@@ -122,7 +122,10 @@ namespace ikura::interp
 		auto exp = ast::parseExpr(expr);
 		if(!exp) return exp.error();
 
-		return exp.unwrap()->evaluate(this, cs);
+		auto ret = exp.unwrap()->evaluate(this, cs);
+		delete exp.unwrap();
+
+		return ret;
 	}
 
 

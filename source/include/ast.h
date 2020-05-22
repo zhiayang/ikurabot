@@ -114,7 +114,7 @@ namespace ikura::interp
 		struct LitString : Expr
 		{
 			LitString(std::string s) : value(std::move(s)) { }
-			virtual ~LitString() override { }
+			virtual ~LitString() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
@@ -125,7 +125,7 @@ namespace ikura::interp
 		struct LitInteger : Expr
 		{
 			LitInteger(int64_t v, bool imag) : value(v), imag(imag) { }
-			virtual ~LitInteger() override { }
+			virtual ~LitInteger() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
@@ -137,7 +137,7 @@ namespace ikura::interp
 		struct LitDouble : Expr
 		{
 			LitDouble(double v, bool imag) : value(v), imag(imag) { }
-			virtual ~LitDouble() override { }
+			virtual ~LitDouble() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
@@ -149,7 +149,7 @@ namespace ikura::interp
 		struct LitBoolean : Expr
 		{
 			LitBoolean(bool v) : value(v) { }
-			virtual ~LitBoolean() override { }
+			virtual ~LitBoolean() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
@@ -160,7 +160,7 @@ namespace ikura::interp
 		struct VarRef : Expr
 		{
 			VarRef(std::string name) : name(std::move(name)) { }
-			virtual ~VarRef() override { }
+			virtual ~VarRef() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
@@ -171,7 +171,7 @@ namespace ikura::interp
 		struct SubscriptOp : Expr
 		{
 			SubscriptOp(Expr* arr, Expr* idx) : list(arr), index(idx) { }
-			virtual ~SubscriptOp() override { }
+			virtual ~SubscriptOp() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
@@ -183,7 +183,7 @@ namespace ikura::interp
 		struct SliceOp : Expr
 		{
 			SliceOp(Expr* arr, Expr* start, Expr* end) : list(arr), start(start), end(end) { }
-			virtual ~SliceOp() override { }
+			virtual ~SliceOp() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
@@ -196,7 +196,7 @@ namespace ikura::interp
 		struct SplatOp : Expr
 		{
 			SplatOp(Expr* e) : expr(e) { }
-			virtual ~SplatOp() override { }
+			virtual ~SplatOp() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
@@ -207,7 +207,7 @@ namespace ikura::interp
 		struct UnaryOp : Expr
 		{
 			UnaryOp(lexer::TokenType op, std::string s, Expr* e) : op(op), op_str(std::move(s)), expr(e) { }
-			virtual ~UnaryOp() override { }
+			virtual ~UnaryOp() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
@@ -220,7 +220,7 @@ namespace ikura::interp
 		struct BinaryOp : Expr
 		{
 			BinaryOp(lexer::TokenType op, std::string s, Expr* l, Expr* r) : op(op), op_str(std::move(s)), lhs(l), rhs(r) { }
-			virtual ~BinaryOp() override { }
+			virtual ~BinaryOp() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
@@ -235,7 +235,7 @@ namespace ikura::interp
 		{
 			TernaryOp(lexer::TokenType op, std::string s, Expr* a, Expr* b, Expr* c) : op(op), op_str(std::move(s)),
 				op1(a), op2(b), op3(c) { }
-			virtual ~TernaryOp() override { }
+			virtual ~TernaryOp() override;
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
 		private:
@@ -249,7 +249,7 @@ namespace ikura::interp
 		struct ComparisonOp : Expr
 		{
 			ComparisonOp() { }
-			virtual ~ComparisonOp() override { }
+			virtual ~ComparisonOp() override;
 
 			void addExpr(Expr* e) { this->exprs.push_back(e); }
 			void addOp(lexer::TokenType t, std::string s) { this->ops.push_back({ t, s }); }
@@ -264,7 +264,7 @@ namespace ikura::interp
 		struct AssignOp : Expr
 		{
 			AssignOp(lexer::TokenType op, std::string s, Expr* l, Expr* r) : op(op), op_str(std::move(s)), lhs(l), rhs(r) { }
-			virtual ~AssignOp() override { }
+			virtual ~AssignOp() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 
@@ -278,7 +278,7 @@ namespace ikura::interp
 		struct FunctionCall : Expr
 		{
 			FunctionCall(Expr* fn, std::vector<Expr*> args) : callee(fn), arguments(std::move(args)) { }
-			virtual ~FunctionCall() override { }
+			virtual ~FunctionCall() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
 

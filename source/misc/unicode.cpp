@@ -69,6 +69,12 @@ namespace ikura::unicode
 		});
 	}
 
+	size_t count_codepoints(ikura::str_view str)
+	{
+		int32_t	dummy = 0;
+		return utf8proc_decompose((const uint8_t*) str.data(), str.size(),
+			&dummy, 0, (utf8proc_option_t) (UTF8PROC_LUMP | UTF8PROC_COMPOSE | UTF8PROC_STRIPNA));
+	}
 
 	std::vector<int32_t> to_utf32(ikura::str_view str)
 	{

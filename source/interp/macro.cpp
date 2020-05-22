@@ -77,7 +77,7 @@ namespace ikura::interp
 	{
 		using interp::Value;
 
-		// just echo words wholesale until we get to a '$'
+		// just echo words wholesale until we get to a '\'
 		std::vector<Value> list;
 
 		for(const auto& x : code)
@@ -169,6 +169,7 @@ namespace ikura::interp
 		if(!rd.read(&code))
 			return { };
 
+		// zpr::println("loaded perms '%x' for cmd '%s'", permissions, name);
 		auto ret = new Macro(name, code);
 		ret->permissions = permissions;
 		return ret;

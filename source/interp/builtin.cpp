@@ -41,6 +41,15 @@ namespace ikura::interp
 		{ "show",   command_show   },
 	};
 
+	static constexpr uint64_t DEFAULT_NEW_MACRO_PERMISSIONS
+		= permissions::OWNER
+		| permissions::BROADCASTER
+		| permissions::TRUSTED
+		| permissions::VIP
+		| permissions::SUBSCRIBER
+		| permissions::MODERATOR;
+
+
 	bool run_builtin_command(CmdContext& cs, const Channel* chan, ikura::str_view cmd_str, ikura::str_view arg_str)
 	{
 		auto user_perms = chan->getUserPermissions(cs.callerid);
@@ -59,11 +68,11 @@ namespace ikura::interp
 			return 0;
 		});
 
-		if(!cmd::verifyPermissions(perm, user_perms))
-			return denied();
-
 		if(is_builtin_command(cmd_str))
 		{
+			if(!cmd::verifyPermissions(perm, user_perms))
+				return denied();
+
 			builtin_cmds[cmd_str.str()](cs, chan, arg_str);
 			return true;
 		}
@@ -146,7 +155,10 @@ namespace ikura::interp
 			return chan->sendMessage(Message(zpr::sprint("'%s' does not exist", name)));
 		}
 
-		interpreter().wlock()->commands.emplace(name, new Macro(name.str(), expansion));
+		auto macro = new Macro(name.str(), expansion);
+		macro->setPermissions(DEFAULT_NEW_MACRO_PERMISSIONS);
+
+		interpreter().wlock()->commands.emplace(name, macro);
 		chan->sendMessage(Message(zpr::sprint("%sdefined '%s'", redef ? "re" : "", name)));
 	}
 

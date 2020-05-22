@@ -14,16 +14,11 @@
 
 namespace ikura::twitch
 {
+	constexpr const char* MAGIC_OWNER_USERID = "__owner__";
+
 	struct TwitchState;
 	struct Channel : ikura::Channel
 	{
-		std::string name;
-		bool lurk;
-		bool mod;
-		bool respondToPings;
-		bool silentInterpErrors;
-		std::string commandPrefix;
-
 		Channel() : name(""), lurk(false), mod(false), respondToPings(false) { }
 		Channel(TwitchState* st, std::string n, bool l, bool m, bool p, bool si, std::string cp)
 			: name(std::move(n)), lurk(l), mod(m), respondToPings(p), silentInterpErrors(si),
@@ -39,7 +34,16 @@ namespace ikura::twitch
 		virtual void sendMessage(const Message& msg) const override;
 
 	private:
+		std::string name;
+		bool lurk;
+		bool mod;
+		bool respondToPings;
+		bool silentInterpErrors;
+		std::string commandPrefix;
+
 		TwitchState* state = nullptr;
+
+		friend struct TwitchState;
 	};
 
 	struct TwitchState
@@ -90,6 +94,8 @@ namespace ikura::twitch
 
 	void init();
 	void shutdown();
+
+	const Channel* getChannel(ikura::str_view name);
 
 	MessageQueue<twitch::QueuedMsg>& message_queue();
 
@@ -161,6 +167,9 @@ namespace ikura::twitch
 
 		// map from userid to creds.
 		ikura::string_map<TwitchUserCredentials> userCredentials;
+
+		// map from username to userid
+		ikura::string_map<std::string> usernameMapping;
 
 		const TwitchUser* getUser(ikura::str_view userid) const;
 

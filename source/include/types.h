@@ -155,6 +155,15 @@ namespace ikura
 			return -1;
 		}
 
+		size_t find_last(const T& x) const
+		{
+			for(size_t i = this->cnt; i-- > 0; )
+				if(this->ptr[i] == x)
+					return i;
+
+			return -1;
+		}
+
 		span subspan(size_t idx, size_t len = -1) const
 		{
 			if(len == (size_t) -1 && idx >= this->cnt)
@@ -227,8 +236,8 @@ namespace ikura
 
 		std::vector<T> vec() const              { return std::vector<T>(this->begin(), this->end()); }
 
-		span drop(size_t n) const               { auto copy = *this; copy.remove_prefix(n); return copy; }
-		span take(size_t n) const               { auto copy = *this; copy.remove_suffix(this->cnt - n); return copy; }
+		span drop(size_t n) const               { return (this->size() > n ? this->subspan(n) : span()); }
+		span take(size_t n) const               { return (this->size() > n ? this->subspan(0, n) : *this); }
 		span take_last(size_t n) const          { return (this->size() > n ? this->subspan(this->cnt - n) : *this); }
 
 		const T& front() const                  { assert(this->cnt > 0); return this->ptr[0]; }
