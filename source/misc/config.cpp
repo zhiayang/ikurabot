@@ -278,7 +278,7 @@ namespace ikura::config
 
 	bool haveDiscord()
 	{
-		return false;
+		return DiscordConfig.present;
 	}
 
 	bool load(ikura::str_view path)

@@ -28,6 +28,11 @@ int main(int argc, char** argv)
 
 
 	ikura::discord::init();
+
+
+	std::this_thread::sleep_for(1000ms);
+	ikura::discord::shutdown();
+
 	return 0;
 
 

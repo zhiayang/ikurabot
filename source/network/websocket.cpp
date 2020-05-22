@@ -44,9 +44,9 @@ namespace ikura
 
 
 	WebSocket::WebSocket(ikura::str_view host, uint16_t port, bool ssl, std::chrono::nanoseconds timeout)
-		: conn(host, port, ssl, timeout), buffer(DEFAULT_FRAME_BUFFER_SIZE) { }
+		: conn(host, port, ssl, timeout), buffer(DEFAULT_FRAME_BUFFER_SIZE), url(zpr::sprint("%s:%d", host, port)) { }
 
-	WebSocket::WebSocket(const URL& url, std::chrono::nanoseconds timeout) : buffer(DEFAULT_FRAME_BUFFER_SIZE)
+	WebSocket::WebSocket(const URL& url, std::chrono::nanoseconds timeout) : buffer(DEFAULT_FRAME_BUFFER_SIZE), url(url)
 	{
 		auto proto = url.protocol();
 		if(proto != "ws" && proto != "wss")
@@ -88,7 +88,13 @@ namespace ikura
 			return false;
 		}
 
-		auto http = HttpHeaders("GET / HTTP/1.1")
+		auto path = this->url.resource();
+		if(path.empty()) path = "/";
+
+		auto http = HttpHeaders(zpr::sprint("GET %s%s%s HTTP/1.1",
+								path, this->url.parameters().empty() ? "" : "?",
+								this->url.parameters())
+						)
 						.add("Host", this->conn.host())
 						.add("Upgrade", "websocket")
 						.add("Connection", "Upgrade")

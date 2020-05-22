@@ -18,22 +18,26 @@ namespace ikura
 	{
 		explicit URL(ikura::str_view url);
 
-		std::string& protocol()             { return this->_protocol; }
-		const std::string& protocol() const { return this->_protocol; }
+		std::string& protocol()                 { return this->_protocol; }
+		const std::string& protocol() const     { return this->_protocol; }
 
-		std::string& hostname()             { return this->_hostname; }
-		const std::string& hostname() const { return this->_hostname; }
+		std::string& hostname()                 { return this->_hostname; }
+		const std::string& hostname() const     { return this->_hostname; }
 
-		std::string& resource()             { return this->_resource; }
-		const std::string& resource() const { return this->_resource; }
+		std::string& parameters()               { return this->_parameters; }
+		const std::string& parameters() const   { return this->_parameters; }
 
-		uint16_t port() const               { return this->_port; }
+		std::string& resource()                 { return this->_resource; }
+		const std::string& resource() const     { return this->_resource; }
+
+		uint16_t port() const                   { return this->_port; }
 		std::string str() const;
 
 	private:
 		std::string _protocol;
 		std::string _hostname;
 		std::string _resource;
+		std::string _parameters;
 		uint16_t _port = 0;
 	};
 
@@ -126,6 +130,8 @@ namespace ikura
 
 		Socket conn;
 		Buffer buffer;
+
+		URL url;
 
 		std::function<RxTextCallbackFn> text_callback;
 		std::function<RxBinaryCallbackFn> binary_callback;

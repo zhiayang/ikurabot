@@ -28,7 +28,7 @@ namespace ikura
 			url.remove_prefix(i + 3);
 
 			// you don't need to have a slash, but if you do it can't be the first thing.
-			i = url.find('/');
+			i = url.find_first_of("?/");
 			if(i == 0)
 				break;
 
@@ -56,6 +56,12 @@ namespace ikura
 			{
 				this->_hostname = std::string(tmp);
 				this->_port = default_ports[this->_protocol];
+			}
+
+			if(auto tmp = this->_resource.find('?'); tmp != (size_t) -1)
+			{
+				this->_resource = this->_resource.substr(0, tmp);
+				this->_parameters = url.drop(tmp + 1).str();
 			}
 
 			// ok, success. return to skip the error message.
