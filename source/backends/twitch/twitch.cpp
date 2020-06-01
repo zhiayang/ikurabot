@@ -18,7 +18,7 @@ namespace ikura::twitch
 	static Synchronised<TwitchState>& state() { return *_state; }
 
 	static MessageQueue<twitch::QueuedMsg> msg_queue;
-	MessageQueue<twitch::QueuedMsg>& message_queue() { return msg_queue; }
+	MessageQueue<twitch::QueuedMsg>& mqueue() { return msg_queue; }
 
 
 	void send_worker()
@@ -30,7 +30,7 @@ namespace ikura::twitch
 
 		while(true)
 		{
-			auto msg = message_queue().pop_send();
+			auto msg = mqueue().pop_send();
 			if(msg.disconnected)
 				break;
 
@@ -55,11 +55,11 @@ namespace ikura::twitch
 	{
 		while(true)
 		{
-			auto msg = message_queue().pop_receive();
+			auto msg = mqueue().pop_receive();
 			if(msg.disconnected)
 				break;
 
-			state().wlock()->processMessage(msg.msg);
+			state().wlock()->processMessage(std::move(msg.msg));
 		}
 
 		lg::log("twitch", "receive worker exited");
@@ -143,10 +143,10 @@ namespace ikura::twitch
 				auto x = msg.take(msg.find("\r\n")).str();
 				msg.remove_prefix(x.size() + 2);
 
-				message_queue().emplace_receive_quiet(std::move(x));
+				mqueue().emplace_receive_quiet(std::move(x));
 			}
 
-			message_queue().notify_pending_receives();
+			mqueue().notify_pending_receives();
 		});
 
 		// request tags
@@ -164,8 +164,8 @@ namespace ikura::twitch
 		// we must kill the threads now, because we have the writelock on the state.
 		// if they (the receiver thread) attempts to process an incoming message now,
 		// it will deadlock because it also wants the writelock for the state.
-		message_queue().push_send(QueuedMsg::disconnect());
-		message_queue().push_receive(QueuedMsg::disconnect());
+		mqueue().push_send(QueuedMsg::disconnect());
+		mqueue().push_receive(QueuedMsg::disconnect());
 
 		// part from channels. we don't particularly care about the response anyway.
 		for(auto& [ name, chan ] : this->channels)

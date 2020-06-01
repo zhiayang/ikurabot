@@ -78,6 +78,7 @@ namespace ikura
 
 		std::string _host;
 		uint16_t _port;
+		bool _ssl;
 
 		std::thread thread;
 		kissnet::socket<> socket;
@@ -107,7 +108,7 @@ namespace ikura
 		void resizeBuffer(size_t sz);
 
 		bool connect();
-		void disconnect();
+		void disconnect(uint16_t code = 1000);
 
 		bool connected();
 

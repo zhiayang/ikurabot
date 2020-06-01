@@ -7,10 +7,8 @@
 #include "defs.h"
 #include "twitch.h"
 
-#define PICOJSON_USE_INT64 1
 #include "picojson.h"
 
-namespace pj = picojson;
 namespace std { namespace fs = filesystem; }
 
 namespace ikura::config
@@ -42,6 +40,8 @@ namespace ikura::config
 	static struct {
 		int consolePort = 0;
 		bool stripMentionsFromMarkov = false;
+		size_t minMarkovLength = 0;
+		size_t maxMarkovRetries = 0;
 	} GlobalConfig;
 
 	namespace twitch
@@ -71,6 +71,9 @@ namespace ikura::config
 	{
 		int getConsolePort() { return GlobalConfig.consolePort; }
 		bool stripMentionsFromMarkov() { return GlobalConfig.stripMentionsFromMarkov; }
+
+		size_t getMinMarkovLength() { return GlobalConfig.minMarkovLength; }
+		size_t getMaxMarkovRetries() { return GlobalConfig.maxMarkovRetries; }
 	}
 
 
@@ -142,6 +145,24 @@ namespace ikura::config
 		GlobalConfig.consolePort = get_integer(global, "console_port", 0);
 		GlobalConfig.stripMentionsFromMarkov = get_bool(global, "strip_markov_pings", false);
 
+		// defaults to 1 and 0 -- min length of 1, 0 retries.
+		auto minLen = get_integer(global, "min_markov_length", 1);
+		auto maxRetry = get_integer(global, "max_markov_retries", 0);
+
+		if(minLen < 1)
+		{
+			lg::warn("cfg/global", "invalid value '%ld' for min_markov_length", minLen);
+			minLen = 1;
+		}
+		if(maxRetry < 1)
+		{
+			lg::warn("cfg/global", "invalid value '%ld' for max_markov_retries", maxRetry);
+			maxRetry = 0;
+		}
+
+		GlobalConfig.minMarkovLength = minLen;
+		GlobalConfig.maxMarkovRetries = maxRetry;
+
 		return true;
 	}
 
@@ -182,7 +203,6 @@ namespace ikura::config
 					guild.silentInterpErrors = get_bool(obj, "silent_interp_errors", false);
 					guild.respondToPings = get_bool(obj, "respond_to_pings", false);
 					guild.lurk = get_bool(obj, "lurk", false);
-					guild.mod = get_bool(obj, "mod", false);
 					guild.commandPrefix = get_string(obj, "command_prefix", "");
 
 					DiscordConfig.guilds.push_back(std::move(guild));

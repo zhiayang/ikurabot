@@ -41,7 +41,17 @@ small dependencies are included in this repo (under the `external` folder), unde
   "global": {
     // the port on which to run the admin console. this will only
     // listen on localhost, nothing else. use 0 to disable.
-    "console_port": 42069
+    "console_port": 42069,
+
+    // strip discord mentions from markov output
+    "strip_markov_pings": true,
+
+    // the minimum length (in words) of generated markov sentences
+    "min_markov_length": 7,
+
+    // how many times to retry sentence generation if the number of words is insufficient
+    // (according to the minimum markov length above)
+    "max_markov_retries": 5
   },
 
   "twitch": {
@@ -49,7 +59,7 @@ small dependencies are included in this repo (under the `external` folder), unde
     "username": "asdf",
 
     // the oauth token for the bot's account
-    "oauth_token": "123456789abcdefgh",
+    "oauth_token": "",
 
     // the username of the bot's owner; the owner always run all
     // commands, regardless of their badges in the deployed channel
@@ -65,15 +75,50 @@ small dependencies are included in this repo (under the `external` folder), unde
         "lurk": false,
 
         // true if the bot is a moderator in this channel (concerns rate limiting)
-        "mod": true,
+        "mod": false,
 
         // the prefix to use for a command (eg. !eval 1+1). if this is empty, then
         // commands will not be available on this channel.
         "command_prefix": "!",
 
+        // true if the bot should not print out interpreter errors to chat
+        "silent_interp_errors": false,
+
         // true if the bot should reply to mentions in chat with a markov response.
-        "respond_to_pings": true
+        "respond_to_pings": false
       },
+    ]
+  },
+
+  "discord": {
+    // the bot's username
+    "username": "asdf",
+
+    // the oauth token for the bot's account. do *not* include Bot in the front.
+    "oauth_token": "",
+
+    // the list of guilds; this is simply used to customise the settings for each guild.
+    // the actual list of guilds that the bot will participate in is handled by discord.
+    // if a guild that the bot is a member of does not appear in this list, then the
+    // default settings will be used. (the values here are the default settings)
+    "guilds": [
+        {
+            // the id of the guild
+            "id": "",
+
+            // true if the bot should ignore pings and commands
+            "lurk": false,
+
+            // the prefix to use for a command (eg. !eval 1+1). if this is empty, then
+            // commands will not be available in this guild.
+            "command_prefix": "!",
+
+            // true if the bot should not print out interpreter errors to chat
+            "silent_interp_errors": false,
+
+            // true if the bot should reply to mentions in chat with a markov response.
+            "respond_to_pings": false
+        }
     ]
   }
 }

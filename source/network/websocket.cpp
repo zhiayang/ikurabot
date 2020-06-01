@@ -89,8 +89,6 @@ namespace ikura
 		}
 
 		auto path = this->url.resource();
-		if(path.empty()) path = "/";
-
 		auto http = HttpHeaders(zpr::sprint("GET %s%s%s HTTP/1.1",
 								path, this->url.parameters().empty() ? "" : "?",
 								this->url.parameters())
@@ -143,15 +141,26 @@ namespace ikura
 			cv.set(true);
 		});
 
+		// zpr::println("sending:\n%s\n", http.bytes());
+
 		this->conn.send(Span::fromString(http.bytes()));
 		if(!cv.wait(true, DEFAULT_TIMEOUT))
 		{
+			// make sure the receiver thread doesn't set the cv (since it would be gone after the stack
+			// frame is destroyed).
+			this->conn.onReceive([](auto) { });
+
 			this->conn.disconnect();
 			return lg::error("ws", "connection timed out (while waiting for websocket upgrade reply)");
 		}
 
 		if(!success)
+		{
+			this->conn.onReceive([](auto) { });
+
+			lg::error("ws", "websocket upgrade failed");
 			return false;
+		}
 
 		// setup the handler.
 		this->conn.onReceive([this](Span data) {
@@ -161,6 +170,7 @@ namespace ikura
 
 			this->buffer.write(data);
 
+			// zpr::println("rx:\n%s", data.sv().drop(2));
 			auto the_buffer = this->buffer.span();
 
 			// note that we must do 'return' here, because breaking out of the loop normally will
@@ -234,7 +244,7 @@ namespace ikura
 		return true;
 	}
 
-	void WebSocket::disconnect()
+	void WebSocket::disconnect(uint16_t code)
 	{
 		if(!this->conn.connected())
 			return;
@@ -257,12 +267,16 @@ namespace ikura
 			}
 		});
 
-		this->send_raw(OP_CLOSE, /* fin: */ true, Buffer::empty());
+		code = util::to_network(code);
+		auto b = Buffer(2); b.write(&code, sizeof(uint16_t));
+
+		this->send_raw(OP_CLOSE, /* fin: */ true, std::move(b));
 
 		// we don't really care whether this times out or not, we just don't want this to
 		// hang forever here.
 		cv.wait(true, 500ms);
 
+		this->conn.onReceive([](auto) { });
 		this->conn.disconnect();
 	}
 

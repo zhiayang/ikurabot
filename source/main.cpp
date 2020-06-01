@@ -26,28 +26,14 @@ int main(int argc, char** argv)
 	if(!ikura::config::load(argv[1]))
 		ikura::lg::fatal("cfg", "failed to load config file '%s'", argv[1]);
 
-
-	ikura::discord::init();
-
-
-	std::this_thread::sleep_for(1000ms);
-	ikura::discord::shutdown();
-
-	return 0;
-
-
-
-
 	if(!ikura::db::load(argv[2], (argc > 3 && std::string(argv[3]) == "--create")))
 		ikura::lg::fatal("db", "failed to load database '%s'", argv[2]);
 
 	if(ikura::config::haveTwitch())
 		ikura::twitch::init();
 
-
-
-
-
+	if(ikura::config::haveDiscord())
+		ikura::discord::init();
 
 	// this just starts a worker thread to process input in the background.
 	ikura::markov::init();
@@ -55,6 +41,8 @@ int main(int argc, char** argv)
 	// when this returns, then the bot should shutdown.
 	ikura::console::init();
 
+
+	ikura::discord::shutdown();
 	ikura::twitch::shutdown();
 	ikura::markov::shutdown();
 

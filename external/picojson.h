@@ -42,6 +42,8 @@
 #include <vector>
 #include <utility>
 
+#define PICOJSON_USE_INT64 1
+
 // for isnan/isinf
 #if __cplusplus >= 201103L
 #include <cmath>
@@ -188,14 +190,14 @@ public:
   bool contains(const size_t idx) const;
   bool contains(const std::string &key) const;
   std::string to_str() const;
-  template <typename Iter> void serialize(Iter os, bool prettify = false) const;
-  std::string serialize(bool prettify = false) const;
+  template <typename Iter> void serialise(Iter os, bool prettify = false) const;
+  std::string serialise(bool prettify = false) const;
 
 private:
   template <typename T> value(const T *); // intentionally defined to block implicit conversion of pointer to bool
   template <typename Iter> static void _indent(Iter os, int indent);
-  template <typename Iter> void _serialize(Iter os, int indent) const;
-  std::string _serialize(int indent) const;
+  template <typename Iter> void _serialise(Iter os, int indent) const;
+  std::string _serialise(int indent) const;
   void clear();
 };
 
@@ -520,7 +522,7 @@ template <typename Iter> void copy(const std::string &s, Iter oi) {
   std::copy(s.begin(), s.end(), oi);
 }
 
-template <typename Iter> struct serialize_str_char {
+template <typename Iter> struct serialise_str_char {
   Iter oi;
   void operator()(char c) {
     switch (c) {
@@ -550,19 +552,19 @@ template <typename Iter> struct serialize_str_char {
   }
 };
 
-template <typename Iter> void serialize_str(const std::string &s, Iter oi) {
+template <typename Iter> void serialise_str(const std::string &s, Iter oi) {
   *oi++ = '"';
-  serialize_str_char<Iter> process_char = {oi};
+  serialise_str_char<Iter> process_char = {oi};
   std::for_each(s.begin(), s.end(), process_char);
   *oi++ = '"';
 }
 
-template <typename Iter> void value::serialize(Iter oi, bool prettify) const {
-  return _serialize(oi, prettify ? 0 : -1);
+template <typename Iter> void value::serialise(Iter oi, bool prettify) const {
+  return _serialise(oi, prettify ? 0 : -1);
 }
 
-inline std::string value::serialize(bool prettify) const {
-  return _serialize(prettify ? 0 : -1);
+inline std::string value::serialise(bool prettify) const {
+  return _serialise(prettify ? 0 : -1);
 }
 
 template <typename Iter> void value::_indent(Iter oi, int indent) {
@@ -572,10 +574,10 @@ template <typename Iter> void value::_indent(Iter oi, int indent) {
   }
 }
 
-template <typename Iter> void value::_serialize(Iter oi, int indent) const {
+template <typename Iter> void value::_serialise(Iter oi, int indent) const {
   switch (type_) {
   case string_type:
-    serialize_str(*u_.string_, oi);
+    serialise_str(*u_.string_, oi);
     break;
   case array_type: {
     *oi++ = '[';
@@ -589,7 +591,7 @@ template <typename Iter> void value::_serialize(Iter oi, int indent) const {
       if (indent != -1) {
         _indent(oi, indent);
       }
-      i->_serialize(oi, indent);
+      i->_serialise(oi, indent);
     }
     if (indent != -1) {
       --indent;
@@ -612,12 +614,12 @@ template <typename Iter> void value::_serialize(Iter oi, int indent) const {
       if (indent != -1) {
         _indent(oi, indent);
       }
-      serialize_str(i->first, oi);
+      serialise_str(i->first, oi);
       *oi++ = ':';
       if (indent != -1) {
         *oi++ = ' ';
       }
-      i->second._serialize(oi, indent);
+      i->second._serialise(oi, indent);
     }
     if (indent != -1) {
       --indent;
@@ -637,9 +639,9 @@ template <typename Iter> void value::_serialize(Iter oi, int indent) const {
   }
 }
 
-inline std::string value::_serialize(int indent) const {
+inline std::string value::_serialise(int indent) const {
   std::string s;
-  _serialize(std::back_inserter(s), indent);
+  _serialise(std::back_inserter(s), indent);
   return s;
 }
 
@@ -1199,11 +1201,12 @@ inline std::istream &operator>>(std::istream &is, picojson::value &x) {
 }
 
 inline std::ostream &operator<<(std::ostream &os, const picojson::value &x) {
-  x.serialize(std::ostream_iterator<char>(os));
+  x.serialise(std::ostream_iterator<char>(os));
   return os;
 }
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
 
+namespace pj = picojson;
 #endif

@@ -37,6 +37,8 @@ namespace ikura
 				url.remove_prefix(i);   // include the leading / for the path
 
 			this->_resource = std::string(url);
+			if(i == (size_t) -1 || this->_resource.empty())
+				this->_resource = "/";
 
 			// need to check for ports. (if i = 0, then your hostname was empty, which is bogus)
 			i = tmp.find(':');
@@ -61,6 +63,9 @@ namespace ikura
 			if(auto tmp = this->_resource.find('?'); tmp != (size_t) -1)
 			{
 				this->_resource = this->_resource.substr(0, tmp);
+				if(this->_resource.empty())
+					this->_resource = "/";
+
 				this->_parameters = url.drop(tmp + 1).str();
 			}
 

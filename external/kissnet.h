@@ -888,7 +888,10 @@ namespace kissnet
 				memcpy(&socket_output, getaddrinfo_results->ai_addr, sizeof(SOCKADDR));
 
 				if(syscall_connect(sock, (SOCKADDR*) &socket_output, sizeof(SOCKADDR)) == SOCKET_ERROR)
+				{
+					fprintf(stderr, "sock error: %s\n", strerror(errno));
 					return false;
+				}
 
 				auto* pMethod = TLSv1_2_client_method();
 

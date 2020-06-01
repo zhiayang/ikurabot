@@ -109,7 +109,7 @@ namespace ikura::twitch
 				creds.permissions = perms;
 				creds.subscribedMonths = sublen;
 
-				lg::log("twitch", "perms: %s -> %x", user, creds.permissions);
+				// lg::log("twitch", "perms: %s -> %x", user, creds.permissions);
 			}
 		});
 
@@ -325,7 +325,7 @@ namespace ikura::twitch
 
 		// log("queued msg at %d", std::chrono::system_clock::now().time_since_epoch().count());
 
-		twitch::message_queue().emplace_send(
+		twitch::mqueue().emplace_send(
 			zpr::sprint("%s\r\n", msg),
 			is_moderator
 		);

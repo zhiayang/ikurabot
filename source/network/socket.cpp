@@ -17,23 +17,13 @@ namespace ikura
 
 	Socket::Socket(const URL& url, bool ssl, std::chrono::nanoseconds timeout) : Socket(url.hostname(), url.port(), ssl, timeout) { }
 
-	Socket::Socket(ikura::str_view h, uint16_t p, bool ssl, std::chrono::nanoseconds timeout) : _host(h), _port(p)
+	Socket::Socket(ikura::str_view h, uint16_t p, bool s, std::chrono::nanoseconds timeout) : _host(h), _port(p), _ssl(s)
 	{
 		this->is_connected = false;
 		this->rx_callback = [](Span) { };
 
-		this->socket = kissnet::socket(
-			ssl ? kissnet::protocol::tcp_ssl : kissnet::protocol::tcp,
-			kissnet::endpoint(this->_host, this->_port)
-		);
-
-		if(timeout > 0ns)
-		{
-			auto micros = std::chrono::duration_cast<std::chrono::microseconds>(timeout).count();
-			this->socket.set_timeout(micros);
-
-			this->timeout = timeout;
-		}
+		this->socket = kissnet::socket();
+		this->timeout = timeout;
 	}
 
 	Socket::Socket(std::string host, uint16_t port, kissnet::socket<>&& socket, std::chrono::nanoseconds timeout)
@@ -43,6 +33,7 @@ namespace ikura
 
 		this->_port = port;
 		this->_host = std::move(host);
+		this->_ssl  = (socket.get_protocol() == kissnet::protocol::tcp_ssl);
 		this->socket = std::move(socket);
 
 		if(timeout > 0ns)
@@ -100,6 +91,17 @@ namespace ikura
 
 	bool Socket::connect()
 	{
+		this->socket = kissnet::socket<>(
+			this->_ssl ? kissnet::protocol::tcp_ssl : kissnet::protocol::tcp,
+			kissnet::endpoint(this->_host, this->_port)
+		);
+
+		if(this->timeout > 0ns)
+		{
+			auto micros = std::chrono::duration_cast<std::chrono::microseconds>(timeout).count();
+			this->socket.set_timeout(micros);
+		}
+
 		this->is_connected = this->socket.connect();
 
 		if(!this->is_connected)

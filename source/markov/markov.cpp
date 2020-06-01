@@ -473,39 +473,53 @@ namespace ikura::markov
 	Message generateMessage(const std::vector<std::string>& seed)
 	{
 		size_t max_length = 50;
+		size_t min_length = config::global::getMinMarkovLength();
+		size_t retries = config::global::getMaxMarkovRetries();
+		size_t _retries = retries;
 
 		std::vector<uint64_t> output;
-		if(!seed.empty())
-		{
-			// get the word
-			markovModel().perform_read([&](auto& markov) {
-				for(const auto& s : seed)
-				{
-					if(auto it = markov.wordIndices.find(s); it != markov.wordIndices.end())
-						output.push_back(it->second);
 
-					else
-						lg::warn("markov", "ignoring unseen seed word '%s'", s);
-				}
-			});
-		}
+		do {
+			output.clear();
 
-		// the seed might not exist in the training data; if so, then just do a normal thing.
-		if(output.empty())
-			output.push_back(IDX_START_MARKER);
+			if(!seed.empty())
+			{
+				// get the word
+				markovModel().perform_read([&](auto& markov) {
+					for(const auto& s : seed)
+					{
+						if(auto it = markov.wordIndices.find(s); it != markov.wordIndices.end())
+							output.push_back(it->second);
 
+						else
+							lg::warn("markov", "ignoring unseen seed word '%s'", s);
+					}
+				});
+			}
 
-		while(output.size() < max_length)
-		{
-			auto word = generate_one(ikura::span(output));
-			if(word == IDX_END_MARKER)
+			// the seed might not exist in the training data; if so, then just do a normal thing.
+			if(output.empty())
+				output.push_back(IDX_START_MARKER);
+
+			while(output.size() < max_length)
+			{
+				auto word = generate_one(ikura::span(output));
+				if(word == IDX_END_MARKER)
+					break;
+
+				output.push_back(word);
+			}
+
+			if(output.size() >= min_length)
 				break;
 
-			output.push_back(word);
-		}
+			lg::warn("markov", "insufficient words (%zu/%zu), retrying", output.size(), min_length);
+		} while(retries-- > 0);
+
+		if(output.size() < min_length)
+			lg::warn("markov", "failed to generate %zu markov words after %zu attempts", min_length, _retries);
 
 		Message msg;
-
 		markovModel().perform_read([&output, &msg](auto& markov) {
 			for(size_t i = 0; i < output.size(); i++)
 			{

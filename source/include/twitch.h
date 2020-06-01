@@ -97,7 +97,7 @@ namespace ikura::twitch
 
 	const Channel* getChannel(ikura::str_view name);
 
-	MessageQueue<twitch::QueuedMsg>& message_queue();
+	MessageQueue<twitch::QueuedMsg>& mqueue();
 
 
 
@@ -137,6 +137,9 @@ namespace ikura::twitch
 		static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_LOG;
 	};
 
+	// each user is unique, but a user might have different credentials in
+	// different channels (eg. subbed to one but not the other, mod status, etc.)
+	// so the credentials of a user are tied to the channel, not the user itself.
 	struct TwitchUserCredentials : Serialisable
 	{
 		uint64_t permissions;       // see defs.h/ikura::permissions

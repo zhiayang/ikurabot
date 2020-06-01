@@ -139,6 +139,7 @@ namespace ikura::request
 			return { };
 		}
 
+		sock->onReceive([](auto) { });
 		return std::make_pair(HttpHeaders::parse(buf).value(), std::move(content));
 	}
 
@@ -152,7 +153,6 @@ namespace ikura::request
 	{
 		auto address = URL(zpr::sprint("%s://%s", url.protocol(), url.hostname()));
 		auto path = url.resource();
-		if(path.empty()) path = "/";
 
 		// open a socket, write, wait for response, close.
 		auto sock = Socket(address, /* ssl: */ url.protocol() == "https");

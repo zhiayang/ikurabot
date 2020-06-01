@@ -59,6 +59,12 @@ namespace ikura
 		constexpr uint8_t TAG_TWITCH_LOG_MSG        = 0x4F;
 		constexpr uint8_t TAG_MESSAGE_DB            = 0x50;
 		constexpr uint8_t TAG_MARKOV_STORED_WORD    = 0x51;
+		constexpr uint8_t TAG_DISCORD_DB            = 0x52;
+		constexpr uint8_t TAG_DISCORD_GUILD         = 0x53;
+		constexpr uint8_t TAG_DISCORD_CHANNEL       = 0x54;
+		constexpr uint8_t TAG_DISCORD_USER          = 0x55;
+		constexpr uint8_t TAG_DISCORD_USER_CREDS    = 0x56;
+		constexpr uint8_t TAG_DISCORD_ROLE          = 0x57;
 
 		// if the byte has 0x80 set, then the lower 7 bits represents a truncated 64-bit number. it's a further
 		// extension of the SMALL_U64 thing, but literally only uses 1 byte for sizes between 0 - 127
@@ -76,12 +82,6 @@ namespace ikura
 		constexpr uint64_t BROADCASTER      = 0x040;
 		constexpr uint64_t OWNER            = 0x080;
 		constexpr uint64_t WHITELIST        = 0x100;
-	}
-
-	namespace twitch
-	{
-		void init();
-		void shutdown();
 	}
 
 	namespace console
@@ -122,7 +122,6 @@ namespace ikura
 			{
 				std::string id;
 				bool lurk;
-				bool mod;
 				bool respondToPings;
 				bool silentInterpErrors;
 				std::string commandPrefix;
@@ -137,6 +136,9 @@ namespace ikura
 		{
 			int getConsolePort();
 			bool stripMentionsFromMarkov();
+
+			size_t getMinMarkovLength();
+			size_t getMaxMarkovRetries();
 		}
 	}
 
