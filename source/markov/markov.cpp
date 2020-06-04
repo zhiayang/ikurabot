@@ -527,8 +527,9 @@ namespace ikura::markov
 				if(word.empty())
 					continue;
 
+				// TODO: keep this? idk.
 				else if(config::global::stripMentionsFromMarkov() && word.find('@') == 0)
-					continue;
+					word = word.substr(1);
 
 				if(em)
 				{

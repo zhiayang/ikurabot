@@ -838,13 +838,16 @@ namespace kissnet
 		{
 #ifdef _WIN32
 			ioctl_setting set = state ? 1 : 0;
-			if(ioctlsocket(sock, FIONBIO, &set) < 0)
+			if(ioctlsocket(sock, FIONBIO, &set) < 0) {
 #else
 			const auto flags = fcntl(sock, F_GETFL, 0);
 			const auto newflags = state ? flags | O_NONBLOCK : flags ^ O_NONBLOCK;
-			if(fcntl(sock, F_SETFL, newflags) < 0)
+			if(fcntl(sock, F_SETFL, newflags) < 0) {
 #endif
-				kissnet_fatal_error("setting socket to nonblock returned an error");
+				fprintf(stderr, "setting socket to nonblocking mode: %s\n", strerror(errno));
+				abort();
+			}
+				// kissnet_fatal_error("setting socket to nonblock returned an error");
 		}
 
 		void set_timeout(uint32_t microseconds)

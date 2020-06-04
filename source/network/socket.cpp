@@ -123,6 +123,8 @@ namespace ikura
 			this->socket.close();
 		}
 
+		this->onReceive([](auto) { });
+
 		// don't try to call join from the thread itself. this can happen when we want
 		// to call disconnect while inside a packet handler; for example, the remote end
 		// tells us to die.
@@ -148,6 +150,17 @@ namespace ikura
 
 	void Socket::listen()
 	{
+		this->socket = kissnet::socket<>(
+			this->_ssl ? kissnet::protocol::tcp_ssl : kissnet::protocol::tcp,
+			kissnet::endpoint(this->_host, this->_port)
+		);
+
+		if(this->timeout > 0ns)
+		{
+			auto micros = std::chrono::duration_cast<std::chrono::microseconds>(timeout).count();
+			this->socket.set_timeout(micros);
+		}
+
 		this->socket.set_non_blocking(true);
 
 		int yes = 1;

@@ -193,6 +193,26 @@ public:
   template <typename Iter> void serialise(Iter os, bool prettify = false) const;
   std::string serialise(bool prettify = false) const;
 
+  bool as_bool() const;
+  int64_t as_int() const;
+  const std::string& as_str() const;
+  const value::array& as_arr() const;
+  const value::object& as_obj() const;
+
+  bool& as_bool();
+  int64_t& as_int();
+  std::string& as_str();
+  value::array& as_arr();
+  value::object& as_obj();
+
+  bool is_bool() const;
+  bool is_int() const;
+  bool is_str() const;
+  bool is_arr() const;
+  bool is_obj() const;
+  bool is_null() const;
+
+
 private:
   template <typename T> value(const T *); // intentionally defined to block implicit conversion of pointer to bool
   template <typename Iter> static void _indent(Iter os, int indent);
@@ -435,6 +455,26 @@ inline bool value::evaluate_as_boolean() const {
     return true;
   }
 }
+
+
+inline bool value::as_bool() const                { return this->get<bool>(); }
+inline int64_t value::as_int() const              { return this->get<int64_t>(); }
+inline const std::string& value::as_str() const   { return this->get<std::string>(); }
+inline const value::array& value::as_arr() const  { return this->get<value::array>(); }
+inline const value::object& value::as_obj() const { return this->get<value::object>(); }
+
+inline bool& value::as_bool()           { return this->get<bool>(); }
+inline int64_t& value::as_int()         { return this->get<int64_t>(); }
+inline std::string& value::as_str()     { return this->get<std::string>(); }
+inline value::array& value::as_arr()    { return this->get<value::array>(); }
+inline value::object& value::as_obj()   { return this->get<value::object>(); }
+
+inline bool value::is_bool() const        { return this->is<bool>(); }
+inline bool value::is_int() const         { return this->is<int64_t>(); }
+inline bool value::is_str() const         { return this->is<std::string>(); }
+inline bool value::is_arr() const         { return this->is<value::array>(); }
+inline bool value::is_obj() const         { return this->is<value::object>(); }
+inline bool value::is_null() const        { return this->is<null>(); }
 
 inline const value &value::get(const size_t idx) const {
   static value s_null;

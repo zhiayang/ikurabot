@@ -193,6 +193,8 @@ namespace ikura
 		};
 
 		Response get(const URL& url, const std::vector<Param>& params, const std::vector<Header>& headers);
+		Response post(const URL& url, const std::vector<Param>& params, const std::vector<Header>& headers,
+			const std::string& contentType, const std::string& body);
 	}
 }
 

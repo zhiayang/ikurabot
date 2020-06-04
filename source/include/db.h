@@ -6,8 +6,9 @@
 
 #include "defs.h"
 #include "buffer.h"
-#include "twitch.h"
 #include "markov.h"
+#include "twitch.h"
+#include "discord.h"
 #include "synchro.h"
 
 namespace ikura
@@ -39,6 +40,7 @@ namespace ikura
 			DbInterpState interpState;
 			twitch::TwitchDB twitchData;
 			markov::MarkovDB markovData;
+			discord::DiscordDB discordData;
 			MessageDB messageData;
 
 			void sync() const;

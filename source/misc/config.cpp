@@ -6,6 +6,7 @@
 
 #include "defs.h"
 #include "twitch.h"
+#include "discord.h"
 
 #include "picojson.h"
 
@@ -31,9 +32,10 @@ namespace ikura::config
 
 		std::string owner;
 		std::string username;
+		ikura::discord::Snowflake userid;
 		std::string oauthToken;
 		std::vector<discord::Guild> guilds;
-		std::vector<std::string> ignoredUsers;
+		std::vector<ikura::discord::Snowflake> ignoredUsers;
 
 	} DiscordConfig;
 
@@ -65,6 +67,15 @@ namespace ikura::config
 		std::string getUsername()           { return DiscordConfig.username; }
 		std::string getOAuthToken()         { return DiscordConfig.oauthToken; }
 		std::vector<Guild> getJoinGuilds()  { return DiscordConfig.guilds; }
+
+		std::vector<ikura::discord::Snowflake> getIgnoredUsers() { return DiscordConfig.ignoredUsers; }
+		ikura::discord::Snowflake getUserId() { return DiscordConfig.userid; }
+
+		bool isUserIgnored(ikura::discord::Snowflake id)
+		{
+			return std::find(DiscordConfig.ignoredUsers.begin(), DiscordConfig.ignoredUsers.end(),
+				id) != DiscordConfig.ignoredUsers.end();
+		}
 	}
 
 	namespace global
@@ -87,8 +98,8 @@ namespace ikura::config
 	{
 		if(auto it = opts.find(key); it != opts.end())
 		{
-			if(it->second.is<std::string>())
-				return it->second.get<std::string>();
+			if(it->second.is_str())
+				return it->second.as_str();
 
 			else
 				lg::error("cfg", "expected string value for '%s'", key);
@@ -101,8 +112,8 @@ namespace ikura::config
 	{
 		if(auto it = opts.find(key); it != opts.end())
 		{
-			if(it->second.is<pj::array>())
-				return it->second.get<pj::array>();
+			if(it->second.is_arr())
+				return it->second.as_arr();
 
 			else
 				lg::error("cfg", "expected array value for '%s'", key);
@@ -115,8 +126,8 @@ namespace ikura::config
 	{
 		if(auto it = opts.find(key); it != opts.end())
 		{
-			if(it->second.is<int64_t>())
-				return it->second.get<int64_t>();
+			if(it->second.is_int())
+				return it->second.as_int();
 
 			else
 				lg::error("cfg", "expected integer value for '%s'", key);
@@ -129,8 +140,8 @@ namespace ikura::config
 	{
 		if(auto it = opts.find(key); it != opts.end())
 		{
-			if(it->second.is<bool>())
-				return it->second.get<bool>();
+			if(it->second.is_bool())
+				return it->second.as_bool();
 
 			else
 				lg::error("cfg", "expected boolean value for '%s'", key);
@@ -176,6 +187,11 @@ namespace ikura::config
 		if(oauthToken.empty())
 			return lg::error("cfg/discord", "oauth_token cannot be empty");
 
+		auto userid = get_string(discord, "id", "");
+		if(userid.empty())
+			return lg::error("cfg/discord", "id cannot be empty");
+
+		DiscordConfig.userid = userid;
 		DiscordConfig.username = username;
 		DiscordConfig.oauthToken = oauthToken;
 
@@ -184,13 +200,13 @@ namespace ikura::config
 		{
 			for(const auto& ch : guilds)
 			{
-				if(!ch.is<pj::object>())
+				if(!ch.is_obj())
 				{
 					lg::error("cfg/discord", "channel should be a json object");
 					continue;
 				}
 
-				auto obj = ch.get<pj::object>();
+				auto obj = ch.as_obj();
 
 				discord::Guild guild;
 				guild.id = get_string(obj, "id", "");
@@ -207,6 +223,22 @@ namespace ikura::config
 
 					DiscordConfig.guilds.push_back(std::move(guild));
 				}
+			}
+		}
+
+		auto ignored = get_array(discord, "ignored_users");
+		if(!ignored.empty())
+		{
+			for(const auto& ign : ignored)
+			{
+				if(!ign.is_str())
+				{
+					lg::error("cfg/discord", "ignored_users should contain strings");
+					continue;
+				}
+
+				auto str = ign.as_str();
+				DiscordConfig.ignoredUsers.emplace_back(std::move(str));
 			}
 		}
 
@@ -244,13 +276,13 @@ namespace ikura::config
 		{
 			for(const auto& ign : ignored)
 			{
-				if(!ign.is<std::string>())
+				if(!ign.is_str())
 				{
 					lg::error("cfg/twitch", "ignored_users should contain strings");
 					continue;
 				}
 
-				auto str = ign.get<std::string>();
+				auto str = ign.as_str();
 				TwitchConfig.ignoredUsers.push_back(std::move(str));
 			}
 		}
@@ -260,13 +292,13 @@ namespace ikura::config
 		{
 			for(const auto& ch : channels)
 			{
-				if(!ch.is<pj::object>())
+				if(!ch.is_obj())
 				{
 					lg::error("cfg/twitch", "channel should be a json object");
 					continue;
 				}
 
-				auto obj = ch.get<pj::object>();
+				auto obj = ch.as_obj();
 
 				twitch::Chan chan;
 				chan.name = get_string(obj, "name", "");
@@ -321,19 +353,19 @@ namespace ikura::config
 		if(!err.empty())
 			return lg::error("cfg", "json error: %s", err);
 
-		if(auto global = config.get("global"); !global.is<pj::null>() && global.is<pj::object>())
+		if(auto global = config.get("global"); !global.is_null() && global.is_obj())
 		{
-			loadGlobalConfig(global.get<pj::object>());
+			loadGlobalConfig(global.as_obj());
 		}
 
-		if(auto twitch = config.get("twitch"); !twitch.is<pj::null>() && twitch.is<pj::object>())
+		if(auto twitch = config.get("twitch"); !twitch.is_null() && twitch.is_obj())
 		{
-			loadTwitchConfig(twitch.get<pj::object>());
+			loadTwitchConfig(twitch.as_obj());
 		}
 
-		if(auto discord = config.get("discord"); !discord.is<pj::null>() && discord.is<pj::object>())
+		if(auto discord = config.get("discord"); !discord.is_null() && discord.is_obj())
 		{
-			loadDiscordConfig(discord.get<pj::object>());
+			loadDiscordConfig(discord.as_obj());
 		}
 
 		delete[] buf;

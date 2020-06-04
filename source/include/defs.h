@@ -89,6 +89,11 @@ namespace ikura
 		void init();
 	}
 
+	namespace discord
+	{
+		struct Snowflake;
+	}
+
 	namespace config
 	{
 		bool load(ikura::str_view path);
@@ -113,7 +118,7 @@ namespace ikura
 			std::string getOAuthToken();
 			std::vector<Chan> getJoinChannels();
 			std::vector<std::string> getIgnoredUsers();
-			bool isUserIgnored(ikura::str_view username);
+			bool isUserIgnored(ikura::str_view id);
 		}
 
 		namespace discord
@@ -130,6 +135,9 @@ namespace ikura
 			std::string getUsername();
 			std::string getOAuthToken();
 			std::vector<Guild> getJoinGuilds();
+			ikura::discord::Snowflake getUserId();
+			std::vector<ikura::discord::Snowflake> getIgnoredUserIds();
+			bool isUserIgnored(ikura::discord::Snowflake userid);
 		}
 
 		namespace global

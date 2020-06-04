@@ -11,9 +11,7 @@
 
 using namespace std::chrono_literals;
 
-static constexpr int CONNECT_RETRIES            = 5;
-static constexpr int DISCORD_API_VERSION        = 6;
-static constexpr const char* DISCORD_API_URL    = "https://discord.com/api";
+constexpr int CONNECT_RETRIES            = 5;
 
 namespace ikura::discord
 {
@@ -71,7 +69,7 @@ namespace ikura::discord
 									: pj::value(st.sequence)
 						}
 					}).serialise());
-					lg::log("discord", "sent heartbeat");
+					// lg::log("discord", "sent heartbeat");
 				});
 			}
 
@@ -103,7 +101,7 @@ namespace ikura::discord
 			if(msg.disconnected)
 				break;
 
-			state().wlock()->processMessage(msg.msg);
+			state().wlock()->processEvent(msg.msg);
 		}
 
 		lg::log("twitch", "receive worker exited");
@@ -121,12 +119,12 @@ namespace ikura::discord
 			pj::value json; std::string err;
 			pj::parse(json, msg.begin(), msg.end(), &err);
 
-			auto obj = json.get<pj::object>();
-			auto op = obj["op"].get<int64_t>();
+			auto obj = json.as_obj();
+			auto op = obj["op"].as_int();
 
 			if(op == opcode::HELLO)
 			{
-				auto interval = obj["d"].get<pj::object>()["heartbeat_interval"].get<int64_t>();
+				auto interval = obj["d"].as_obj()["heartbeat_interval"].as_int();
 				this->heartbeat_interval = std::chrono::milliseconds(interval);
 
 				lg::log("discord", "connected (heartbeat = %ld ms)", interval);
@@ -180,13 +178,13 @@ namespace ikura::discord
 			pj::value json; std::string err;
 			pj::parse(json, msg.begin(), msg.end(), &err);
 
-			auto obj = json.get<pj::object>();
-			auto op = obj["op"].get<int64_t>();
+			auto obj = json.as_obj();
+			auto op = obj["op"].as_int();
 
 			if(op == opcode::DISPATCH)
 			{
 				// do a quick peek.
-				if(obj["t"].is<std::string>() && obj["t"].get<std::string>() == "READY")
+				if(obj["t"].is_str() && obj["t"].as_str() == "READY")
 				{
 					success = true;
 					cv.set(true);
@@ -212,6 +210,8 @@ namespace ikura::discord
 		this->tx_thread = std::thread(send_worker);
 		this->rx_thread = std::thread(recv_worker);
 
+		int retries = 0;
+
 	retry:
 		// send an identify
 		this->ws.send(pj::value(std::map<std::string, pj::value> {
@@ -220,7 +220,11 @@ namespace ikura::discord
 				"d", pj::value(std::map<std::string, pj::value> {
 					{ "token",      pj::value(config::discord::getOAuthToken()) },
 					{ "compress",   pj::value(false) },
-					{ "intents",    pj::value(intent::GUILDS | intent::GUILD_MESSAGES | intent::GUILD_MESSAGE_REACTIONS) },
+					/*{ "intents",    pj::value(intent::GUILDS
+											| intent::GUILD_MESSAGES
+											| intent::GUILD_MESSAGE_REACTIONS
+											| intent::GUILD_PRESENCES)
+					},*/
 					{ "guild_subscriptions", pj::value(false) },
 					{ "properties", pj::value(std::map<std::string, pj::value> {
 						{ "$os",      pj::value("linux") },
@@ -234,9 +238,18 @@ namespace ikura::discord
 		// wait for a ready
 		if(!cv.wait(true, 1500ms) || !success)
 		{
-			lg::warn("discord", "identify timed out, waiting a little while...");
-			std::this_thread::sleep_for(6s);
-			goto retry;
+			if(++retries < CONNECT_RETRIES && this->ws.connected())
+			{
+				lg::warn("discord", "identify timed out, waiting a little while...");
+				std::this_thread::sleep_for(6s);
+				goto retry;
+			}
+			else
+			{
+				lg::warn("discord", "identify timed out");
+				this->disconnect();
+				return;
+			}
 		}
 
 		// setup the real handler
@@ -244,8 +257,10 @@ namespace ikura::discord
 			pj::value json; std::string err;
 			pj::parse(json, msg.begin(), msg.end(), &err);
 
-			auto obj = json.get<pj::object>();
-			if(auto op = obj["op"].get<int64_t>(); op == opcode::HEARTBEAT)
+			auto obj = json.as_obj();
+			auto op = obj["op"].as_int();
+
+			if(op == opcode::HEARTBEAT)
 			{
 				// if we got a heartbeat, ack it.
 				this->ws.send(pj::value(std::map<std::string, pj::value> {
@@ -259,7 +274,7 @@ namespace ikura::discord
 			else if(op == opcode::HEARTBEAT_ACK)
 			{
 				this->didAckHeartbeat = true;
-				lg::log("discord", "heartbeat ack");
+				// lg::log("discord", "heartbeat ack");
 			}
 			else
 			{
@@ -313,7 +328,8 @@ namespace ikura::discord
 	{
 		assert(config::haveDiscord());
 
-		auto [ hdr, res ] = request::get(URL(zpr::sprint("%s/v%d/gateway/bot", DISCORD_API_URL, DISCORD_API_VERSION)),
+		auto [ hdr, res ] = request::get(URL(zpr::sprint("%s/v%d/gateway/bot",
+			DiscordState::API_URL, DiscordState::API_VERSION)),
 			{ /* no params */ }, {
 				request::Header("Authorization", zpr::sprint("Bot %s", config::discord::getOAuthToken())),
 				request::Header("User-Agent", "DiscordBot (https://github.com/zhiayang/ikurabot, 0.1.0)"),
@@ -330,21 +346,21 @@ namespace ikura::discord
 			return;
 		}
 
-		auto obj = resp.get<pj::object>();
-		auto url = obj["url"].get<std::string>();
+		auto obj = resp.as_obj();
+		auto url = obj["url"].as_str();
 
-		auto limit = obj["session_start_limit"].get<pj::object>();
-		auto rem = limit["remaining"].get<int64_t>();
+		auto limit = obj["session_start_limit"].as_obj();
+		auto rem = limit["remaining"].as_int();
 
 		if(rem <= 20)
 		{
 			lg::warn("discord", "5 connection attempts remaining (reset in %ld seconds)",
-				limit["reset_after"].get<int64_t>());
+				limit["reset_after"].as_int());
 		}
 		else if(rem == 0)
 		{
 			lg::error("discord", "connection rate limit reached (reset in %ld seconds)",
-				limit["reset_after"].get<int64_t>());
+				limit["reset_after"].as_int());
 
 			return;
 		}
@@ -354,7 +370,7 @@ namespace ikura::discord
 		}
 
 		// fixup the url with version and format.
-		url = zpr::sprint("%s?v=%d&encoding=json", url, DISCORD_API_VERSION);
+		url = zpr::sprint("%s?v=%d&encoding=json", url, DiscordState::API_VERSION);
 		lg::log("discord", "connecting to %s", url);
 
 		_state = new Synchronised<DiscordState>(URL(url), 5000ms);

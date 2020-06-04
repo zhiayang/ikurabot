@@ -10,42 +10,46 @@
 
 namespace ikura::discord
 {
+	void update_guild(DiscordState* st, pj::object json);
+	void process_message(DiscordState* st, pj::object json);
+
+
 	template <typename... Args>
 	void error(const char* fmt, Args&& ... args)
 	{
 		lg::error("discord", fmt, args...);
 	}
 
-	void DiscordState::processMessage(std::map<std::string, pj::value> msg)
+	void DiscordState::processEvent(std::map<std::string, pj::value> msg)
 	{
-		if(msg["op"].get<int64_t>() != opcode::DISPATCH)
+		if(msg["op"].as_int() != opcode::DISPATCH)
 			return error("trying to process non-dispatch message");
 
 		auto s = msg["s"];
 		auto t = msg["t"];
 
-		if(!s.is<int64_t>())
+		if(!s.is_int())
 			return error("sequence was not an integer (got '%s')", s.serialise());
 
-		if(!t.is<std::string>())
+		if(!t.is_str())
 			return error("expected string for 't'");
 
 		zpr::println("%s", pj::value(msg).serialise(true));
 
-		auto seq = s.get<int64_t>();
+		auto seq = s.as_int();
 		if(seq != this->sequence + 1)
-			return error("out-of-order sequence (expected %ld, got %ld)", this->sequence + 1, seq);
+			lg::warn("discord", "out-of-order sequence (expected %ld, got %ld)", this->sequence + 1, seq);
 
-		this->sequence += 1;
+		this->sequence = seq;
 
-
-		auto type = t.get<std::string>();
+		auto type = t.as_str();
 		if(type == "GUILD_CREATE")
 		{
-
+			update_guild(this, msg["d"].as_obj());
 		}
-		else if(type == "")
+		else if(type == "MESSAGE_CREATE")
 		{
+			this->processMessage(msg["d"].as_obj());
 		}
 		else if(type == "READY")
 		{
@@ -53,7 +57,7 @@ namespace ikura::discord
 		}
 		else
 		{
-			lg::log("ignoring message type '%s'", type);
+			lg::log("discord", "ignoring message type '%s'", type);
 		}
 	}
 }

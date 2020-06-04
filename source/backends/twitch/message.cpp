@@ -17,190 +17,15 @@ namespace ikura::twitch
 	template <typename... Args> void warn(const std::string& fmt, Args&&... args) { lg::warn("twitch", fmt, args...); }
 	template <typename... Args> void error(const std::string& fmt, Args&&... args) { lg::error("twitch", fmt, args...); }
 
-	static std::string update_user_creds(ikura::str_view user, ikura::str_view channel, const ikura::string_map<std::string>& tags)
-	{
-		// all users get the everyone credential.
-		uint64_t perms = permissions::EVERYONE;
-		uint64_t sublen = 0;
-
-		std::string userid;
-		std::string displayname;
-
-		if(config::twitch::getOwner() == user)
-			perms |= permissions::OWNER;
-
-		// see https://dev.twitch.tv/docs/irc/tags. we are primarily interested in badges, badge-info, user-id, and display-name
-		for(const auto& [ key, val ] : tags)
-		{
-			if(key == "user-id")
-			{
-				userid = val;
-			}
-			else if(key == "display-name")
-			{
-				displayname = val;
-			}
-			else if(key == "badges")
-			{
-				auto badges = util::split(val, ',');
-				for(const auto& badge : badges)
-				{
-					// founder is a special kind of subscriber.
-					if(badge.find("subscriber") == 0 || badge.find("founder") == 0)
-						perms |= permissions::SUBSCRIBER;
-
-					else if(badge.find("vip") == 0)
-						perms |= permissions::VIP;
-
-					else if(badge.find("moderator") == 0)
-						perms |= permissions::MODERATOR;
-
-					else if(badge.find("broadcaster") == 0)
-						perms |= permissions::BROADCASTER;
-				}
-			}
-			else if(key == "badge-info")
-			{
-				// we're only here to get the number of subscribed months.
-				auto badges = util::split(val, ',');
-				for(const auto& badge : badges)
-				{
-					// only care about this
-					if(badge.find("subscriber") == 0 || badge.find("founder") == 0)
-						sublen = util::stou(badge.drop(badge.find('/') + 1)).value();
-				}
-			}
-		}
-
-		if(userid.empty())
-		{
-			warn("message from '%s' contained no user id", user);
-			return "";
-		}
-
-		// acquire a big lock.
-		database().perform_write([&](auto& db) {
-
-			// no need to check for existence; just use operator[] and create things as we go along.
-			// update the user:
-			{
-				auto& tchan = db.twitchData.channels[channel];
-				auto& tuser = tchan.knownUsers[userid];
-
-				tuser.username = user.str();
-				tuser.displayname = displayname;
-
-				const auto& existing_id = tuser.id;
-				if(existing_id.empty())
-				{
-					log("adding user '%s'/'%s' to channel #%s", user, userid, channel);
-					tuser.id = userid;
-				}
-				else if(existing_id != userid)
-				{
-					warn("user '%s' changed id from '%s' to '%s'", user, existing_id, userid);
-					tuser.id = userid;
-				}
-			}
-
-			// update the credentials:
-			{
-				auto& creds = db.twitchData.channels[channel].userCredentials[userid];
-				creds.permissions = perms;
-				creds.subscribedMonths = sublen;
-
-				// lg::log("twitch", "perms: %s -> %x", user, creds.permissions);
-			}
-		});
-
-		return userid;
-	}
+	static std::string update_user_creds(ikura::str_view user, ikura::str_view channel, const ikura::string_map<std::string>& tags);
 
 	// this returns a vector of str_views with the text of the emote position, but more importantly,
 	// each "view" has a pointer and a size, which represents the position of the emote in the original
 	// byte stream. eg. if you use KEKW twice in a message, then you will get one str_view for each
 	// instance of the emote.
-	static std::vector<ikura::str_view> get_emote_indices(const ikura::string_map<std::string>& tags,
-		ikura::str_view utf8, const std::vector<int32_t>& utf32)
-	{
-		// first split the tags.
-		auto pos_arr = [&tags]() -> std::vector<std::pair<size_t, size_t>> {
+	static std::vector<ikura::str_view> get_emote_indices(const ikura::string_map<std::string>& tags, ikura::str_view utf8,
+		const std::vector<int32_t>& utf32);
 
-			std::vector<std::pair<size_t, size_t>> ret;
-
-			// first get the 'emotes' tag
-			if(auto it = tags.find(ikura::str_view("emotes")); it != tags.end() && !it->second.empty())
-			{
-				// format: emotes=ID:begin-end,begin-end/ID:begin-end/...
-				auto list = util::split(it->second, '/');
-				for(const auto& emt : list)
-				{
-					// get the id:
-					auto id = emt.take(emt.find(':'));
-					auto indices = emt.drop(id.size() + 1);
-					auto pos = util::split(indices, ',');
-					for(const auto& p : pos)
-					{
-						// split by the '-'
-						auto k = p.find('-');
-						if(k != std::string::npos)
-						{
-							auto a = util::stou(p.take(k));
-							auto b = util::stou(p.drop(k + 1));
-
-							if(a && b) ret.emplace_back(a.value(), b.value());
-						}
-					}
-				}
-
-				return ret;
-			}
-
-			return { };
-		}();
-
-		// no emotes.
-		if(pos_arr.empty())
-			return { };
-
-		// sort by the start index. since you can't have overlapping ranges, this will suffice.
-		std::sort(pos_arr.begin(), pos_arr.end(), [](auto& a, auto& b) -> bool { return a.first < b.first; });
-		ikura::span positions = pos_arr;
-
-		std::vector<ikura::str_view> ret;
-
-		// TODO: support ffz and bttv emotes. we just need to scan the utf8 stream in-parallel with the
-		// utf-32 stream, i think.
-
-		size_t idx8 = 0;
-		size_t idx32 = 0;
-		size_t first_idx8 = 0;
-
-		while(idx8 < utf8.size() && idx32 < utf32.size())
-		{
-			if(positions.empty())
-				break;
-
-			// how this will go is that we keep the "current" emote index pair at positions[0]; when we
-			// find a match, then it gets removed from the span. that way we don't need a 4th index.
-
-			if(idx32 == positions[0].first)
-			{
-				first_idx8 = idx8;
-			}
-			else if(idx32 == positions[0].second)
-			{
-				// it's begin,end inclusive, so calc the length and substr that.
-				ret.push_back(utf8.substr(first_idx8, idx8 + 1 - first_idx8));
-				positions.remove_prefix(1);
-			}
-
-			idx8 += unicode::get_byte_length(utf32[idx32]);
-			idx32 += 1;
-		}
-
-		return ret;
-	}
 
 	void TwitchState::processMessage(ikura::str_view input)
 	{
@@ -316,6 +141,192 @@ namespace ikura::twitch
 		}
 	}
 
+
+
+	static std::string update_user_creds(ikura::str_view user, ikura::str_view channel, const ikura::string_map<std::string>& tags)
+	{
+		// all users get the everyone credential.
+		uint64_t perms = permissions::EVERYONE;
+		uint64_t sublen = 0;
+
+		std::string userid;
+		std::string displayname;
+
+		if(config::twitch::getOwner() == user)
+			perms |= permissions::OWNER;
+
+		// see https://dev.twitch.tv/docs/irc/tags. we are primarily interested in badges, badge-info, user-id, and display-name
+		for(const auto& [ key, val ] : tags)
+		{
+			if(key == "user-id")
+			{
+				userid = val;
+			}
+			else if(key == "display-name")
+			{
+				displayname = val;
+			}
+			else if(key == "badges")
+			{
+				auto badges = util::split(val, ',');
+				for(const auto& badge : badges)
+				{
+					// founder is a special kind of subscriber.
+					if(badge.find("subscriber") == 0 || badge.find("founder") == 0)
+						perms |= permissions::SUBSCRIBER;
+
+					else if(badge.find("vip") == 0)
+						perms |= permissions::VIP;
+
+					else if(badge.find("moderator") == 0)
+						perms |= permissions::MODERATOR;
+
+					else if(badge.find("broadcaster") == 0)
+						perms |= permissions::BROADCASTER;
+				}
+			}
+			else if(key == "badge-info")
+			{
+				// we're only here to get the number of subscribed months.
+				auto badges = util::split(val, ',');
+				for(const auto& badge : badges)
+				{
+					// only care about this
+					if(badge.find("subscriber") == 0 || badge.find("founder") == 0)
+						sublen = util::stou(badge.drop(badge.find('/') + 1)).value();
+				}
+			}
+		}
+
+		if(userid.empty())
+		{
+			warn("message from '%s' contained no user id", user);
+			return "";
+		}
+
+		// acquire a big lock.
+		database().perform_write([&](auto& db) {
+
+			// no need to check for existence; just use operator[] and create things as we go along.
+			// update the user:
+			{
+				auto& tchan = db.twitchData.channels[channel];
+				auto& tuser = tchan.knownUsers[userid];
+
+				tuser.username = user.str();
+				tuser.displayname = displayname;
+
+				const auto& existing_id = tuser.id;
+				if(existing_id.empty())
+				{
+					log("adding user '%s'/'%s' to channel #%s", user, userid, channel);
+					tuser.id = userid;
+				}
+				else if(existing_id != userid)
+				{
+					warn("user '%s' changed id from '%s' to '%s'", user, existing_id, userid);
+					tuser.id = userid;
+				}
+			}
+
+			// update the credentials:
+			{
+				auto& creds = db.twitchData.channels[channel].userCredentials[userid];
+				creds.permissions = perms;
+				creds.subscribedMonths = sublen;
+
+				// lg::log("twitch", "perms: %s -> %x", user, creds.permissions);
+			}
+		});
+
+		return userid;
+	}
+
+	static std::vector<ikura::str_view> get_emote_indices(const ikura::string_map<std::string>& tags, ikura::str_view utf8,
+		const std::vector<int32_t>& utf32)
+	{
+		// first split the tags.
+		auto pos_arr = [&tags]() -> std::vector<std::pair<size_t, size_t>> {
+
+			std::vector<std::pair<size_t, size_t>> ret;
+
+			// first get the 'emotes' tag
+			if(auto it = tags.find(ikura::str_view("emotes")); it != tags.end() && !it->second.empty())
+			{
+				// format: emotes=ID:begin-end,begin-end/ID:begin-end/...
+				auto list = util::split(it->second, '/');
+				for(const auto& emt : list)
+				{
+					// get the id:
+					auto id = emt.take(emt.find(':'));
+					auto indices = emt.drop(id.size() + 1);
+					auto pos = util::split(indices, ',');
+					for(const auto& p : pos)
+					{
+						// split by the '-'
+						auto k = p.find('-');
+						if(k != std::string::npos)
+						{
+							auto a = util::stou(p.take(k));
+							auto b = util::stou(p.drop(k + 1));
+
+							if(a && b) ret.emplace_back(a.value(), b.value());
+						}
+					}
+				}
+
+				return ret;
+			}
+
+			return { };
+		}();
+
+		// no emotes.
+		if(pos_arr.empty())
+			return { };
+
+		// sort by the start index. since you can't have overlapping ranges, this will suffice.
+		std::sort(pos_arr.begin(), pos_arr.end(), [](auto& a, auto& b) -> bool { return a.first < b.first; });
+		ikura::span positions = pos_arr;
+
+		std::vector<ikura::str_view> ret;
+
+		// TODO: support ffz and bttv emotes. we just need to scan the utf8 stream in-parallel with the
+		// utf-32 stream, i think.
+
+		size_t idx8 = 0;
+		size_t idx32 = 0;
+		size_t first_idx8 = 0;
+
+		while(idx8 < utf8.size() && idx32 < utf32.size())
+		{
+			if(positions.empty())
+				break;
+
+			// how this will go is that we keep the "current" emote index pair at positions[0]; when we
+			// find a match, then it gets removed from the span. that way we don't need a 4th index.
+
+			if(idx32 == positions[0].first)
+			{
+				first_idx8 = idx8;
+			}
+			else if(idx32 == positions[0].second)
+			{
+				// it's begin,end inclusive, so calc the length and substr that.
+				ret.push_back(utf8.substr(first_idx8, idx8 + 1 - first_idx8));
+				positions.remove_prefix(1);
+			}
+
+			idx8 += unicode::get_byte_length(utf32[idx32]);
+			idx32 += 1;
+		}
+
+		return ret;
+	}
+
+
+
+
 	void TwitchState::sendRawMessage(ikura::str_view msg, ikura::str_view chan)
 	{
 		// check whether we are a moderator in this channel
@@ -365,65 +376,5 @@ namespace ikura::twitch
 		{
 			this->sendRawMessage(zpr::sprint("PRIVMSG #%s :%s", channel, msg), channel);
 		}
-	}
-
-	std::string Channel::getCommandPrefix() const
-	{
-		return this->commandPrefix;
-	}
-
-	std::string Channel::getUsername() const
-	{
-		return config::twitch::getUsername();
-	}
-
-	std::string Channel::getName() const
-	{
-		return this->name;
-	}
-
-	uint64_t Channel::getUserPermissions(ikura::str_view userid) const
-	{
-		// massive hack but idgaf
-		if(userid == MAGIC_OWNER_USERID)
-			return permissions::OWNER;
-
-		// mfw "const correctness", so we can't use operator[]
-		return database().map_read([&](auto& db) -> uint64_t {
-			auto chan = db.twitchData.getChannel(this->name);
-			if(!chan) return 0;
-
-			auto creds = chan->getUserCredentials(userid);
-			if(!creds) return 0;
-
-			return creds->permissions;
-		});
-	}
-
-	bool Channel::shouldPrintInterpErrors() const
-	{
-		return !this->silentInterpErrors;
-	}
-
-	bool Channel::shouldReplyMentions() const
-	{
-		return this->respondToPings;
-	}
-
-	void Channel::sendMessage(const Message& msg) const
-	{
-		std::string str;
-		for(size_t i = 0; i < msg.fragments.size(); i++)
-		{
-			const auto& frag = msg.fragments[i];
-
-			if(frag.isEmote)    str += frag.emote.name;
-			else                str += frag.str;
-
-			if(i + 1 != msg.fragments.size())
-				str += ' ';
-		}
-
-		this->state->sendMessage(this->name, str);
 	}
 }

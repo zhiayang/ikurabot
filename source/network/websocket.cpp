@@ -146,18 +146,14 @@ namespace ikura
 		this->conn.send(Span::fromString(http.bytes()));
 		if(!cv.wait(true, DEFAULT_TIMEOUT))
 		{
-			// make sure the receiver thread doesn't set the cv (since it would be gone after the stack
-			// frame is destroyed).
-			this->conn.onReceive([](auto) { });
-
 			this->conn.disconnect();
-			return lg::error("ws", "connection timed out (while waiting for websocket upgrade reply)");
+			lg::error("ws", "connection timed out (while waiting for websocket upgrade reply)");
+			return false;
 		}
 
 		if(!success)
 		{
-			this->conn.onReceive([](auto) { });
-
+			this->conn.disconnect();
 			lg::error("ws", "websocket upgrade failed");
 			return false;
 		}
@@ -384,8 +380,14 @@ namespace ikura
 		else if(opcode == OP_CLOSE)
 		{
 			// uwu, server closed us
-			lg::warn("ws", "server closed connection");
+			lg::warn("ws", "server closed connection: code %d, msg: %s",
+				util::to_native(*data.as<uint16_t>()),
+				data.sv().size() > 2
+					? data.sv().drop(2)
+					: "<none>");
+
 			this->send_raw(OP_CLOSE, /* fin: */ true, Buffer::empty());
+			this->conn.disconnect();
 		}
 		else if(opcode == OP_TEXT)
 		{

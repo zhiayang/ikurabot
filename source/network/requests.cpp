@@ -180,4 +180,46 @@ namespace ikura::request
 			.content = content
 		};
 	}
+
+	Response post(const URL& url, const std::vector<Param>& params, const std::vector<Header>& headers,
+		const std::string& contentType, const std::string& body)
+	{
+		auto address = URL(zpr::sprint("%s://%s", url.protocol(), url.hostname()));
+		auto path = url.resource();
+
+		// open a socket, write, wait for response, close.
+		auto sock = Socket(address, /* ssl: */ url.protocol() == "https");
+		if(!sock.connect())
+		{
+			lg::log("http", "connect failed");
+			return { };
+		}
+
+		auto hdr = HttpHeaders(zpr::sprint("POST %s%s HTTP/1.1", path, encode_params(params)));
+		hdr.add("Host", url.hostname());
+		for(const auto& h : headers)
+			hdr.add(h.name, h.value);
+
+		hdr.add("Content-Length", std::to_string(body.size()));
+		hdr.add("Content-Type", contentType);
+
+		auto h = hdr.bytes();
+		auto buf = Buffer(h.size() + body.size());
+
+		buf.write(Span::fromString(h));
+		buf.write(Span::fromString(body));
+
+		sock.send(buf.span());
+
+		auto resp = get_response(&sock);
+		if(!resp) return { };
+
+		auto [ hdrs, content ] = resp.value();
+		sock.disconnect();
+
+		return Response {
+			.headers = hdrs,
+			.content = content
+		};
+	}
 }

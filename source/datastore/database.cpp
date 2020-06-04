@@ -23,7 +23,7 @@ namespace ikura::db
 	struct Superblock
 	{
 		char magic[8];      // "ikura_db"
-		uint32_t version;   // currently, 1
+		uint32_t version;   // see DB_VERSION
 		uint32_t flags;     // there are none defined
 		uint64_t timestamp; // the timestamp, in milliseconds when the database was last modified
 	};
@@ -36,7 +36,7 @@ namespace ikura::db
 	// the database will only sync to disk if it was modified
 	// or rather, if anyone took a write lock on it. so we can afford
 	// to set the interval a little shorter.
-	constexpr auto SYNC_INTERVAL    = 10s;
+	constexpr auto SYNC_INTERVAL    = 30s;
 
 	static std::atomic<bool> databaseDirty = false;
 	static Synchronised<Database> TheDatabase;

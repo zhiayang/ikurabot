@@ -17,7 +17,15 @@ namespace ikura::discord
 {
 	struct Snowflake : Serialisable
 	{
+		Snowflake() : value(0) { }
+		Snowflake(uint64_t x) : value(x) { }
+
+		Snowflake(const std::string& s);
+		Snowflake(ikura::str_view sv);
+
 		uint64_t value;
+
+		std::string str() const { return std::to_string(value); }
 
 		bool operator == (Snowflake s) const { return this->value == s.value; }
 		bool operator != (Snowflake s) const { return this->value != s.value; }
@@ -72,11 +80,47 @@ namespace ikura::discord
 		constexpr int64_t DIRECT_MESSAGE_TYPING     = (1 << 14);
 	}
 
+	struct DiscordGuild;
+	struct DiscordState;
+
+	struct Channel : ikura::Channel
+	{
+		Channel() : lurk(false), respondToPings(false) { }
+		Channel(DiscordState* st, DiscordGuild* g, Snowflake id, bool l, bool p, bool si, std::string cp)
+			: guild(g), channelId(id), lurk(l), respondToPings(p), silentInterpErrors(si),
+			  commandPrefix(std::move(cp)), state(st) { }
+
+		virtual std::string getName() const override;
+		virtual std::string getUsername() const override;
+		virtual std::string getCommandPrefix() const override;
+		virtual bool shouldReplyMentions() const override;
+		virtual bool shouldPrintInterpErrors() const override;
+		virtual uint64_t getUserPermissions(ikura::str_view userid) const override;
+
+		virtual void sendMessage(const Message& msg) const override;
+
+	private:
+		DiscordGuild* guild = nullptr;
+		Snowflake channelId;
+		bool lurk;
+		bool respondToPings;
+		bool silentInterpErrors = false;
+		std::string commandPrefix;
+
+		DiscordState* state = nullptr;
+
+		friend struct DiscordState;
+	};
+
 	struct DiscordState
 	{
 		DiscordState(URL url, std::chrono::nanoseconds timeout);
 
 		bool connected = false;
+		tsl::robin_map<Snowflake, Channel> channels;
+
+		static constexpr int API_VERSION     = 6;
+		static constexpr const char* API_URL = "https://discord.com/api";
 
 	private:
 		WebSocket ws;
@@ -93,6 +137,7 @@ namespace ikura::discord
 		void connect();
 		void disconnect();
 
+		void processEvent(std::map<std::string, picojson::value> m);
 		void processMessage(std::map<std::string, picojson::value> m);
 
 		friend void send_worker();
@@ -168,8 +213,14 @@ namespace ikura::discord
 		Snowflake id;
 		std::string name;
 
-		std::unordered_map<Snowflake, DiscordChannel> channels;
-		std::unordered_map<Snowflake, DiscordRole> roles;
+		tsl::robin_map<Snowflake, DiscordRole> roles;
+		tsl::robin_map<Snowflake, DiscordChannel> channels;
+
+		tsl::robin_map<Snowflake, DiscordUser> knownUsers;
+		tsl::robin_map<Snowflake, DiscordUserCredentials> userCredentials;
+
+		// { id, is_animated }
+		ikura::string_map<std::pair<Snowflake, bool>> emotes;
 
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<DiscordGuild> deserialise(Span& buf);
@@ -179,7 +230,7 @@ namespace ikura::discord
 
 	struct DiscordDB : Serialisable
 	{
-		std::unordered_map<Snowflake, DiscordGuild> guilds;
+		tsl::robin_map<Snowflake, DiscordGuild> guilds;
 
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<DiscordDB> deserialise(Span& buf);
