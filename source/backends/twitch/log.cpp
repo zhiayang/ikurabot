@@ -26,10 +26,6 @@ namespace ikura::twitch
 		tmsg.displayname = user->displayname;
 
 		tmsg.channel = chan->getName();
-
-		tmsg.permissions = tchan->getUserCredentials(userid)->permissions;
-		tmsg.groups = { };  // not implemented
-
 		tmsg.isCommand = isCmd;
 
 		tmsg.message = database().wlock()->messageData.logMessageContents(message);
@@ -61,8 +57,6 @@ namespace ikura::twitch
 		wr.write(this->username);
 		wr.write(this->displayname);
 		wr.write(this->channel);
-		wr.write(this->permissions);
-		wr.write(this->groups);
 		wr.write(this->message);
 		wr.write(this->emotePositions);
 		wr.write(this->isCommand);
@@ -84,8 +78,6 @@ namespace ikura::twitch
 		if(!rd.read(&ret.username))         return { };
 		if(!rd.read(&ret.displayname))      return { };
 		if(!rd.read(&ret.channel))          return { };
-		if(!rd.read(&ret.permissions))      return { };
-		if(!rd.read(&ret.groups))           return { };
 		if(!rd.read(&ret.message))          return { };
 		if(!rd.read(&ret.emotePositions))   return { };
 		if(!rd.read(&ret.isCommand))        return { };

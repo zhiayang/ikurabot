@@ -227,15 +227,12 @@ namespace ikura::twitch
 					warn("user '%s' changed id from '%s' to '%s'", user, existing_id, userid);
 					tuser.id = userid;
 				}
-			}
 
-			// update the credentials:
-			{
-				auto& creds = db.twitchData.channels[channel].userCredentials[userid];
-				creds.permissions = perms;
-				creds.subscribedMonths = sublen;
+				// update the credentials:
+				tuser.permissions = perms;
+				tuser.subscribedMonths = sublen;
 
-				// lg::log("twitch", "perms: %s -> %x", user, creds.permissions);
+				tchan.usernameMapping[tuser.username] = tuser.id;
 			}
 		});
 

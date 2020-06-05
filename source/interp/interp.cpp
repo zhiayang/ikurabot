@@ -186,13 +186,14 @@ namespace ikura::interp
 
 	bool is_builtin_global(ikura::str_view name)
 	{
-		return name == "e" || name == "i" || name == "pi" || name == "tau";
+		return name == "e" || name == "i" || name == "pi" || name == "tau" || name == "inf";
 	}
 
 	static auto const_i   = Value::of_complex(0, 1);
 	static auto const_e   = Value::of_double(2.71828182845904523536028747135266);
 	static auto const_pi  = Value::of_double(3.14159265358979323846264338327950);
 	static auto const_tau = Value::of_double(6.28318530717958647692528676655900);
+	static auto const_inf = Value::of_double(std::numeric_limits<double>::infinity());
 
 	InterpState::InterpState()
 	{
@@ -201,6 +202,7 @@ namespace ikura::interp
 		this->globals["e"]   = &const_e;
 		this->globals["pi"]  = &const_pi;
 		this->globals["tau"] = &const_tau;
+		this->globals["inf"] = &const_inf;
 	}
 
 	void InterpState::serialise(Buffer& buf) const
@@ -243,10 +245,11 @@ namespace ikura::interp
 		if(!rd.read(&interp.aliases))
 			return { };
 
-		ikura::string_map<uint64_t> builtinPerms;
+		ikura::string_map<PermissionSet> builtinPerms;
 
 		if(!rd.read(&builtinPerms))
 			return { };
+
 
 		ikura::string_map<interp::Value> globals;
 		if(!rd.read(&globals))

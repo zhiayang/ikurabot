@@ -8,7 +8,7 @@
 
 namespace ikura::twitch
 {
-	const TwitchUser* TwitchChannel::getUser(ikura::str_view id) const
+	TwitchUser* TwitchChannel::getUser(ikura::str_view id)
 	{
 		if(auto it = this->knownUsers.find(id); it != this->knownUsers.end())
 			return &it.value();
@@ -16,20 +16,9 @@ namespace ikura::twitch
 		return nullptr;
 	}
 
-	TwitchUserCredentials* TwitchChannel::getUserCredentials(ikura::str_view userid)
+	const TwitchUser* TwitchChannel::getUser(ikura::str_view id)const
 	{
-		if(auto it = this->userCredentials.find(userid); it != this->userCredentials.end())
-			return &it.value();
-
-		return nullptr;
-	}
-
-	const TwitchUserCredentials* TwitchChannel::getUserCredentials(ikura::str_view userid) const
-	{
-		if(auto it = this->userCredentials.find(userid); it != this->userCredentials.end())
-			return &it.value();
-
-		return nullptr;
+		return const_cast<TwitchChannel*>(this)->getUser(id);
 	}
 
 	const TwitchChannel* TwitchDB::getChannel(ikura::str_view name) const
@@ -82,7 +71,6 @@ namespace ikura::twitch
 		wr.tag(TYPE_TAG);
 
 		wr.write(this->knownUsers);
-		wr.write(this->userCredentials);
 	}
 
 	std::optional<TwitchChannel> TwitchChannel::deserialise(Span& buf)
@@ -98,12 +86,8 @@ namespace ikura::twitch
 		if(!rd.read(&ret.knownUsers))
 			return { };
 
-		if(!rd.read(&ret.userCredentials))
-			return { };
-
 		return ret;
 	}
-
 
 	void TwitchUser::serialise(Buffer& buf) const
 	{
@@ -113,6 +97,10 @@ namespace ikura::twitch
 		wr.write(this->id);
 		wr.write(this->username);
 		wr.write(this->displayname);
+
+		wr.write(this->groups);
+		wr.write(this->permissions);
+		wr.write(this->subscribedMonths);
 	}
 
 	std::optional<TwitchUser> TwitchUser::deserialise(Span& buf)
@@ -134,29 +122,8 @@ namespace ikura::twitch
 		if(!rd.read(&ret.displayname))
 			return { };
 
-		return ret;
-	}
-
-
-	void TwitchUserCredentials::serialise(Buffer& buf) const
-	{
-		auto wr = serialise::Writer(buf);
-		wr.tag(TYPE_TAG);
-
-		wr.write(this->permissions);
-		wr.write(this->subscribedMonths);
-	}
-
-	std::optional<TwitchUserCredentials> TwitchUserCredentials::deserialise(Span& buf)
-	{
-		auto rd = serialise::Reader(buf);
-		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+		if(!rd.read(&ret.groups))
 			return { };
-		}
-
-		TwitchUserCredentials ret;
 
 		if(!rd.read(&ret.permissions))
 			return { };

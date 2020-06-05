@@ -34,8 +34,6 @@ namespace ikura::discord
 		if(!t.is_str())
 			return error("expected string for 't'");
 
-		zpr::println("%s", pj::value(msg).serialise(true));
-
 		auto seq = s.as_int();
 		if(seq != this->sequence + 1)
 			lg::warn("discord", "out-of-order sequence (expected %ld, got %ld)", this->sequence + 1, seq);
@@ -50,6 +48,8 @@ namespace ikura::discord
 		else if(type == "MESSAGE_CREATE")
 		{
 			this->processMessage(msg["d"].as_obj());
+
+			zpr::println("%s", pj::value(msg).serialise(true));
 		}
 		else if(type == "READY")
 		{

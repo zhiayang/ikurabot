@@ -10,16 +10,16 @@ using namespace std::chrono_literals;
 
 namespace ikura::request
 {
-	static std::string encode_string(const std::string& url)
+	std::string urlencode(ikura::str_view s)
 	{
-		std::string ret; ret.reserve(url.size());
-		for(char c : url)
+		std::string ret; ret.reserve(s.size());
+		for(char c : s)
 		{
 			if(('0' <= c && c <= '9') || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '-' || c == '.' || c == '_')
 				ret += c;
 
 			else
-				ret += "%" + zpr::sprint("%02x", c);
+				ret += "%" + zpr::sprint("%02x", (uint8_t) c);
 		}
 
 		return ret;
@@ -33,7 +33,7 @@ namespace ikura::request
 		{
 			ret += "?";
 			for(const auto& p : params)
-				ret += zpr::sprint("%s=%s&", encode_string(p.name), encode_string(p.value));
+				ret += zpr::sprint("%s=%s&", urlencode(p.name), urlencode(p.value));
 
 			assert(ret.back() == '&');
 			ret.pop_back();
@@ -149,7 +149,8 @@ namespace ikura::request
 
 
 
-	Response get(const URL& url, const std::vector<Param>& params, const std::vector<Header>& headers)
+	static Response make_http_request(const std::string& method, const URL& url, const std::vector<Param>& params,
+		const std::vector<Header>& headers, const std::string& contentType, const std::string& body)
 	{
 		auto address = URL(zpr::sprint("%s://%s", url.protocol(), url.hostname()));
 		auto path = url.resource();
@@ -162,46 +163,22 @@ namespace ikura::request
 			return { };
 		}
 
-		auto hdr = HttpHeaders(zpr::sprint("GET %s%s HTTP/1.1", path, encode_params(params)));
+		auto hdr = HttpHeaders(zpr::sprint("%s %s%s HTTP/1.1", method, path, encode_params(params)));
 		hdr.add("Host", url.hostname());
 		for(const auto& h : headers)
 			hdr.add(h.name, h.value);
 
-		sock.send(Span::fromString(hdr.bytes()));
+		zpr::println("req: %s", hdr.status());
 
-		auto resp = get_response(&sock);
-		if(!resp) return { };
-
-		auto [ hdrs, content ] = resp.value();
-		sock.disconnect();
-
-		return Response {
-			.headers = hdrs,
-			.content = content
-		};
-	}
-
-	Response post(const URL& url, const std::vector<Param>& params, const std::vector<Header>& headers,
-		const std::string& contentType, const std::string& body)
-	{
-		auto address = URL(zpr::sprint("%s://%s", url.protocol(), url.hostname()));
-		auto path = url.resource();
-
-		// open a socket, write, wait for response, close.
-		auto sock = Socket(address, /* ssl: */ url.protocol() == "https");
-		if(!sock.connect())
+		if(body.size() > 0)
 		{
-			lg::log("http", "connect failed");
-			return { };
-		}
+			if(contentType.empty())
+				lg::warn("http", "body without content-type, assuming text");
 
-		auto hdr = HttpHeaders(zpr::sprint("POST %s%s HTTP/1.1", path, encode_params(params)));
-		hdr.add("Host", url.hostname());
-		for(const auto& h : headers)
-			hdr.add(h.name, h.value);
+			hdr.add("Content-Type", contentType.empty() ? "text/plain" : contentType);
+		}
 
 		hdr.add("Content-Length", std::to_string(body.size()));
-		hdr.add("Content-Type", contentType);
 
 		auto h = hdr.bytes();
 		auto buf = Buffer(h.size() + body.size());
@@ -221,5 +198,23 @@ namespace ikura::request
 			.headers = hdrs,
 			.content = content
 		};
+	}
+
+
+	Response get(const URL& url, const std::vector<Param>& params, const std::vector<Header>& headers)
+	{
+		return make_http_request("GET", url, params, headers, "", "");
+	}
+
+	Response post(const URL& url, const std::vector<Param>& params, const std::vector<Header>& headers,
+		const std::string& contentType, const std::string& body)
+	{
+		return make_http_request("POST", url, params, headers, contentType, body);
+	}
+
+	Response put(const URL& url, const std::vector<Param>& params, const std::vector<Header>& headers,
+		const std::string& contentType, const std::string& body)
+	{
+		return make_http_request("PUT", url, params, headers, contentType, body);
 	}
 }

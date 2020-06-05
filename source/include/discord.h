@@ -12,41 +12,6 @@
 
 namespace picojson { class value; }
 
-// ugh
-namespace ikura::discord
-{
-	struct Snowflake : Serialisable
-	{
-		Snowflake() : value(0) { }
-		Snowflake(uint64_t x) : value(x) { }
-
-		Snowflake(const std::string& s);
-		Snowflake(ikura::str_view sv);
-
-		uint64_t value;
-
-		std::string str() const { return std::to_string(value); }
-
-		bool operator == (Snowflake s) const { return this->value == s.value; }
-		bool operator != (Snowflake s) const { return this->value != s.value; }
-
-		virtual void serialise(Buffer& buf) const override;
-		static std::optional<Snowflake> deserialise(Span& buf);
-	};
-}
-
-namespace std
-{
-	template <>
-	struct hash<ikura::discord::Snowflake>
-	{
-		size_t operator () (ikura::discord::Snowflake s) const
-		{
-			return std::hash<uint64_t>()(s.value);
-		}
-	};
-}
-
 namespace ikura::discord
 {
 	namespace opcode
@@ -95,7 +60,8 @@ namespace ikura::discord
 		virtual std::string getCommandPrefix() const override;
 		virtual bool shouldReplyMentions() const override;
 		virtual bool shouldPrintInterpErrors() const override;
-		virtual uint64_t getUserPermissions(ikura::str_view userid) const override;
+		virtual Backend getBackend() const override { return Backend::Discord; }
+		virtual bool checkUserPermissions(ikura::str_view userid, const PermissionSet& required) const override;
 
 		virtual void sendMessage(const Message& msg) const override;
 
@@ -158,7 +124,16 @@ namespace ikura::discord
 	struct DiscordUser : Serialisable
 	{
 		Snowflake id;
-		std::string name;
+		std::string username;
+		std::string nickname;
+
+		// see defs.h/ikura::permissions
+		uint64_t permissions;
+
+		// these are internal groups, shared with the twitch db.
+		std::vector<uint64_t> groups;
+
+		std::vector<Snowflake> discordRoles;
 
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<DiscordUser> deserialise(Span& buf);
@@ -178,23 +153,6 @@ namespace ikura::discord
 		static std::optional<DiscordRole> deserialise(Span& buf);
 
 		static constexpr uint8_t TYPE_TAG = serialise::TAG_DISCORD_ROLE;
-	};
-
-	// similar to twitch, we tie the credentials of a user to a guild, instead of to the user itself.
-	struct DiscordUserCredentials : Serialisable
-	{
-		// see defs.h/ikura::permissions
-		uint64_t permissions;
-
-		// these are internal groups, shared with the twitch db.
-		std::vector<uint64_t> groups;
-
-		std::vector<Snowflake> discordRoles;
-
-		virtual void serialise(Buffer& buf) const override;
-		static std::optional<DiscordUserCredentials> deserialise(Span& buf);
-
-		static constexpr uint8_t TYPE_TAG = serialise::TAG_DISCORD_USER_CREDS;
 	};
 
 	struct DiscordChannel : Serialisable
@@ -217,7 +175,6 @@ namespace ikura::discord
 		tsl::robin_map<Snowflake, DiscordChannel> channels;
 
 		tsl::robin_map<Snowflake, DiscordUser> knownUsers;
-		tsl::robin_map<Snowflake, DiscordUserCredentials> userCredentials;
 
 		// { id, is_animated }
 		ikura::string_map<std::pair<Snowflake, bool>> emotes;

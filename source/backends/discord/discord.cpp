@@ -43,7 +43,7 @@ namespace ikura::discord
 			if(!is_connected)
 				break;
 
-			if(state().rlock()->heartbeat_interval <= std::chrono::system_clock::now() - last)
+			if(_state && state().rlock()->heartbeat_interval <= std::chrono::system_clock::now() - last)
 			{
 				state().perform_write([&](auto& st) {
 					if(!st.didAckHeartbeat)
@@ -220,11 +220,10 @@ namespace ikura::discord
 				"d", pj::value(std::map<std::string, pj::value> {
 					{ "token",      pj::value(config::discord::getOAuthToken()) },
 					{ "compress",   pj::value(false) },
-					/*{ "intents",    pj::value(intent::GUILDS
+					{ "intents",    pj::value(intent::GUILDS
 											| intent::GUILD_MESSAGES
-											| intent::GUILD_MESSAGE_REACTIONS
-											| intent::GUILD_PRESENCES)
-					},*/
+											| intent::GUILD_MESSAGE_REACTIONS)
+					},
 					{ "guild_subscriptions", pj::value(false) },
 					{ "properties", pj::value(std::map<std::string, pj::value> {
 						{ "$os",      pj::value("linux") },

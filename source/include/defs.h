@@ -12,11 +12,12 @@
 
 namespace ikura
 {
-	struct Buffer;
-	struct Serialisable
+	enum class Backend
 	{
-		virtual ~Serialisable() { }
-		virtual void serialise(Buffer& out) const = 0;
+		Invalid,
+
+		Twitch,
+		Discord,
 	};
 
 	namespace serialise
@@ -50,7 +51,7 @@ namespace ikura
 		constexpr uint8_t TAG_MACRO                 = 0x46;
 		constexpr uint8_t TAG_FUNCTION              = 0x47;
 		constexpr uint8_t TAG_INTERP_VALUE          = 0x48;
-		constexpr uint8_t TAG_TWITCH_USER_CREDS     = 0x49;
+		constexpr uint8_t TAG_SHARED_DB             = 0x49;
 		constexpr uint8_t TAG_TWITCH_CHANNEL        = 0x4A;
 		constexpr uint8_t TAG_MARKOV_DB             = 0x4B;
 		constexpr uint8_t TAG_MARKOV_WORD_LIST      = 0x4C;
@@ -63,8 +64,10 @@ namespace ikura
 		constexpr uint8_t TAG_DISCORD_GUILD         = 0x53;
 		constexpr uint8_t TAG_DISCORD_CHANNEL       = 0x54;
 		constexpr uint8_t TAG_DISCORD_USER          = 0x55;
-		constexpr uint8_t TAG_DISCORD_USER_CREDS    = 0x56;
-		constexpr uint8_t TAG_DISCORD_ROLE          = 0x57;
+		constexpr uint8_t TAG_DISCORD_ROLE          = 0x56;
+		constexpr uint8_t TAG_PERMISSION_SET        = 0x57;
+		constexpr uint8_t TAG_GROUP                 = 0x58;
+		constexpr uint8_t TAG_GENERIC_USER          = 0x59;
 
 		// if the byte has 0x80 set, then the lower 7 bits represents a truncated 64-bit number. it's a further
 		// extension of the SMALL_U64 thing, but literally only uses 1 byte for sizes between 0 - 127
@@ -75,23 +78,16 @@ namespace ikura
 	{
 		constexpr uint64_t EVERYONE         = 0x001;
 		constexpr uint64_t FOLLOWER         = 0x002;
-		constexpr uint64_t TRUSTED          = 0x004;
 		constexpr uint64_t VIP              = 0x008;
 		constexpr uint64_t SUBSCRIBER       = 0x010;
 		constexpr uint64_t MODERATOR        = 0x020;
 		constexpr uint64_t BROADCASTER      = 0x040;
 		constexpr uint64_t OWNER            = 0x080;
-		constexpr uint64_t WHITELIST        = 0x100;
 	}
 
 	namespace console
 	{
 		void init();
-	}
-
-	namespace discord
-	{
-		struct Snowflake;
 	}
 
 	namespace config
@@ -349,6 +345,31 @@ namespace ikura
 		Message& add(const Emote& emote) { fragments.emplace_back(emote); return *this; }
 	};
 
+	struct PermissionSet : Serialisable
+	{
+		uint64_t flags = 0;     // see defs.h/ikura::permissions
+		std::vector<uint64_t> whitelist;
+		std::vector<uint64_t> blacklist;
+
+		std::vector<discord::Snowflake> role_whitelist;
+		std::vector<discord::Snowflake> role_blacklist;
+
+		bool check(uint64_t flags, const std::vector<uint64_t>& groups, const std::vector<discord::Snowflake>& discordRoles) const;
+
+		static PermissionSet fromFlags(uint64_t f)
+		{
+			PermissionSet ret;
+			ret.flags = f;
+
+			return ret;
+		}
+
+		virtual void serialise(Buffer& buf) const override;
+		static std::optional<PermissionSet> deserialise(Span& buf);
+
+		static constexpr uint8_t TYPE_TAG = serialise::TAG_PERMISSION_SET;
+	};
+
 	struct Channel
 	{
 		virtual ~Channel() { }
@@ -358,7 +379,8 @@ namespace ikura
 		virtual std::string getName() const = 0;
 		virtual std::string getUsername() const = 0;
 		virtual std::string getCommandPrefix() const = 0;
-		virtual uint64_t getUserPermissions(ikura::str_view userid) const = 0;
+		virtual Backend getBackend() const = 0;
+		virtual bool checkUserPermissions(ikura::str_view userid, const PermissionSet& required) const = 0;
 
 		virtual void sendMessage(const Message& msg) const = 0;
 	};

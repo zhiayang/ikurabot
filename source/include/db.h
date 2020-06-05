@@ -35,12 +35,49 @@ namespace ikura
 			std::string rawData;
 		};
 
+		struct GenericUser : Serialisable
+		{
+			std::string id;
+			Backend backend;
+
+			virtual void serialise(Buffer& buf) const override;
+			static std::optional<GenericUser> deserialise(Span& buf);
+
+			static constexpr uint8_t TYPE_TAG = serialise::TAG_GENERIC_USER;
+		};
+
+		struct Group : Serialisable
+		{
+			uint64_t id;
+			std::string name;
+			std::vector<GenericUser> members;
+
+			virtual void serialise(Buffer& buf) const override;
+			static std::optional<Group> deserialise(Span& buf);
+
+			static constexpr uint8_t TYPE_TAG = serialise::TAG_GROUP;
+		};
+
+		struct SharedDB : Serialisable
+		{
+			ikura::string_map<Group> groups;
+
+			Group* getGroup(ikura::str_view name);
+			const Group* getGroup(ikura::str_view name) const;
+
+			virtual void serialise(Buffer& buf) const override;
+			static std::optional<SharedDB> deserialise(Span& buf);
+
+			static constexpr uint8_t TYPE_TAG = serialise::TAG_SHARED_DB;
+		};
+
 		struct Database : Serialisable
 		{
 			DbInterpState interpState;
 			twitch::TwitchDB twitchData;
 			markov::MarkovDB markovData;
 			discord::DiscordDB discordData;
+			SharedDB sharedData;
 			MessageDB messageData;
 
 			void sync() const;

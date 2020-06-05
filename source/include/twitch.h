@@ -29,7 +29,8 @@ namespace ikura::twitch
 		virtual std::string getCommandPrefix() const override;
 		virtual bool shouldReplyMentions() const override;
 		virtual bool shouldPrintInterpErrors() const override;
-		virtual uint64_t getUserPermissions(ikura::str_view userid) const override;
+		virtual Backend getBackend() const override { return Backend::Twitch; }
+		virtual bool checkUserPermissions(ikura::str_view userid, const PermissionSet& required) const override;
 
 		virtual void sendMessage(const Message& msg) const override;
 
@@ -113,8 +114,6 @@ namespace ikura::twitch
 		std::string displayname;
 
 		std::string channel;
-		uint64_t permissions = 0;
-		std::vector<uint64_t> groups;    // not used for now, but future-proofing.
 
 		ikura::relative_str message;
 		std::vector<ikura::relative_str> emotePositions;
@@ -137,25 +136,16 @@ namespace ikura::twitch
 		static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_LOG;
 	};
 
-	// each user is unique, but a user might have different credentials in
-	// different channels (eg. subbed to one but not the other, mod status, etc.)
-	// so the credentials of a user are tied to the channel, not the user itself.
-	struct TwitchUserCredentials : Serialisable
-	{
-		uint64_t permissions;       // see defs.h/ikura::permissions
-		uint64_t subscribedMonths;
-
-		virtual void serialise(Buffer& buf) const override;
-		static std::optional<TwitchUserCredentials> deserialise(Span& buf);
-
-		static constexpr uint8_t TYPE_TAG = serialise::TAG_TWITCH_USER_CREDS;
-	};
-
 	struct TwitchUser : Serialisable
 	{
 		std::string id;
 		std::string username;
 		std::string displayname;
+
+		uint64_t permissions;           // see defs.h/ikura::permissions
+		uint64_t subscribedMonths;
+
+		std::vector<uint64_t> groups;
 
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<TwitchUser> deserialise(Span& buf);
@@ -168,16 +158,11 @@ namespace ikura::twitch
 		// map from userid to user.
 		ikura::string_map<TwitchUser> knownUsers;
 
-		// map from userid to creds.
-		ikura::string_map<TwitchUserCredentials> userCredentials;
-
 		// map from username to userid
 		ikura::string_map<std::string> usernameMapping;
 
+		TwitchUser* getUser(ikura::str_view userid);
 		const TwitchUser* getUser(ikura::str_view userid) const;
-
-		TwitchUserCredentials* getUserCredentials(ikura::str_view userid);
-		const TwitchUserCredentials* getUserCredentials(ikura::str_view userid) const;
 
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<TwitchChannel> deserialise(Span& buf);

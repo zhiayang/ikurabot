@@ -2,6 +2,7 @@
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
 
+#include "db.h"
 #include "zfu.h"
 #include "ast.h"
 #include "cmd.h"
@@ -24,27 +25,32 @@ namespace ikura::interp
 	static void command_undef(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_chmod(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_global(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
+	static void command_usermod(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
+	static void command_groupadd(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
+	static void command_groupdel(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 
 	bool is_builtin_command(ikura::str_view x)
 	{
-		return zfu::match(x, "def", "eval", "show", "redef", "undef", "chmod", "global");
+		return zfu::match(x, "def", "eval", "show", "redef", "undef", "chmod", "global", "usermod", "groupadd", "groupdel");
 	}
 
 	// tsl::robin_map doesn't let us do this for some reason, so just fall back to std::unordered_map.
 	static std::unordered_map<std::string, void (*)(CmdContext&, const Channel*, ikura::str_view)> builtin_cmds = {
-		{ "chmod",  command_chmod  },
-		{ "eval",   command_eval   },
-		{ "global", command_global },
-		{ "def",    command_def    },
-		{ "redef",  command_redef  },
-		{ "undef",  command_undef  },
-		{ "show",   command_show   },
+		{ "chmod",      command_chmod    },
+		{ "eval",       command_eval     },
+		{ "global",     command_global   },
+		{ "def",        command_def      },
+		{ "redef",      command_redef    },
+		{ "undef",      command_undef    },
+		{ "show",       command_show     },
+		{ "usermod",    command_usermod  },
+		{ "groupadd",   command_groupadd },
+		{ "groupdel",   command_groupdel },
 	};
 
 	static constexpr uint64_t DEFAULT_NEW_MACRO_PERMISSIONS
 		= permissions::OWNER
 		| permissions::BROADCASTER
-		| permissions::TRUSTED
 		| permissions::VIP
 		| permissions::SUBSCRIBER
 		| permissions::MODERATOR;
@@ -52,25 +58,24 @@ namespace ikura::interp
 
 	bool run_builtin_command(CmdContext& cs, const Channel* chan, ikura::str_view cmd_str, ikura::str_view arg_str)
 	{
-		auto user_perms = chan->getUserPermissions(cs.callerid);
 		auto denied = [&]() -> bool {
-			lg::warn("cmd", "user '%s' tried to execute command '%s' with insufficient permissions (%x)",
-				cs.callername, cmd_str, user_perms);
+			lg::warn("cmd", "user '%s' tried to execute command '%s' with insufficient permissions",
+				cs.callername, cmd_str);
 
 			chan->sendMessage(Message("insufficient permissions"));
 			return true;
 		};
 
-		uint64_t perm = interpreter().map_read([&](auto& interp) -> uint64_t {
+		auto perm = interpreter().map_read([&](auto& interp) -> PermissionSet {
 			if(auto it = interp.builtinCommandPermissions.find(cmd_str); it != interp.builtinCommandPermissions.end())
 				return it->second;
 
-			return 0;
+			return { };
 		});
 
 		if(is_builtin_command(cmd_str))
 		{
-			if(!cmd::verifyPermissions(perm, user_perms))
+			if(!chan->checkUserPermissions(cs.callerid, perm))
 				return denied();
 
 			builtin_cmds[cmd_str.str()](cs, chan, arg_str);
@@ -80,6 +85,86 @@ namespace ikura::interp
 		return false;
 	}
 
+	template <typename T>
+	static void add_to_list(std::vector<T>& list, T elm)
+	{
+		if(auto it = std::find(list.begin(), list.end(), elm); it == list.end())
+			list.push_back(elm);
+	}
+
+	template <typename T>
+	static void remove_from_list(std::vector<T>& list, T elm)
+	{
+		if(auto it = std::find(list.begin(), list.end(), elm); it != list.end())
+			list.erase(it);
+	}
+
+	static Result<PermissionSet> parse_groups(const Channel* chan, ikura::str_view sv, PermissionSet perms)
+	{
+		while(sv[0] == '+' || sv[0] == '-' || sv[0] == '*')
+		{
+			int mode = (sv[0] == '+') ? 0 : (sv[0] == '-') ? 1 : 2;
+			sv.remove_prefix(1);
+
+			if(sv.empty())
+				return zpr::sprint("unexpected end of input");
+
+			bool discord = (sv[0] == '@');
+			if(discord) sv.remove_prefix(1);
+
+			std::string group;
+			while(sv.size() > 0)
+			{
+				if(sv[0] == '\\')
+					sv.remove_prefix(1), group += sv[0];
+
+				else if(sv[0] == '+' || sv[0] == '-' || sv[0] == '*')
+					break;
+
+				else
+					group += sv[0];
+
+				sv.remove_prefix(1);
+			}
+
+
+			if(discord)
+			{
+				// TODO: not supported omegalul
+			}
+			else
+			{
+				auto grp = database().rlock()->sharedData.getGroup(group);
+				if(grp == nullptr)
+					return zpr::sprint("nonexistent group '%s'", group);
+
+				auto gid = grp->id;
+				if(mode == 0)
+				{
+					add_to_list(perms.whitelist, gid);      // add to whitelist
+					remove_from_list(perms.blacklist, gid); // remove from blacklist
+				}
+				else if(mode == 1)
+				{
+					add_to_list(perms.blacklist, gid);      // add to blacklist
+					remove_from_list(perms.whitelist, gid); // remove from whitelist
+				}
+				else
+				{
+					// remove from both
+					remove_from_list(perms.blacklist, gid);
+					remove_from_list(perms.whitelist, gid);
+				}
+			}
+
+			// zpr::println("group = %s", group);
+		}
+
+		if(!sv.empty())
+			return zpr::sprint("junk at end of permissions (%s)", sv);
+
+		return perms;
+	}
 
 
 
@@ -105,14 +190,50 @@ namespace ikura::interp
 		if(cmd.empty() || perm_str.empty())
 			return chan->sendMessage(Message("not enough arguments to chmod"));
 
-		auto perm_ = util::stou(perm_str, /* base: */ 0x10);
-		if(!perm_) return chan->sendMessage(Message(zpr::sprint("invalid permission string '%s'", perm_str)));
+		// goes something like this:
+		// chmod foo +3a+group+group+@discord role-@blacklist role+group with \+ plus
+		auto parse_perms = [](ikura::str_view sv, const Channel* chan, PermissionSet orig) -> Result<PermissionSet> {
+			uint64_t flag = 0;
 
-		auto perm = perm_.value();
+			bool merge = false;
+			if(!sv.empty() && sv[0] == '+')
+				sv.remove_prefix(1), merge = true;
+
+			while(sv.size() > 0)
+			{
+				if('0' <= sv[0] && sv[0] <= '9')
+					flag = (16 * flag) + (sv[0] - '0');
+
+				else if('a' <= sv[0] && sv[0] <= 'f')
+					flag = (16 * flag) + (10 + sv[0] - 'a');
+
+				else if('A' <= sv[0] && sv[0] <= 'F')
+					flag = (16 * flag) + (10 + sv[0] - 'A');
+
+				else
+					break;
+
+				sv.remove_prefix(1);
+			}
+
+			auto newperms = orig;
+			newperms.flags = (flag | (merge ? orig.flags : 0));
+
+			if(sv.empty())
+				return newperms;
+
+			return parse_groups(chan, sv, newperms);
+		};
 
 		if(is_builtin_command(cmd))
 		{
-			interpreter().wlock()->builtinCommandPermissions[cmd] = perm;
+			interpreter().perform_write([&](auto& interp) {
+				auto res = parse_perms(perm_str, chan, interp.builtinCommandPermissions[cmd]);
+				if(!res.has_value())
+					return chan->sendMessage(Message(res.error()));
+
+				interp.builtinCommandPermissions[cmd] = res.unwrap();
+			});
 		}
 		else
 		{
@@ -120,11 +241,112 @@ namespace ikura::interp
 			if(!command)
 				return chan->sendMessage(Message(zpr::sprint("'%s' does not exist", cmd)));
 
-			command->setPermissions(perm);
+			auto res = parse_perms(perm_str, chan, command->perms());
+			if(!res.has_value())
+				return chan->sendMessage(Message(res.error()));
+
+			command->perms() = res.unwrap();
 		}
 
-		chan->sendMessage(Message(zpr::sprint("permissions for '%s' changed to %x", cmd, perm)));
+		chan->sendMessage(Message(zpr::sprint("permissions for '%s' changed", cmd)));
 	}
+
+	static void command_groupadd(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
+	{
+		// syntax: groupadd <group>
+		auto grp = arg_str.substr(0, arg_str.find(' ')).trim();
+
+		if(grp.empty())
+			return chan->sendMessage(Message("not enough arguments to groupadd"));
+
+		database().perform_write([&](auto& db) {
+			auto& s = db.sharedData;
+			if(auto it = s.groups.find(grp); it != s.groups.end())
+				return chan->sendMessage(Message(zpr::sprint("'%s' already exists", grp)));
+
+			db::Group g;
+			g.id = s.groups.size();
+			g.name = grp;
+
+			s.groups[grp] = g;
+			chan->sendMessage(Message(zpr::sprint("created group '%s'", grp)));
+		});
+	}
+
+	static void command_groupdel(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
+	{
+		// syntax: groupdel <group>
+		auto grp = arg_str.substr(0, arg_str.find(' ')).trim();
+
+		if(grp.empty())
+			return chan->sendMessage(Message("not enough arguments to groupdel"));
+
+		database().perform_write([&](auto& db) {
+			auto& s = db.sharedData;
+			if(auto it = s.groups.find(grp); it == s.groups.end())
+				return chan->sendMessage(Message(zpr::sprint("'%s' does not exist", grp)));
+
+			else
+				s.groups.erase(it);
+
+			chan->sendMessage(Message(zpr::sprint("removed group '%s'", grp)));
+		});
+	}
+
+
+
+	static void command_usermod(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
+	{
+		// syntax: usermod <user> <groups>
+		auto user = arg_str.substr(0, arg_str.find(' ')).trim();
+		auto perm_str = arg_str.drop(user.size()).trim();
+
+		if(user.empty() || perm_str.empty())
+			return chan->sendMessage(Message("not enough arguments to usermod"));
+
+		// goes something like this:
+		// usermod user +group1+group2-group3
+
+		// we're treating this like a whitelist/blacklist input (ie. +group-group), but
+		// we re-interpret it as add and remove.
+		auto res = parse_groups(chan, perm_str, { });
+		if(!res.has_value())
+			return chan->sendMessage(Message(res.error()));
+
+		if(!res->role_whitelist.empty() || !res->role_blacklist.empty())
+			return chan->sendMessage(Message(zpr::sprint("cannot modify discord roles")));
+
+		// handle for twitch and discord separately -- but we need to somehow update in both.
+		// TODO: figure out a way to update both twitch and discord here?
+		if(chan->getBackend() == Backend::Twitch)
+		{
+			database().perform_write([&](auto& db) {
+				auto& twch = db.twitchData.channels[chan->getName()];
+				auto userid = twch.usernameMapping[user];
+				if(userid.empty())
+				{
+				fail:
+					return chan->sendMessage(Message(zpr::sprint("unknown user '%s'", user)));
+				}
+
+				auto twusr = twch.getUser(userid);
+				if(twusr == nullptr) { zpr::println("A"); goto fail; }
+
+				for(auto x : res->whitelist)
+					add_to_list(twusr->groups, x);
+
+				for(auto x : res->blacklist)
+					remove_from_list(twusr->groups, x);
+			});
+		}
+		else if(chan->getBackend() == Backend::Discord)
+		{
+			// TODO:
+		}
+	}
+
+
+
 
 	static void command_global(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
 	{
@@ -156,7 +378,7 @@ namespace ikura::interp
 		}
 
 		auto macro = new Macro(name.str(), expansion);
-		macro->setPermissions(DEFAULT_NEW_MACRO_PERMISSIONS);
+		macro->perms() = PermissionSet::fromFlags(DEFAULT_NEW_MACRO_PERMISSIONS);
 
 		interpreter().wlock()->commands.emplace(name, macro);
 		chan->sendMessage(Message(zpr::sprint("%sdefined '%s'", redef ? "re" : "", name)));

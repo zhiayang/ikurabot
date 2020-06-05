@@ -2,6 +2,7 @@
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
 
+#include "db.h"
 #include "cmd.h"
 #include "serialise.h"
 
@@ -135,6 +136,18 @@ namespace ikura::interp
 		return this->code;
 	}
 
+
+
+
+
+
+
+
+
+
+
+
+
 	void Macro::serialise(Buffer& buf) const
 	{
 		auto wr = serialise::Writer(buf);
@@ -157,7 +170,7 @@ namespace ikura::interp
 		}
 
 		std::string name;
-		uint64_t permissions = 0;
+		PermissionSet permissions;
 		std::vector<std::string> code;
 
 		if(!rd.read(&name))

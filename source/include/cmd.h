@@ -25,8 +25,9 @@ namespace ikura::interp
 		virtual ~Command() { }
 
 		std::string getName() const { return this->name; }
-		uint64_t getPermissions() const { return this->permissions; }
-		void setPermissions(uint64_t p) { this->permissions = p; }
+
+		PermissionSet& perms() { return this->permissions; }
+		const PermissionSet& perms() const { return this->permissions; }
 
 		Type::Ptr getSignature() const { return this->signature; }
 
@@ -40,7 +41,7 @@ namespace ikura::interp
 
 		std::string name;
 		Type::Ptr signature;
-		uint64_t permissions;       // see defs.h/ikura::permissions
+		PermissionSet permissions;
 	};
 
 	struct Macro : Command
@@ -97,9 +98,7 @@ namespace ikura::interp
 
 namespace ikura::cmd
 {
-	ikura::string_map<uint64_t> getDefaultBuiltinPermissions();
-
-	bool verifyPermissions(uint64_t required, uint64_t given);
+	ikura::string_map<PermissionSet> getDefaultBuiltinPermissions();
 
 	// returns true if a command was run.
 	bool processMessage(ikura::str_view userid, ikura::str_view username, const Channel* channel,

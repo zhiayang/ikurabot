@@ -34,9 +34,9 @@ namespace ikura::discord
 		return this->respondToPings;
 	}
 
-	uint64_t Channel::getUserPermissions(ikura::str_view userid) const
+	bool Channel::checkUserPermissions(ikura::str_view userid, const PermissionSet& required) const
 	{
-		return 1;
+		return false;
 	}
 
 	void Channel::sendMessage(const Message& msg) const

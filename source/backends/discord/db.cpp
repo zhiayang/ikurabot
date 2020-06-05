@@ -150,7 +150,12 @@ namespace ikura::discord
 		wr.tag(TYPE_TAG);
 
 		wr.write(this->id);
-		wr.write(this->name);
+		wr.write(this->username);
+		wr.write(this->nickname);
+
+		wr.write(this->permissions);
+		wr.write(this->groups);
+		wr.write(this->discordRoles);
 	}
 
 	std::optional<DiscordUser> DiscordUser::deserialise(Span& buf)
@@ -167,7 +172,19 @@ namespace ikura::discord
 		if(!rd.read(&ret.id))
 			return { };
 
-		if(!rd.read(&ret.name))
+		if(!rd.read(&ret.username))
+			return { };
+
+		if(!rd.read(&ret.nickname))
+			return { };
+
+		if(!rd.read(&ret.permissions))
+			return { };
+
+		if(!rd.read(&ret.groups))
+			return { };
+
+		if(!rd.read(&ret.discordRoles))
 			return { };
 
 		return ret;
@@ -204,40 +221,6 @@ namespace ikura::discord
 			return { };
 
 		if(!rd.read(&ret.discordPerms))
-			return { };
-
-		return ret;
-	}
-
-
-	void DiscordUserCredentials::serialise(Buffer& buf) const
-	{
-		auto wr = serialise::Writer(buf);
-		wr.tag(TYPE_TAG);
-
-		wr.write(this->permissions);
-		wr.write(this->groups);
-		wr.write(this->discordRoles);
-	}
-
-	std::optional<DiscordUserCredentials> DiscordUserCredentials::deserialise(Span& buf)
-	{
-		auto rd = serialise::Reader(buf);
-		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
-
-		DiscordUserCredentials ret;
-
-		if(!rd.read(&ret.permissions))
-			return { };
-
-		if(!rd.read(&ret.groups))
-			return { };
-
-		if(!rd.read(&ret.discordRoles))
 			return { };
 
 		return ret;

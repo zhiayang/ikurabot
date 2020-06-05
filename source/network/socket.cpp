@@ -65,7 +65,7 @@ namespace ikura
 			while(true)
 			{
 				// fprintf(stderr, ".");
-				if(!this->is_connected)
+				if(!this->is_connected || this->socket.fd() == -1)
 					break;
 
 				// do a blocking read.
@@ -118,10 +118,7 @@ namespace ikura
 	void Socket::disconnect()
 	{
 		if(this->is_connected)
-		{
 			this->is_connected = false;
-			this->socket.close();
-		}
 
 		this->onReceive([](auto) { });
 
@@ -130,6 +127,10 @@ namespace ikura
 		// tells us to die.
 		if(this->thread.joinable() && this->thread.get_id() != std::this_thread::get_id())
 			this->thread.join();
+
+		// must join the thread before closing the socket, if not we risk closing the socket
+		// from under the recv() call, which SSL does *not* like.
+		this->socket.close();
 	}
 
 	size_t Socket::availableBytes()

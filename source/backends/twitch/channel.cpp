@@ -3,6 +3,7 @@
 // Licensed under the Apache License Version 2.0.
 
 #include "db.h"
+#include "cmd.h"
 #include "defs.h"
 #include "twitch.h"
 
@@ -23,21 +24,21 @@ namespace ikura::twitch
 		return this->name;
 	}
 
-	uint64_t Channel::getUserPermissions(ikura::str_view userid) const
+	bool Channel::checkUserPermissions(ikura::str_view userid, const PermissionSet& required) const
 	{
 		// massive hack but idgaf
 		if(userid == MAGIC_OWNER_USERID)
-			return permissions::OWNER;
+			return true;
 
-		// mfw "const correctness", so we can't use operator[]
-		return database().map_read([&](auto& db) -> uint64_t {
+		return database().map_read([&](auto& db) {
+			// mfw "const correctness", so we can't use operator[]
 			auto chan = db.twitchData.getChannel(this->name);
-			if(!chan) return 0;
+			if(!chan) return false;
 
-			auto creds = chan->getUserCredentials(userid);
-			if(!creds) return 0;
+			auto user = chan->getUser(userid);
+			if(!user) return false;
 
-			return creds->permissions;
+			return required.check(user->permissions, user->groups, { });
 		});
 	}
 

@@ -3,6 +3,7 @@
 // Licensed under the Apache License Version 2.0.
 
 #include "db.h"
+#include "zfu.h"
 #include "cmd.h"
 #include "defs.h"
 #include "timer.h"
@@ -20,8 +21,7 @@ namespace ikura::discord
 	*/
 
 	static DiscordGuild& get_guild(Snowflake id);
-	static DiscordChannel& get_channel(Snowflake id, DiscordGuild& guild);
-	static DiscordUser& get_user(Snowflake id, DiscordGuild& guild, pj::object json_author);
+	static DiscordUser& update_user(DiscordGuild& guild, pj::object json);
 
 	static std::pair<std::string, std::vector<ikura::relative_str>> preprocess_discord_message(ikura::str_view msg, DiscordGuild& guild);
 
@@ -31,10 +31,9 @@ namespace ikura::discord
 		auto time = timer();
 
 		auto& guild  = get_guild(Snowflake(json["guild_id"].as_str()));
-		auto& author = get_user(Snowflake(json["author"].as_obj()["id"].as_str()), guild,
-			json["author"].as_obj());
+		auto& chan   = guild.channels[Snowflake(json["channel_id"].as_str())];
 
-		auto& chan   = get_channel(Snowflake(json["channel_id"].as_str()), guild);
+		auto& author = update_user(guild, json);
 
 		// check for self
 		if(author.id == config::discord::getUserId())
@@ -44,15 +43,25 @@ namespace ikura::discord
 		if(config::discord::isUserIgnored(author.id))
 			return;
 
+		// check for bots
+		if(!json["author"].as_obj()["bot"].is_null() && json["author"].as_obj()["bot"].as_bool())
+			return;
+
 		auto msg = json["content"].as_str();
-		auto [ sanitised_msg, emote_idxs ] = preprocess_discord_message(msg, guild);
+
+		// here's the deal -- we don't want to keep a list of all users in the discord,
+		// we just wanna lazily populate that.
+
+
+
+
 
 		// only process commands if we're not lurking
 		bool ran_cmd = false;
 		if(!this->channels[chan.id].lurk)
-			ran_cmd = cmd::processMessage(author.id.str(), author.name, &this->channels[chan.id], msg, /* enablePings: */ true);
+			ran_cmd = cmd::processMessage(author.id.str(), author.nickname, &this->channels[chan.id], msg, /* enablePings: */ true);
 
-		lg::log("msg", "(%.2f ms) discord/%s/#%s: <%s> %s", time.measure(), guild.name, chan.name, author.name, msg);
+		lg::log("msg", "(%.2f ms) discord/%s/#%s: <%s> %s", time.measure(), guild.name, chan.name, author.nickname, msg);
 	}
 
 
@@ -219,8 +228,8 @@ namespace ikura::discord
 
 					if(msg.find("<@&") == 0)        output += "@" + guild.roles[id].name;
 					else if(msg.find("<#") == 0)    output += "#" + guild.channels[id].name;
-					else if(msg.find("<@!") == 0)   output += guild.knownUsers[id].name;
-					else if(msg.find("<@") == 0)    output += guild.knownUsers[id].name;
+					else if(msg.find("<@!") == 0)   output += guild.knownUsers[id].nickname;
+					else if(msg.find("<@") == 0)    output += guild.knownUsers[id].username;
 
 					msg.remove_prefix(i + 1);
 
@@ -239,10 +248,10 @@ namespace ikura::discord
 			}
 		}
 
-		// zpr::println("output = %s", output);
-		// zpr::println("emotes:");
-		// for(auto& rs : emote_idxs)
-		// 	zpr::println("  %s", rs.get(output));
+		zpr::println("output = %s", output);
+		zpr::println("emotes:");
+		for(auto& rs : emote_idxs)
+			zpr::println("  %s", rs.get(output));
 
 		return { output, emote_idxs };
 	}
@@ -252,18 +261,38 @@ namespace ikura::discord
 		return database().wlock()->discordData.guilds[id];
 	}
 
-	static DiscordUser& get_user(Snowflake id, DiscordGuild& guild, pj::object json_author)
+	static DiscordUser& update_user(DiscordGuild& guild, pj::object json)
 	{
+		auto& j_author = json["author"].as_obj();
+		auto& j_member = json["member"].as_obj();
+
+		auto id = Snowflake(j_author["id"].as_str());
 		auto& user = guild.knownUsers[id];
 
-		user.id = id;
-		user.name = json_author["username"].as_str();
+		user.username = j_author["username"].as_str();
+		user.nickname = (j_member["nick"].is_null()
+			? user.username
+			: j_member["nick"].as_str()
+		);
+
+		if(user.id.empty())
+		{
+			user.id = id;
+
+			lg::log("discord", "adding (nick: %s, user: %s, id: %s) to guild '%s'",
+				user.nickname, user.username, id.str(), guild.name);
+		}
+		else if(user.id != id)
+		{
+			lg::warn("discord", "user id got changed?! old: %s, new: %s",
+				user.id.str(), id.str());
+		}
+
+		// just re-do the roles every time, i guess. there's no good way to do deltas anyway.
+		user.discordRoles = zfu::map(j_member["roles"].as_arr(), [](auto& o) -> auto {
+			return Snowflake(o.as_str());
+		});
 
 		return user;
-	}
-
-	static DiscordChannel& get_channel(Snowflake id, DiscordGuild& guild)
-	{
-		return guild.channels[id];
 	}
 }

@@ -229,7 +229,7 @@ namespace ikura::interp
 		ikura::string_map<Command*> commands;
 		ikura::string_map<std::string> aliases;
 
-		ikura::string_map<uint64_t> builtinCommandPermissions;
+		ikura::string_map<PermissionSet> builtinCommandPermissions;
 
 		Command* findCommand(ikura::str_view name) const;
 		bool removeCommandOrAlias(ikura::str_view name);

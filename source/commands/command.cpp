@@ -115,13 +115,9 @@ namespace ikura::cmd
 
 		if(command)
 		{
-			auto req = command->getPermissions();
-			auto giv = chan->getUserPermissions(userid);
-			if(!verifyPermissions(req, giv))
+			if(!chan->checkUserPermissions(userid, command->perms()))
 			{
-				lg::warn("cmd", "user '%s' tried to execute command '%s' with insufficient permissions (%x vs %x)",
-					username, command->getName(), req, giv);
-
+				lg::warn("cmd", "user '%s' tried to execute command '%s' with insufficient permissions", username, command->getName());
 				chan->sendMessage(Message("insufficient permissions"));
 				return;
 			}
@@ -147,41 +143,32 @@ namespace ikura::cmd
 		}
 	}
 
-	bool verifyPermissions(uint64_t required, uint64_t given)
+
+	ikura::string_map<PermissionSet> getDefaultBuiltinPermissions()
 	{
-		bool is_owner = (given & permissions::OWNER);
-
-		// if the required permissions are 0, then by default it is owner only.
-		// otherwise, it is just a simple & of the perms. this does mean that you
-		// can have commands that can only be executed by subscribers but not moderators, for example.
-		if(required == 0)   return is_owner;
-		else                return is_owner || ((required & given) != 0);
-	}
-
-
-
-	ikura::string_map<uint64_t> getDefaultBuiltinPermissions()
-	{
-		ikura::string_map<uint64_t> ret;
+		ikura::string_map<PermissionSet> ret;
 
 		namespace perms = permissions;
 
 		// most of these assignments are arbitrary.
 		// users that are "trusted" to some extent, subs, mods, vips, and trusted.
-		constexpr auto p_known = perms::OWNER | perms::BROADCASTER | perms::MODERATOR | perms::SUBSCRIBER | perms::VIP | perms::TRUSTED;
+		constexpr auto p_known = perms::OWNER | perms::BROADCASTER | perms::MODERATOR | perms::SUBSCRIBER | perms::VIP;
 
 		// users that are explicitly trusted to a higher level -- basically just mods. probably restrict commands that
 		// can drastically change the state of the interpreter (global, def, undef) to these.
 		constexpr auto p_admin = perms::OWNER | perms::BROADCASTER | perms::MODERATOR;
 
-		ret["chmod"]    = perms::OWNER | perms::BROADCASTER;
-		ret["eval"]     = p_known;
-		ret["global"]   = p_admin;
-		ret["def"]      = p_admin;
-		ret["redef"]    = p_admin;
-		ret["undef"]    = p_admin;
-		ret["list"]     = p_known;
-		ret["show"]     = perms::EVERYONE;
+		ret["chmod"]    = PermissionSet::fromFlags(perms::OWNER | perms::BROADCASTER);
+		ret["eval"]     = PermissionSet::fromFlags(p_known);
+		ret["global"]   = PermissionSet::fromFlags(p_admin);
+		ret["def"]      = PermissionSet::fromFlags(p_admin);
+		ret["redef"]    = PermissionSet::fromFlags(p_admin);
+		ret["undef"]    = PermissionSet::fromFlags(p_admin);
+		ret["list"]     = PermissionSet::fromFlags(p_known);
+		ret["usermod"]  = PermissionSet::fromFlags(p_admin);
+		ret["groupadd"] = PermissionSet::fromFlags(p_admin);
+		ret["groupdel"] = PermissionSet::fromFlags(p_admin);
+		ret["show"]     = PermissionSet::fromFlags(perms::EVERYONE);
 
 		return ret;
 	}

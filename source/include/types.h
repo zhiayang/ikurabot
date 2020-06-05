@@ -12,6 +12,14 @@
 
 namespace ikura
 {
+	struct Span;
+	struct Buffer;
+	struct Serialisable
+	{
+		virtual ~Serialisable() { }
+		virtual void serialise(Buffer& out) const = 0;
+	};
+
 	template <typename T, typename E = std::string>
 	struct Result
 	{
@@ -367,6 +375,29 @@ namespace ikura
 		size_t _start;
 		size_t _size;
 	};
+
+	namespace discord
+	{
+		struct Snowflake : Serialisable
+		{
+			Snowflake() : value(0) { }
+			Snowflake(uint64_t x) : value(x) { }
+
+			Snowflake(const std::string& s);
+			Snowflake(ikura::str_view sv);
+
+			uint64_t value;
+
+			bool empty() const { return this->value == 0; }
+			std::string str() const { return std::to_string(value); }
+
+			bool operator == (Snowflake s) const { return this->value == s.value; }
+			bool operator != (Snowflake s) const { return this->value != s.value; }
+
+			virtual void serialise(Buffer& buf) const override;
+			static std::optional<Snowflake> deserialise(Span& buf);
+		};
+	}
 }
 
 namespace std
@@ -394,6 +425,16 @@ namespace std
 				ikura::hash_combine(seed, t);
 
 			return seed;
+		}
+	};
+
+
+	template <>
+	struct hash<ikura::discord::Snowflake>
+	{
+		size_t operator () (ikura::discord::Snowflake s) const
+		{
+			return std::hash<uint64_t>()(s.value);
 		}
 	};
 }

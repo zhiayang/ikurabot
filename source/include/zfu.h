@@ -2,6 +2,9 @@
 // Copyright (c) 2017, zhiayang
 // Licensed under the Apache License Version 2.0.
 
+// origin: ikurabot
+// updated 04/06/2020
+
 #pragma once
 #include <map>
 #include <string>
@@ -135,20 +138,20 @@ namespace zfu
 
 
 
-	template <typename T, typename UnaryOp, typename K = typename std::result_of<UnaryOp(T)>::type>
-	std::vector<K> map(const std::vector<T>& input, UnaryOp fn)
+	template <typename T, typename UnaryOp>
+	auto map(const std::vector<T>& input, UnaryOp fn) -> std::vector<decltype(fn(input[0]))>
 	{
-		std::vector<K> ret; ret.reserve(input.size());
+		std::vector<decltype(fn(input[0]))> ret; ret.reserve(input.size());
 		for(const auto& i : input)
 			ret.push_back(fn(i));
 
 		return ret;
 	}
 
-	template <typename T, typename UnaryOp, typename K = typename std::result_of_t<UnaryOp(T)>::value_type>
-	std::vector<K> flatmap(const std::vector<T>& input, UnaryOp fn)
+	template <typename T, typename UnaryOp>
+	auto flatmap(const std::vector<T>& input, UnaryOp fn) -> std::vector<decltype(fn(input[0]))>
 	{
-		std::vector<K> ret; ret.reserve(input.size());
+		std::vector<decltype(fn(input[0]))> ret; ret.reserve(input.size());
 		for(const auto& i : input)
 		{
 			auto x = fn(i);
@@ -186,10 +189,10 @@ namespace zfu
 	}
 
 
-	template <typename T, typename UnaryOp, typename K = typename std::result_of<UnaryOp(T, size_t)>::type>
-	std::vector<K> mapIdx(const std::vector<T>& input, UnaryOp fn)
+	template <typename T, typename UnaryOp>
+	auto mapIdx(const std::vector<T>& input, UnaryOp fn) -> std::vector<decltype(fn(input[0]))>
 	{
-		std::vector<K> ret; ret.reserve(input.size());
+		std::vector<decltype(fn(input[0]))> ret; ret.reserve(input.size());
 		for(size_t i = 0; i < input.size(); i++)
 			ret.push_back(fn(input[i], i));
 
@@ -198,10 +201,10 @@ namespace zfu
 
 
 
-	template <typename T, typename UnaryOp, typename Predicate, typename K = typename std::result_of<UnaryOp(T)>::type>
-	std::vector<K> filterMap(const std::vector<T>& input, Predicate cond, UnaryOp fn)
+	template <typename T, typename UnaryOp, typename Predicate>
+	auto filterMap(const std::vector<T>& input, Predicate cond, UnaryOp fn) -> std::vector<decltype(fn(input[0]))>
 	{
-		std::vector<K> ret;
+		std::vector<decltype(fn(input[0]))> ret;
 		for(const auto& i : input)
 		{
 			if(cond(i))
@@ -211,10 +214,10 @@ namespace zfu
 		return ret;
 	}
 
-	template <typename T, typename UnaryOp, typename Predicate, typename K = typename std::result_of<UnaryOp(T)>::type>
-	std::vector<K> mapFilter(const std::vector<T>& input, UnaryOp fn, Predicate cond)
+	template <typename T, typename UnaryOp, typename Predicate>
+	auto mapFilter(const std::vector<T>& input, UnaryOp fn, Predicate cond) -> std::vector<decltype(fn(input[0]))>
 	{
-		std::vector<K> ret;
+		std::vector<decltype(fn(input[0]))> ret;
 		for(const auto& i : input)
 		{
 			auto k = fn(i);
@@ -318,7 +321,7 @@ namespace zfu
 
 
 
-	template <typename T, typename GroupFn, typename R = std::result_of_t<GroupFn(T)>>
+	template <typename T, typename GroupFn, typename R = decltype(std::declval<GroupFn(T)>())>
 	std::map<R, std::vector<T>> groupBy(const std::vector<T>& xs, GroupFn gfn)
 	{
 		std::map<R, std::vector<T>> groups;

@@ -30,7 +30,7 @@ namespace ikura::db
 
 	static_assert(sizeof(Superblock) == 24);
 
-	constexpr uint32_t DB_VERSION   = 8;
+	constexpr uint32_t DB_VERSION   = 15;
 	constexpr const char* DB_MAGIC  = "ikura_db";
 
 	// the database will only sync to disk if it was modified
@@ -149,6 +149,8 @@ namespace ikura::db
 		wr.write(this->twitchData);
 		wr.write(this->interpState);
 		wr.write(this->markovData);
+		wr.write(this->sharedData);
+		wr.write(this->discordData);
 		wr.write(this->messageData);
 	}
 
@@ -188,8 +190,14 @@ namespace ikura::db
 		if(!rd.read(&db.markovData))
 			return error("failed to read markov data");
 
+		if(!rd.read(&db.sharedData))
+			return error("failed to read shared data");
+
+		if(!rd.read(&db.discordData))
+			return error("failed to read discord data");
+
 		if(!rd.read(&db.messageData))
-			return error("failed to read markov data");
+			return error("failed to read message logs");
 
 		// once we are done reading the database from disk, the in-memory state is considered gospel.
 		// thus, we can "upgrade" the version.

@@ -22,6 +22,11 @@ int main(int argc, char** argv)
 		exit(1);
 	}
 
+	/*
+		todo:
+		check discord roles for discord channels
+	*/
+
 	ikura::lg::log("ikura", "starting...");
 	if(!ikura::config::load(argv[1]))
 		ikura::lg::fatal("cfg", "failed to load config file '%s'", argv[1]);
@@ -32,15 +37,14 @@ int main(int argc, char** argv)
 	if(ikura::config::haveTwitch())
 		ikura::twitch::init();
 
-	if(ikura::config::haveDiscord())
-		ikura::discord::init();
+	// if(ikura::config::haveDiscord())
+	// 	ikura::discord::init();
 
 	// this just starts a worker thread to process input in the background.
 	ikura::markov::init();
 
 	// when this returns, then the bot should shutdown.
 	ikura::console::init();
-
 
 	ikura::discord::shutdown();
 	ikura::twitch::shutdown();
