@@ -10,7 +10,12 @@
 
 #include "types.h"
 #include "buffer.h"
-#include "kissnet.h"
+
+namespace kissnet
+{
+	template <size_t N>
+	class socket;
+}
 
 namespace ikura
 {
@@ -72,7 +77,7 @@ namespace ikura
 
 	private:
 		Socket();
-		Socket(std::string host, uint16_t port, kissnet::socket<>&& socket, std::chrono::nanoseconds = { });
+		Socket(std::string host, uint16_t port, kissnet::socket<4>* socket, std::chrono::nanoseconds = { });
 
 		void setup_receiver();
 
@@ -81,7 +86,7 @@ namespace ikura
 		bool _ssl;
 
 		std::thread thread;
-		kissnet::socket<> socket;
+		kissnet::socket<4>* socket = nullptr;
 		bool is_connected = false;
 
 		bool server_mode = false;

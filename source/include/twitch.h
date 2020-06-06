@@ -8,7 +8,6 @@
 #include <stddef.h>
 
 #include "emotes.h"
-#include "synchro.h"
 #include "network.h"
 #include "msgqueue.h"
 

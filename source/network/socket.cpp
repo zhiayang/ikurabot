@@ -6,6 +6,7 @@
 
 #include "defs.h"
 #include "network.h"
+#include "kissnet.h"
 
 using namespace std::chrono_literals;
 
@@ -22,24 +23,25 @@ namespace ikura
 		this->is_connected = false;
 		this->rx_callback = [](Span) { };
 
-		this->socket = kissnet::socket();
 		this->timeout = timeout;
 	}
 
-	Socket::Socket(std::string host, uint16_t port, kissnet::socket<>&& socket, std::chrono::nanoseconds timeout)
+	Socket::Socket(std::string host, uint16_t port, kissnet::socket<4>* socket, std::chrono::nanoseconds timeout)
 	{
+		assert(socket);
+
 		this->is_connected = false;
 		this->rx_callback = [](Span) { };
 
 		this->_port = port;
 		this->_host = std::move(host);
-		this->_ssl  = (socket.get_protocol() == kissnet::protocol::tcp_ssl);
-		this->socket = std::move(socket);
+		this->_ssl  = (socket->get_protocol() == kissnet::protocol::tcp_ssl);
+		this->socket = socket;
 
 		if(timeout > 0ns)
 		{
 			auto micros = std::chrono::duration_cast<std::chrono::microseconds>(timeout).count();
-			this->socket.set_timeout(micros);
+			this->socket->set_timeout(micros);
 			this->timeout = timeout;
 		}
 	}
@@ -59,17 +61,17 @@ namespace ikura
 		// make sure there is some timeout, so that the socket can be disconnected externally
 		// and the thread will be able to respond and break out of its loop. this timeout is
 		// cannot be set by user code; that only controls the timeout for the initial connection.
-		this->socket.set_timeout(LOOP_PERIOD.count());
+		this->socket->set_timeout(LOOP_PERIOD.count());
 
 		this->thread = std::thread([this]() {
 			while(true)
 			{
 				// fprintf(stderr, ".");
-				if(!this->is_connected || this->socket.fd() == -1)
+				if(!this->is_connected || this->socket->fd() == -1)
 					break;
 
 				// do a blocking read.
-				auto [ len, status ] = this->socket.recv(this->internal_buffer, BufferSize);
+				auto [ len, status ] = this->socket->recv(this->internal_buffer, BufferSize);
 				if(status == kissnet::socket_status::cleanly_disconnected || !this->is_connected)
 				{
 					break;
@@ -91,7 +93,8 @@ namespace ikura
 
 	bool Socket::connect()
 	{
-		this->socket = kissnet::socket<>(
+		assert(this->socket == nullptr);
+		this->socket = new kissnet::socket<4>(
 			this->_ssl ? kissnet::protocol::tcp_ssl : kissnet::protocol::tcp,
 			kissnet::endpoint(this->_host, this->_port)
 		);
@@ -99,15 +102,15 @@ namespace ikura
 		if(this->timeout > 0ns)
 		{
 			auto micros = std::chrono::duration_cast<std::chrono::microseconds>(timeout).count();
-			this->socket.set_timeout(micros);
+			this->socket->set_timeout(micros);
 		}
 
-		this->is_connected = this->socket.connect();
+		this->is_connected = this->socket->connect();
 
 		if(!this->is_connected)
 		{
 			lg::error("socket", "connection failed: %s", strerror(errno));
-			this->socket.close();
+			this->socket->close();
 			return false;
 		}
 
@@ -130,17 +133,23 @@ namespace ikura
 
 		// must join the thread before closing the socket, if not we risk closing the socket
 		// from under the recv() call, which SSL does *not* like.
-		this->socket.close();
+		if(this->socket != nullptr)
+		{
+			this->socket->close();
+			delete this->socket;
+
+			this->socket = nullptr;
+		}
 	}
 
 	size_t Socket::availableBytes()
 	{
-		return this->socket.bytes_available();
+		return this->socket->bytes_available();
 	}
 
 	void Socket::send(Span sv)
 	{
-		this->socket.send(sv.data(), sv.size());
+		this->socket->send(sv.data(), sv.size());
 	}
 
 	void Socket::onReceive(std::function<RxCallbackFn>&& fn)
@@ -151,7 +160,7 @@ namespace ikura
 
 	void Socket::listen()
 	{
-		this->socket = kissnet::socket<>(
+		this->socket = new kissnet::socket<4>(
 			this->_ssl ? kissnet::protocol::tcp_ssl : kissnet::protocol::tcp,
 			kissnet::endpoint(this->_host, this->_port)
 		);
@@ -159,16 +168,16 @@ namespace ikura
 		if(this->timeout > 0ns)
 		{
 			auto micros = std::chrono::duration_cast<std::chrono::microseconds>(timeout).count();
-			this->socket.set_timeout(micros);
+			this->socket->set_timeout(micros);
 		}
 
-		this->socket.set_non_blocking(true);
+		this->socket->set_non_blocking(true);
 
 		int yes = 1;
-		setsockopt(this->socket.fd(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+		setsockopt(this->socket->fd(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 
-		this->socket.bind();
-		this->socket.listen();
+		this->socket->bind();
+		this->socket->listen();
 		this->is_connected = true;
 	}
 
@@ -180,7 +189,7 @@ namespace ikura
 			return nullptr;
 		}
 
-		auto fd = this->socket.fd();
+		auto fd = this->socket->fd();
 		auto fds = pollfd {
 			.fd     = fd,
 			.events = POLLIN
@@ -192,13 +201,13 @@ namespace ikura
 
 		if(fds.revents & POLLIN)
 		{
-			auto sock = this->socket.accept();
-			if(!sock.is_valid())
+			auto sock = new kissnet::socket<4>(this->socket->accept());
+			if(!sock->is_valid())
 				return nullptr;
 
-			sock.set_non_blocking(false);
-			sock.set_timeout(LOOP_PERIOD.count());
-			auto ret = new Socket(this->_host, this->_port, std::move(sock));
+			sock->set_non_blocking(false);
+			sock->set_timeout(LOOP_PERIOD.count());
+			auto ret = new Socket(this->_host, this->_port, sock);
 			ret->is_connected = true;
 			ret->setup_receiver();
 			return ret;

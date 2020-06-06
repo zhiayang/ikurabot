@@ -22,6 +22,9 @@ namespace ikura
 
 	struct Span;
 	struct Buffer;
+
+	template <typename T>
+	struct future;
 }
 
 namespace ikura

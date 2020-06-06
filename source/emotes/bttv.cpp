@@ -27,9 +27,9 @@ namespace ikura::twitch::bttv
 		return ce;
 	}
 
-	void updateGlobalEmotes(bool force, bool sync)
+	future<void> updateGlobalEmotes(bool force)
 	{
-		auto fut = dispatcher().run([](bool force) {
+		return dispatcher().run([](bool force) {
 			auto now = util::getMillisecondTimestamp();
 			auto last = database().rlock()->twitchData.globalBttvEmotes.lastUpdatedTimestamp;
 			auto interval = config::twitch::getEmoteAutoUpdateInterval();
@@ -62,66 +62,47 @@ namespace ikura::twitch::bttv
 			database().wlock()->twitchData.globalBttvEmotes.emotes = std::move(list);
 
 		}, force);
-
-		if(!sync)
-			fut.discard();
 	}
 
-	void updateChannelEmotes(ikura::str_view channelId, ikura::str_view channelName, bool force, bool sync)
+	future<void> updateChannelEmotes(const std::string& channelId, const std::string& channelName, bool force)
 	{
-		std::vector<future<void>> futs;
+		return dispatcher().run([](bool force, std::string chan_id, std::string chan_name) {
+			auto now = util::getMillisecondTimestamp();
+			auto last = database().rlock()->twitchData.channels.at(chan_name).bttvEmotes.lastUpdatedTimestamp;
+			auto interval = config::twitch::getEmoteAutoUpdateInterval();
 
-		// next, for each channel. again, extract it out to a temp vector so we don't
-		// lock the database excessively
-		std::vector<std::pair<std::string, std::string>> channelIds;
-		database().perform_read([&](auto& db) {
-			for(const auto& [ n, ch ] : db.twitchData.channels)
-				if(!ch.id.empty())
-					channelIds.emplace_back(ch.id, ch.name);
-		});
+			// zpr::println("chan: %d - %d", now, last);
+			if(!force && (interval == 0 || (now - last < interval)))
+				return;
 
-		for(const auto& [ id, name ] : channelIds)
-		{
-			futs.push_back(dispatcher().run([](bool force, std::string chan_id, std::string chan_name) {
-				auto now = util::getMillisecondTimestamp();
-				auto last = database().rlock()->twitchData.channels.at(chan_name).bttvEmotes.lastUpdatedTimestamp;
-				auto interval = config::twitch::getEmoteAutoUpdateInterval();
+			auto [ hdr, body ] = request::get(URL(zpr::sprint("%s/cached/users/twitch/%s", BTTV_API_URL, chan_id)));
+			if(auto st = hdr.statusCode(); st != 200 || body.empty())
+				return lg::error("bttv", "failed to fetch emotes for channel '%s' (error %d):\n%s", chan_name, st, body);
 
-				// zpr::println("chan: %d - %d", now, last);
-				if(!force && (interval == 0 || (now - last < interval)))
-					return;
+			auto res = util::parseJson(body);
+			if(!res)
+				return lg::error("bttv", "json response error: %s", res.error());
 
-				auto [ hdr, body ] = request::get(URL(zpr::sprint("%s/cached/users/twitch/%s", BTTV_API_URL, chan_id)));
-				if(auto st = hdr.statusCode(); st != 200 || body.empty())
-					return lg::error("bttv", "failed to fetch emotes for channel '%s' (error %d):\n%s", chan_name, st, body);
+			ikura::string_map<CachedEmote> list;
 
-				auto res = util::parseJson(body);
-				if(!res)
-					return lg::error("bttv", "json response error: %s", res.error());
+			auto& json = res.unwrap().as_obj();
+			for(const auto& e : json["channelEmotes"].as_arr())
+			{
+				auto x = e.as_obj();
+				auto n = x["code"].as_str();
+				list.emplace(n, construct_cached_emote(x["id"].as_str(), n));
+			}
 
-				ikura::string_map<CachedEmote> list;
+			for(const auto& e : json["sharedEmotes"].as_arr())
+			{
+				auto x = e.as_obj();
+				auto n = x["code"].as_str();
+				list.emplace(n, construct_cached_emote(x["id"].as_str(), n));
+			}
 
-				auto& json = res.unwrap().as_obj();
-				for(const auto& e : json["channelEmotes"].as_arr())
-				{
-					auto x = e.as_obj();
-					auto n = x["code"].as_str();
-					list.emplace(n, construct_cached_emote(x["id"].as_str(), n));
-				}
+			lg::log("bttv", "fetched %zu emotes for #%s", list.size(), chan_name);
+			database().wlock()->twitchData.channels[chan_name].bttvEmotes.update(std::move(list));
 
-				for(const auto& e : json["sharedEmotes"].as_arr())
-				{
-					auto x = e.as_obj();
-					auto n = x["code"].as_str();
-					list.emplace(n, construct_cached_emote(x["id"].as_str(), n));
-				}
-
-				lg::log("bttv", "fetched %zu emotes for #%s", list.size(), chan_name);
-				database().wlock()->twitchData.channels[chan_name].bttvEmotes.update(std::move(list));
-
-			}, force, channelId.str(), channelName.str()));
-		}
-
-		futures::wait(futs);
+		}, force, channelId, channelName);
 	}
 }

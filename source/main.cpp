@@ -49,20 +49,13 @@ int main(int argc, char** argv)
 	// start twitch and discord simultaneously since they like to be slow at
 	// network stuff.
 	if(ikura::config::haveTwitch())
-	{
-		ikura::dispatcher().run([]() {
-			ikura::twitch::init();
-		}).discard();
-	}
+		ikura::twitch::init();
 
 	// if(ikura::config::haveDiscord())
-	// {
-	// 	ikura::dispatcher().run([]() {
-	// 		ikura::discord::init();
-	// 	}).discard();
-	// }
+	// 	ikura::discord::init();
 
-	// ikura::twitch::bttv::updateGlobalEmotes(false);
+	// this just starts a worker thread that automatically refreshes the emotes
+	ikura::twitch::initEmotes();
 
 	// this just starts a worker thread to process input in the background.
 	ikura::markov::init();

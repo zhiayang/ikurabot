@@ -386,12 +386,6 @@ namespace kissnet
 		udp
 	};
 
-	///Represent ipv4 vs ipv6
-	enum class ip {
-		v4,
-		v6
-	};
-
 	///buffer is an array of std::byte
 	template <size_t buff_size>
 	using buffer = std::array<std::byte, buff_size>;
@@ -620,7 +614,7 @@ namespace kissnet
 	static Initialize_SSL InitializeSSL;
 
 	///Class that represent a socket
-	template <ip ipver = ip::v4>
+	template <size_t IpVer>
 	class socket
 	{
 		///Represent a number of bytes with a status information. Some of the methods of this class returns this.
@@ -659,15 +653,13 @@ namespace kissnet
 				iprotocol = IPPROTO_UDP;
 			}
 
-			if(ipver == ip::v4)
-			{
+			if constexpr (IpVer == 4)
 				family = AF_INET;
-			}
 
-			else if(ipver == ip::v6)
-			{
+			else if constexpr (IpVer == 6)
 				family = AF_INET6;
-			}
+
+
 
 			(void)memset(&getaddrinfo_hints, 0, sizeof getaddrinfo_hints);
 			getaddrinfo_hints.ai_family = family;

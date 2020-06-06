@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "types.h"
+#include "defs.h"
 
 namespace ikura::twitch
 {
@@ -36,14 +36,18 @@ namespace ikura::twitch
 		static constexpr uint8_t TYPE_TAG = serialise::TAG_CACHED_EMOTE_DB;
 	};
 
+
+	void initEmotes();
+
+
 	namespace bttv
 	{
-		void updateGlobalEmotes(bool force, bool sync);
-		void updateChannelEmotes(ikura::str_view channelId, bool force, bool sync);
+		future<void> updateGlobalEmotes(bool force);
+		future<void> updateChannelEmotes(const std::string& channelId, const std::string& channelName, bool force);
 	}
 
 	namespace ffz
 	{
-		void updateGlobalEmotes(bool force, bool sync);
+		future<void> updateChannelEmotes(const std::string& channelId, const std::string& channelName, bool force);
 	}
 }
