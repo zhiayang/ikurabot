@@ -4,15 +4,16 @@
 
 #pragma once
 
-#include "defs.h"
-#include "buffer.h"
 #include "markov.h"
 #include "twitch.h"
 #include "discord.h"
-#include "synchro.h"
 
 namespace ikura
 {
+	namespace twitch  { struct TwitchDB; }
+	namespace markov  { struct MarkovDB; }
+	namespace discord { struct DiscordDB; }
+
 	namespace db
 	{
 		struct DbInterpState : Serialisable
@@ -37,6 +38,9 @@ namespace ikura
 
 		struct GenericUser : Serialisable
 		{
+			GenericUser() { }
+			GenericUser(std::string id, Backend b) : id(std::move(id)), backend(b) { }
+
 			std::string id;
 			Backend backend;
 
@@ -52,6 +56,9 @@ namespace ikura
 			std::string name;
 			std::vector<GenericUser> members;
 
+			void addUser(const std::string& userid, Backend backend);
+			void removeUser(const std::string& userid, Backend backend);
+
 			virtual void serialise(Buffer& buf) const override;
 			static std::optional<Group> deserialise(Span& buf);
 
@@ -60,15 +67,24 @@ namespace ikura
 
 		struct SharedDB : Serialisable
 		{
-			ikura::string_map<Group> groups;
-
 			Group* getGroup(ikura::str_view name);
 			const Group* getGroup(ikura::str_view name) const;
+
+			Group* getGroup(uint64_t id);
+			const Group* getGroup(uint64_t id) const;
+
+			// returns true on success
+			bool addGroup(ikura::str_view name);
+			bool removeGroup(ikura::str_view name);
 
 			virtual void serialise(Buffer& buf) const override;
 			static std::optional<SharedDB> deserialise(Span& buf);
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_SHARED_DB;
+
+		private:
+			ikura::string_map<Group> groups;
+			tsl::robin_map<uint64_t, std::string> groupIds;
 		};
 
 		struct Database : Serialisable

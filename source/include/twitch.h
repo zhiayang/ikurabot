@@ -7,10 +7,12 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "defs.h"
+#include "emotes.h"
 #include "synchro.h"
 #include "network.h"
 #include "msgqueue.h"
+
+namespace ikura::config::twitch { struct Chan; }
 
 namespace ikura::twitch
 {
@@ -155,11 +157,17 @@ namespace ikura::twitch
 
 	struct TwitchChannel : Serialisable
 	{
+		std::string id;
+		std::string name;
+
 		// map from userid to user.
 		ikura::string_map<TwitchUser> knownUsers;
 
 		// map from username to userid
 		ikura::string_map<std::string> usernameMapping;
+
+		EmoteCacheDB ffzEmotes;
+		EmoteCacheDB bttvEmotes;
 
 		TwitchUser* getUser(ikura::str_view userid);
 		const TwitchUser* getUser(ikura::str_view userid) const;
@@ -175,6 +183,7 @@ namespace ikura::twitch
 		ikura::string_map<TwitchChannel> channels;
 
 		TwitchMessageLog messageLog;
+		EmoteCacheDB globalBttvEmotes;
 
 		const TwitchChannel* getChannel(ikura::str_view name) const;
 

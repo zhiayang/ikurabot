@@ -194,11 +194,11 @@ namespace ikura
 
 		std::string urlencode(ikura::str_view s);
 
-		Response get(const URL& url, const std::vector<Param>& params, const std::vector<Header>& headers);
+		Response get(const URL& url, const std::vector<Param>& params = { }, const std::vector<Header>& headers = { });
 
-		Response post(const URL& url, const std::vector<Param>& params, const std::vector<Header>& headers,
+		Response post(const URL& url, const std::vector<Param>& params = { }, const std::vector<Header>& headers = { },
 			const std::string& contentType = "", const std::string& body = "");
-		Response put(const URL& url, const std::vector<Param>& params, const std::vector<Header>& headers,
+		Response put(const URL& url, const std::vector<Param>& params = { }, const std::vector<Header>& headers = { },
 			const std::string& contentType = "", const std::string& body = "");
 	}
 }

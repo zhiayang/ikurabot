@@ -5,6 +5,7 @@
 #include "picojson.h"
 
 #include "defs.h"
+#include "config.h"
 #include "synchro.h"
 #include "discord.h"
 #include "network.h"
@@ -111,6 +112,7 @@ namespace ikura::discord
 	{
 		auto backoff = 500ms;
 
+		int retries = 0;
 		condvar<bool> didcon;
 
 	retry:
@@ -159,6 +161,11 @@ namespace ikura::discord
 		{
 			lg::error("discord", "connection failed (no hello)");
 			this->ws.disconnect();
+			if(++retries > CONNECT_RETRIES)
+			{
+				lg::error("discord", "too many failures, aborting");
+				return;
+			}
 
 			goto retry;
 		}
@@ -340,10 +347,7 @@ namespace ikura::discord
 		pj::parse(resp, res.begin(), res.end(), &err);
 
 		if(!err.empty())
-		{
-			lg::error("discord", "gateway json error: %s", err);
-			return;
-		}
+			return lg::error("discord", "gateway json error: %s", err);
 
 		auto obj = resp.as_obj();
 		auto url = obj["url"].as_str();
@@ -358,10 +362,8 @@ namespace ikura::discord
 		}
 		else if(rem == 0)
 		{
-			lg::error("discord", "connection rate limit reached (reset in %ld seconds)",
+			return lg::error("discord", "connection rate limit reached (reset in %ld seconds)",
 				limit["reset_after"].as_int());
-
-			return;
 		}
 		else
 		{

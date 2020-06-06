@@ -66,10 +66,7 @@ namespace ikura::twitch
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		TwitchMessage ret;
 
@@ -105,10 +102,7 @@ namespace ikura::twitch
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		TwitchMessageLog ret;
 		if(!rd.read(&ret.messages))

@@ -193,7 +193,7 @@ namespace ikura
 			while(data.size() > 0 && data[0] == ' ')
 				data.remove_prefix(1);
 
-			if(data.size() == 0 || data.find("\r\n") == 0)
+			if(data.size() == 0)
 				return std::nullopt;
 
 			auto vi = data.find("\r\n");

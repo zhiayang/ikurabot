@@ -16,6 +16,7 @@ namespace ikura
 		explicit timer(double* t) : out(t)  { start = hrc::now(); }
 		~timer()                            { if(out) *out = static_cast<double>((hrc::now() - start).count()) / 1000000.0; }
 		double measure()                    { return static_cast<double>((hrc::now() - start).count()) / 1000000.0; }
+		double reset()                      { auto ret = measure(); start = hrc::now(); return ret; }
 
 		double* out = 0;
 		std::chrono::time_point<hrc> start;

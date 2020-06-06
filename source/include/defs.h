@@ -10,6 +10,20 @@
 #include "zpr.h"
 #include "types.h"
 
+// forward decls
+namespace picojson { class value; }
+
+namespace ikura
+{
+	template <typename T>
+	struct Synchronised;
+
+	struct PermissionSet;
+
+	struct Span;
+	struct Buffer;
+}
+
 namespace ikura
 {
 	enum class Backend
@@ -19,60 +33,6 @@ namespace ikura
 		Twitch,
 		Discord,
 	};
-
-	namespace serialise
-	{
-		constexpr uint8_t TAG_U8                    = 0x01;
-		constexpr uint8_t TAG_U16                   = 0x02;
-		constexpr uint8_t TAG_U32                   = 0x03;
-		constexpr uint8_t TAG_U64                   = 0x04;
-		constexpr uint8_t TAG_S8                    = 0x05;
-		constexpr uint8_t TAG_S16                   = 0x06;
-		constexpr uint8_t TAG_S32                   = 0x07;
-		constexpr uint8_t TAG_S64                   = 0x08;
-		constexpr uint8_t TAG_STRING                = 0x09;
-		constexpr uint8_t TAG_STL_UNORD_MAP         = 0x0A;
-		constexpr uint8_t TAG_TSL_HASHMAP           = 0x0B;
-		constexpr uint8_t TAG_F32                   = 0x0C;
-		constexpr uint8_t TAG_F64                   = 0x0D;
-		constexpr uint8_t TAG_BOOL_TRUE             = 0x0E;
-		constexpr uint8_t TAG_BOOL_FALSE            = 0x0F;
-		constexpr uint8_t TAG_STL_VECTOR            = 0x10;
-		constexpr uint8_t TAG_STL_ORD_MAP           = 0x11;
-		constexpr uint8_t TAG_SMALL_U64             = 0x12;
-		constexpr uint8_t TAG_STL_PAIR              = 0x13;
-		constexpr uint8_t TAG_REL_STRING            = 0x14;
-
-		constexpr uint8_t TAG_TWITCH_DB             = 0x41;
-		constexpr uint8_t TAG_COMMAND_DB            = 0x42;
-		constexpr uint8_t TAG_TWITCH_USER           = 0x43;
-		constexpr uint8_t TAG_COMMAND               = 0x44;
-		constexpr uint8_t TAG_INTERP_STATE          = 0x45;
-		constexpr uint8_t TAG_MACRO                 = 0x46;
-		constexpr uint8_t TAG_FUNCTION              = 0x47;
-		constexpr uint8_t TAG_INTERP_VALUE          = 0x48;
-		constexpr uint8_t TAG_SHARED_DB             = 0x49;
-		constexpr uint8_t TAG_TWITCH_CHANNEL        = 0x4A;
-		constexpr uint8_t TAG_MARKOV_DB             = 0x4B;
-		constexpr uint8_t TAG_MARKOV_WORD_LIST      = 0x4C;
-		constexpr uint8_t TAG_MARKOV_WORD           = 0x4D;
-		constexpr uint8_t TAG_TWITCH_LOG            = 0x4E;
-		constexpr uint8_t TAG_TWITCH_LOG_MSG        = 0x4F;
-		constexpr uint8_t TAG_MESSAGE_DB            = 0x50;
-		constexpr uint8_t TAG_MARKOV_STORED_WORD    = 0x51;
-		constexpr uint8_t TAG_DISCORD_DB            = 0x52;
-		constexpr uint8_t TAG_DISCORD_GUILD         = 0x53;
-		constexpr uint8_t TAG_DISCORD_CHANNEL       = 0x54;
-		constexpr uint8_t TAG_DISCORD_USER          = 0x55;
-		constexpr uint8_t TAG_DISCORD_ROLE          = 0x56;
-		constexpr uint8_t TAG_PERMISSION_SET        = 0x57;
-		constexpr uint8_t TAG_GROUP                 = 0x58;
-		constexpr uint8_t TAG_GENERIC_USER          = 0x59;
-
-		// if the byte has 0x80 set, then the lower 7 bits represents a truncated 64-bit number. it's a further
-		// extension of the SMALL_U64 thing, but literally only uses 1 byte for sizes between 0 - 127
-		constexpr uint8_t TAG_TINY_U64              = 0x80;
-	}
 
 	namespace permissions
 	{
@@ -88,62 +48,6 @@ namespace ikura
 	namespace console
 	{
 		void init();
-	}
-
-	namespace config
-	{
-		bool load(ikura::str_view path);
-
-		bool haveTwitch();
-		bool haveDiscord();
-
-		namespace twitch
-		{
-			struct Chan
-			{
-				std::string name;
-				bool lurk;
-				bool mod;
-				bool respondToPings;
-				bool silentInterpErrors;
-				std::string commandPrefix;
-			};
-
-			std::string getOwner();
-			std::string getUsername();
-			std::string getOAuthToken();
-			std::vector<Chan> getJoinChannels();
-			std::vector<std::string> getIgnoredUsers();
-			bool isUserIgnored(ikura::str_view id);
-		}
-
-		namespace discord
-		{
-			struct Guild
-			{
-				std::string id;
-				bool lurk;
-				bool respondToPings;
-				bool silentInterpErrors;
-				std::string commandPrefix;
-			};
-
-			std::string getUsername();
-			std::string getOAuthToken();
-			std::vector<Guild> getJoinGuilds();
-			ikura::discord::Snowflake getUserId();
-			std::vector<ikura::discord::Snowflake> getIgnoredUserIds();
-			bool isUserIgnored(ikura::discord::Snowflake userid);
-		}
-
-		namespace global
-		{
-			int getConsolePort();
-			bool stripMentionsFromMarkov();
-
-			size_t getMinMarkovLength();
-			size_t getMaxMarkovRetries();
-		}
 	}
 
 	namespace unicode
@@ -212,6 +116,8 @@ namespace ikura
 
 		std::optional<int64_t>  stoi(ikura::str_view s, int base = 10);
 		std::optional<uint64_t> stou(ikura::str_view s, int base = 10);
+
+		Result<picojson::value> parseJson(ikura::str_view json);
 	}
 
 	namespace lg
@@ -246,12 +152,26 @@ namespace ikura
 			__generic_log(1, sys, fmt, args...);
 		}
 
+		template <typename... Args>
+		static void error(ikura::str_view sys, const std::string& fmt, Args&&... args)
+		{
+			__generic_log(2, sys, fmt, args...);
+		}
+
 		// for convenience, this returns false.
 		template <typename... Args>
-		static bool error(ikura::str_view sys, const std::string& fmt, Args&&... args)
+		static bool error_b(ikura::str_view sys, const std::string& fmt, Args&&... args)
 		{
 			__generic_log(2, sys, fmt, args...);
 			return false;
+		}
+
+		// for convenience, this returns false.
+		template <typename... Args>
+		static std::nullopt_t error_o(ikura::str_view sys, const std::string& fmt, Args&&... args)
+		{
+			__generic_log(2, sys, fmt, args...);
+			return std::nullopt;
 		}
 
 		template <typename... Args>
@@ -343,31 +263,6 @@ namespace ikura
 			return *this;
 		}
 		Message& add(const Emote& emote) { fragments.emplace_back(emote); return *this; }
-	};
-
-	struct PermissionSet : Serialisable
-	{
-		uint64_t flags = 0;     // see defs.h/ikura::permissions
-		std::vector<uint64_t> whitelist;
-		std::vector<uint64_t> blacklist;
-
-		std::vector<discord::Snowflake> role_whitelist;
-		std::vector<discord::Snowflake> role_blacklist;
-
-		bool check(uint64_t flags, const std::vector<uint64_t>& groups, const std::vector<discord::Snowflake>& discordRoles) const;
-
-		static PermissionSet fromFlags(uint64_t f)
-		{
-			PermissionSet ret;
-			ret.flags = f;
-
-			return ret;
-		}
-
-		virtual void serialise(Buffer& buf) const override;
-		static std::optional<PermissionSet> deserialise(Span& buf);
-
-		static constexpr uint8_t TYPE_TAG = serialise::TAG_PERMISSION_SET;
 	};
 
 	struct Channel

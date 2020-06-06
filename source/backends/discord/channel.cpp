@@ -2,7 +2,11 @@
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
 
+#include "db.h"
 #include "defs.h"
+#include "perms.h"
+#include "async.h"
+#include "config.h"
 #include "discord.h"
 #include "picojson.h"
 
@@ -36,7 +40,19 @@ namespace ikura::discord
 
 	bool Channel::checkUserPermissions(ikura::str_view userid, const PermissionSet& required) const
 	{
-		return false;
+		if(Snowflake(userid) == config::discord::getOwner())
+			return true;
+
+		return database().map_read([&](auto& db) {
+			// mfw "const correctness", so we can't use operator[]
+			auto guild = this->getGuild();
+			if(!guild) { lg::warn("discord", "no guild"); return false; }
+
+			auto user = guild->getUser(Snowflake(userid));
+			if(!user) { lg::warn("discord", "no user"); return false; }
+
+			return required.check(user->permissions, user->groups, user->discordRoles);
+		});
 	}
 
 	void Channel::sendMessage(const Message& msg) const
@@ -68,22 +84,23 @@ namespace ikura::discord
 				str += ' ';
 		}
 
+		dispatcher().run([=]() {
+			auto body = pj::value(std::map<std::string, pj::value> {
+				{ "content", pj::value(str) }
+			});
 
-		auto body = pj::value(std::map<std::string, pj::value> {
-			{ "content", pj::value(str) }
-		});
+			// why tf i need to send http for messages
+			auto [ hdr, res ] = request::post(URL(zpr::sprint("%s/v%d/channels/%s/messages",
+				DiscordState::API_URL, DiscordState::API_VERSION, this->channelId.str())),
+				{ /* no params */ }, {
+					request::Header("Authorization", zpr::sprint("Bot %s", config::discord::getOAuthToken())),
+					request::Header("User-Agent", "DiscordBot (https://github.com/zhiayang/ikurabot, 0.1.0)"),
+				},
+				"application/json", body.serialise()
+			);
 
-		// why tf i need to send http for messages
-		auto [ hdr, res ] = request::post(URL(zpr::sprint("%s/v%d/channels/%s/messages",
-			DiscordState::API_URL, DiscordState::API_VERSION, this->channelId.str())),
-			{ /* no params */ }, {
-				request::Header("Authorization", zpr::sprint("Bot %s", config::discord::getOAuthToken())),
-				request::Header("User-Agent", "DiscordBot (https://github.com/zhiayang/ikurabot, 0.1.0)"),
-			},
-			"application/json", body.serialise()
-		);
-
-		if(hdr.statusCode() != 200)
-			lg::error("discord", "send error %d: %s", hdr.statusCode(), res);
+			if(hdr.statusCode() != 200)
+				lg::error("discord", "send error %d: %s", hdr.statusCode(), res);
+		}).discard();
 	}
 }

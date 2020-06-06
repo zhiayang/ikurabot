@@ -35,10 +35,10 @@ namespace ikura::discord
 			return error("expected string for 't'");
 
 		auto seq = s.as_int();
-		if(seq != this->sequence + 1)
-			lg::warn("discord", "out-of-order sequence (expected %ld, got %ld)", this->sequence + 1, seq);
+		if(seq < this->sequence)
+			lg::warn("discord", "outdated sequence (current %ld, received %ld)", this->sequence, seq);
 
-		this->sequence = seq;
+		this->sequence = std::max(seq, this->sequence);
 
 		auto type = t.as_str();
 		if(type == "GUILD_CREATE")
@@ -49,7 +49,7 @@ namespace ikura::discord
 		{
 			this->processMessage(msg["d"].as_obj());
 
-			zpr::println("%s", pj::value(msg).serialise(true));
+			// zpr::println("%s", pj::value(msg).serialise(true));
 		}
 		else if(type == "READY")
 		{
@@ -57,7 +57,8 @@ namespace ikura::discord
 		}
 		else
 		{
-			lg::log("discord", "ignoring message type '%s'", type);
+			lg::warn("discord", "ignoring message type '%s'", type);
+			zpr::println("%s", pj::value(msg).serialise(true));
 		}
 	}
 }

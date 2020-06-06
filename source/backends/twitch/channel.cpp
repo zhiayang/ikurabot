@@ -5,6 +5,7 @@
 #include "db.h"
 #include "cmd.h"
 #include "defs.h"
+#include "config.h"
 #include "twitch.h"
 
 namespace ikura::twitch

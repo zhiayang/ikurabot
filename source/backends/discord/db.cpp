@@ -42,6 +42,35 @@ namespace ikura::discord
 	}
 
 
+	DiscordRole* DiscordGuild::getRole(ikura::str_view name)
+	{
+		if(auto it = this->roleNames.find(name); it != this->roleNames.end())
+			return &this->roles[it->second];
+
+		return nullptr;
+	}
+
+	const DiscordRole* DiscordGuild::getRole(ikura::str_view name) const
+	{
+		return const_cast<DiscordGuild*>(this)->getRole(name);
+	}
+
+
+	DiscordUser* DiscordGuild::getUser(Snowflake id)
+	{
+		if(auto it = this->knownUsers.find(id); it != this->knownUsers.end())
+			return &it.value();
+
+		return nullptr;
+	}
+
+	const DiscordUser* DiscordGuild::getUser(Snowflake id) const
+	{
+		return const_cast<DiscordGuild*>(this)->getUser(id);
+	}
+
+
+
 
 
 	void DiscordDB::serialise(Buffer& buf) const
@@ -56,10 +85,7 @@ namespace ikura::discord
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		DiscordDB ret;
 
@@ -81,16 +107,15 @@ namespace ikura::discord
 		wr.write(this->name);
 		wr.write(this->roles);
 		wr.write(this->channels);
+		wr.write(this->knownUsers);
+		wr.write(this->emotes);
 	}
 
 	std::optional<DiscordGuild> DiscordGuild::deserialise(Span& buf)
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		DiscordGuild ret;
 
@@ -105,6 +130,21 @@ namespace ikura::discord
 
 		if(!rd.read(&ret.channels))
 			return { };
+
+		if(!rd.read(&ret.knownUsers))
+			return { };
+
+		if(!rd.read(&ret.emotes))
+			return { };
+
+		for(auto it = ret.roles.begin(); it != ret.roles.end(); ++it)
+			ret.roleNames[it->second.name] = it->second.id;
+
+		for(auto it = ret.knownUsers.begin(); it != ret.knownUsers.end(); ++it)
+			ret.usernameMap[it->second.username] = it->second.id;
+
+		for(auto it = ret.knownUsers.begin(); it != ret.knownUsers.end(); ++it)
+			ret.nicknameMap[it->second.nickname] = it->second.id;
 
 		return ret;
 	}
@@ -126,10 +166,7 @@ namespace ikura::discord
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		DiscordChannel ret;
 
@@ -162,10 +199,7 @@ namespace ikura::discord
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		DiscordUser ret;
 
@@ -207,10 +241,7 @@ namespace ikura::discord
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		DiscordRole ret;
 

@@ -7,6 +7,7 @@
 #include "ast.h"
 #include "timer.h"
 #include "markov.h"
+#include "synchro.h"
 
 namespace ikura::interp
 {
@@ -166,6 +167,7 @@ namespace ikura::cmd
 		ret["undef"]    = PermissionSet::fromFlags(p_admin);
 		ret["list"]     = PermissionSet::fromFlags(p_known);
 		ret["usermod"]  = PermissionSet::fromFlags(p_admin);
+		ret["showmod"]  = PermissionSet::fromFlags(p_admin);
 		ret["groupadd"] = PermissionSet::fromFlags(p_admin);
 		ret["groupdel"] = PermissionSet::fromFlags(p_admin);
 		ret["show"]     = PermissionSet::fromFlags(perms::EVERYONE);

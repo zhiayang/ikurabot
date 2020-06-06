@@ -9,8 +9,8 @@
 #include <memory>
 #include <complex>
 
-#include "buffer.h"
-#include "synchro.h"
+#include "defs.h"
+#include "perms.h"
 
 namespace ikura
 {

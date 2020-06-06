@@ -7,6 +7,7 @@
 #include "cmd.h"
 #include "defs.h"
 #include "timer.h"
+#include "config.h"
 #include "discord.h"
 
 #include "picojson.h"
@@ -32,7 +33,6 @@ namespace ikura::discord
 
 		auto& guild  = get_guild(Snowflake(json["guild_id"].as_str()));
 		auto& chan   = guild.channels[Snowflake(json["channel_id"].as_str())];
-
 		auto& author = update_user(guild, json);
 
 		// check for self
@@ -49,13 +49,6 @@ namespace ikura::discord
 
 		auto msg = json["content"].as_str();
 
-		// here's the deal -- we don't want to keep a list of all users in the discord,
-		// we just wanna lazily populate that.
-
-
-
-
-
 		// only process commands if we're not lurking
 		bool ran_cmd = false;
 		if(!this->channels[chan.id].lurk)
@@ -71,7 +64,6 @@ namespace ikura::discord
 	void update_guild(DiscordState* st, pj::object json)
 	{
 		auto id = Snowflake(json["id"].as_str());
-		zpr::println("guild %d", id.value);
 
 		database().perform_write([&](auto& db) {
 			auto& guild = db.discordData.guilds[id];
@@ -127,10 +119,48 @@ namespace ikura::discord
 
 				guild.emotes[j["name"].as_str()] = { Snowflake(j["id"].as_str()), j["animated"].as_bool() };
 			}
+
+			lg::log("discord", "updated guild %s", guild.name);
 		});
 	}
 
 
+
+	std::optional<Snowflake> parseMention(ikura::str_view str, size_t* consumed)
+	{
+		/*
+			valid things:
+			<@ID>       -- user
+			<@!ID>      -- user (but nickname)
+			<@&ID>      -- role
+			<#ID>       -- channel
+		*/
+
+		size_t k = 1;
+		if(str.find("<@!") == 0 || str.find("<@&") == 0)
+			k = 3;
+
+		else if(str.find("<@") == 0 || str.find("<#") == 0)
+			k = 2;
+
+		else
+			return { };
+
+		auto i = k;
+		while(i < str.size())
+		{
+			if(!('0' <= str[i] && str[i] <= '9'))
+			{
+				if(str[i] == '>')   break;
+				else                return { };
+			}
+
+			i++;
+		}
+
+		if(consumed) *consumed = i + 1;
+		return Snowflake(str.substr(k, i - k));
+	}
 
 
 	static std::pair<std::string, std::vector<ikura::relative_str>> preprocess_discord_message(ikura::str_view msg, DiscordGuild& guild)
@@ -207,21 +237,13 @@ namespace ikura::discord
 				}
 				else
 				{
-					size_t k = 1;
-					if(msg.find("<@!") == 0 || msg.find("<@&") == 0)
-						k = 3;
+					size_t cons = 0;
+					auto id_ = parseMention(msg, &cons);
 
-					else if(msg.find("<@") == 0 || msg.find("<#") == 0)
-						k = 2;
-
-					else
+					if(!id_.has_value())
 						goto normal;
 
-					auto i = k;
-					if(!loop_fn(msg, i, is_digit, '>'))
-						goto normal;
-
-					auto id = Snowflake(msg.substr(k, i - k));
+					auto id = id_.value();
 
 					if(!was_space)
 						output += ' ';
@@ -231,10 +253,20 @@ namespace ikura::discord
 					else if(msg.find("<@!") == 0)   output += guild.knownUsers[id].nickname;
 					else if(msg.find("<@") == 0)    output += guild.knownUsers[id].username;
 
-					msg.remove_prefix(i + 1);
+					msg.remove_prefix(cons);
 
 					if(msg.size() > 0 && msg[0] != ' ' && msg[0] != '\t')
 						output += ' ';
+				}
+			}
+			else if(msg[0] == '\\')
+			{
+				msg.remove_prefix(1);
+
+				if(msg.size() > 0)
+				{
+					output += msg[0];
+					msg.remove_prefix(1);
 				}
 			}
 			else
@@ -269,11 +301,16 @@ namespace ikura::discord
 		auto id = Snowflake(j_author["id"].as_str());
 		auto& user = guild.knownUsers[id];
 
+		auto old_username = user.username;
+		auto old_nickname = user.nickname;
+
 		user.username = j_author["username"].as_str();
 		user.nickname = (j_member["nick"].is_null()
 			? user.username
 			: j_member["nick"].as_str()
 		);
+
+		user.permissions |= permissions::EVERYONE;
 
 		if(user.id.empty())
 		{
@@ -281,6 +318,16 @@ namespace ikura::discord
 
 			lg::log("discord", "adding (nick: %s, user: %s, id: %s) to guild '%s'",
 				user.nickname, user.username, id.str(), guild.name);
+		}
+		else if(!old_username.empty() && old_username != user.username)
+		{
+			guild.usernameMap.erase(old_username);
+			lg::log("discord", "username changed; old: %s, new: %s", old_username, user.username);
+		}
+		else if(!old_nickname.empty() && old_nickname != user.nickname)
+		{
+			guild.nicknameMap.erase(old_nickname);
+			lg::log("discord", "nickname changed; old: %s, new: %s", old_nickname, user.nickname);
 		}
 		else if(user.id != id)
 		{
@@ -292,6 +339,9 @@ namespace ikura::discord
 		user.discordRoles = zfu::map(j_member["roles"].as_arr(), [](auto& o) -> auto {
 			return Snowflake(o.as_str());
 		});
+
+		guild.usernameMap[user.username] = user.id;
+		guild.nicknameMap[user.nickname] = user.id;
 
 		return user;
 	}

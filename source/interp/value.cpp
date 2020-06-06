@@ -4,6 +4,7 @@
 
 #include "zfu.h"
 #include "cmd.h"
+#include "synchro.h"
 #include "serialise.h"
 
 namespace ikura::interp
@@ -311,13 +312,11 @@ namespace ikura::interp
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		auto tmp = Type::deserialise(buf);
-		if(!tmp) { lg::error("db", "failed to deser type"); return { }; }
+		if(!tmp)
+			return lg::error_o("db", "failed to deser type");
 
 		auto type = tmp.value();
 
@@ -384,8 +383,7 @@ namespace ikura::interp
 		}
 		else
 		{
-			lg::error("db", "invalid value type");
-			return { };
+			return lg::error_o("db", "invalid value type");
 		}
 	}
 }

@@ -65,6 +65,9 @@ namespace ikura::discord
 
 		virtual void sendMessage(const Message& msg) const override;
 
+		DiscordGuild* getGuild() { return this->guild; }
+		const DiscordGuild* getGuild() const { return this->guild; }
+
 	private:
 		DiscordGuild* guild = nullptr;
 		Snowflake channelId;
@@ -120,6 +123,8 @@ namespace ikura::discord
 
 	struct QueuedMsg;
 	MessageQueue<discord::QueuedMsg>& mqueue();
+
+	std::optional<Snowflake> parseMention(ikura::str_view str, size_t* consumed);
 
 	struct DiscordUser : Serialisable
 	{
@@ -178,6 +183,16 @@ namespace ikura::discord
 
 		// { id, is_animated }
 		ikura::string_map<std::pair<Snowflake, bool>> emotes;
+
+		ikura::string_map<Snowflake> roleNames;
+		ikura::string_map<Snowflake> usernameMap;
+		ikura::string_map<Snowflake> nicknameMap;
+
+		DiscordRole* getRole(ikura::str_view name);
+		const DiscordRole* getRole(ikura::str_view name) const;
+
+		DiscordUser* getUser(Snowflake id);
+		const DiscordUser* getUser(Snowflake id) const;
 
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<DiscordGuild> deserialise(Span& buf);

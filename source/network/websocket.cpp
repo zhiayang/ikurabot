@@ -83,10 +83,7 @@ namespace ikura
 	bool WebSocket::connect()
 	{
 		if(!this->conn.connect())
-		{
-			lg::error("ws", "connection failed (underlying socket)");
-			return false;
-		}
+			return lg::error_b("ws", "connection failed (underlying socket)");
 
 		auto path = this->url.resource();
 		auto http = HttpHeaders(zpr::sprint("GET %s%s%s HTTP/1.1",
@@ -147,15 +144,13 @@ namespace ikura
 		if(!cv.wait(true, DEFAULT_TIMEOUT))
 		{
 			this->conn.disconnect();
-			lg::error("ws", "connection timed out (while waiting for websocket upgrade reply)");
-			return false;
+			return lg::error_b("ws", "connection timed out (while waiting for websocket upgrade reply)");
 		}
 
 		if(!success)
 		{
 			this->conn.disconnect();
-			lg::error("ws", "websocket upgrade failed");
-			return false;
+			return lg::error_b("ws", "websocket upgrade failed");
 		}
 
 		// setup the handler.
@@ -285,10 +280,7 @@ namespace ikura
 	void WebSocket::send_raw(uint8_t opcode, bool fin, Buffer&& payload)
 	{
 		if((opcode & 0xF0) != 0 || opcode >= 0x0B)
-		{
-			lg::error("ws", "invalid opcode '%x', opcode");
-			return;
-		}
+			return lg::error("ws", "invalid opcode '%x', opcode");
 
 		// first calculate the size of the frame header. (including the mask)
 		size_t hdrsz = sizeof(raw_frame_t) + sizeof(uint32_t);

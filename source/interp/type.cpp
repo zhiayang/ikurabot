@@ -232,7 +232,6 @@ namespace ikura::interp
 			return Type::get_map(k.value(), v.value());
 		}
 
-		lg::error("db", "invalid type '%x'", t);
-		return { };
+		return lg::error_o("db", "invalid type '%x'", t);
 	}
 }

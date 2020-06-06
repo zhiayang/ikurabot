@@ -65,6 +65,11 @@ small dependencies are included in this repo (under the `external` folder), unde
     // commands, regardless of their badges in the deployed channel
     "owner": "kami_sama",
 
+    // the interval, in SECONDS, at which to refresh global and channel emotes
+    // from BTTV and FFZ. this is taken into account on bot startup as well.
+    // (ie. frequently restarting the bot won't spam their API)
+    "bttv_ffz_autorefresh_interval": 900,
+
     // a list of channel objects
     "channels": [
       {

@@ -304,6 +304,7 @@ namespace ikura::interp::ast
 					if(lhs.is_integer() && rhs.is_complex())    return (double) lhs.get_integer() == rhs.get_complex();
 					if(lhs.is_complex() && rhs.is_complex())    return lhs.get_complex() == rhs.get_complex();
 					if(lhs.is_list() && rhs.is_list())          return lhs.get_list() == rhs.get_list();
+					if(lhs.is_char() && rhs.is_char())          return lhs.get_char() == rhs.get_char();
 					if(lhs.is_bool() && rhs.is_bool())          return lhs.get_bool() == rhs.get_bool();
 					if(lhs.is_map() && rhs.is_map())            return lhs.get_map() == rhs.get_map();
 					if(lhs.is_void() && rhs.is_void())          return true;

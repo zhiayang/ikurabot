@@ -4,8 +4,11 @@
 
 #include "db.h"
 #include "rate.h"
+#include "async.h"
+#include "config.h"
 #include "twitch.h"
 #include "network.h"
+#include "picojson.h"
 
 using namespace std::chrono_literals;
 
@@ -103,6 +106,41 @@ namespace ikura::twitch
 		{
 			this->channels.emplace(cfg.name, Channel(this, cfg.name, cfg.lurk,
 				cfg.mod, cfg.respondToPings, cfg.silentInterpErrors, cfg.commandPrefix));
+
+			database().wlock()->twitchData.channels[cfg.name].name = cfg.name;
+
+			dispatcher().run([=]() -> std::string {
+
+				// TODO: this is hardcoded!
+				auto [ hdr, res ] = request::get(URL("https://api.twitch.tv/helix/users"),
+					{ request::Param("login", cfg.name) },
+					{
+						request::Header("Authorization", zpr::sprint("Bearer %s", config::twitch::getOAuthToken())),
+						request::Header("Client-Id", "q6batx0epp608isickayubi39itsckt"),
+					}
+				);
+
+				if(hdr.statusCode() != 200 || res.empty())
+				{
+					lg::error("twitch", "get user id failed (for '%s'):\n%s", cfg.name, res);
+					return "";
+				}
+
+				return res;
+			}).then([](const std::string& msg) {
+
+				auto res = util::parseJson(msg);
+				if(!res)
+					return lg::error("twitch", "response json error: %s", res.error());
+
+				auto& json = res.unwrap();
+				auto id = json.as_obj()["data"].as_arr()[0].as_obj()["id"].as_str();
+				auto name = json.as_obj()["data"].as_arr()[0].as_obj()["login"].as_str();
+
+				database().wlock()->twitchData.channels[name].id = id;
+				lg::log("twitch", "#%s -> id %s", name, id);
+
+			}).discard();
 		}
 	}
 

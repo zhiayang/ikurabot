@@ -10,6 +10,7 @@
 #include "db.h"
 #include "cmd.h"
 #include "defs.h"
+#include "config.h"
 #include "interp.h"
 #include "twitch.h"
 #include "markov.h"

@@ -15,6 +15,7 @@
 #include <sys/types.h>
 
 #include "defs.h"
+#include "picojson.h"
 
 namespace ikura
 {
@@ -54,6 +55,15 @@ namespace ikura
 
 	namespace util
 	{
+		Result<pj::value> parseJson(ikura::str_view str)
+		{
+			pj::value json; std::string err;
+			pj::parse(json, str.begin(), str.end(), &err);
+			if(!err.empty()) return err;
+
+			return json;
+		}
+
 		std::string lowercase(ikura::str_view s)
 		{
 			std::string ret; ret.reserve(s.size());
@@ -197,7 +207,7 @@ namespace ikura
 
 		uint64_t getMillisecondTimestamp()
 		{
-			return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+			return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 		}
 
 

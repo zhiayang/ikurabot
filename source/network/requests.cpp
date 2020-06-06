@@ -69,6 +69,8 @@ namespace ikura::request
 			if(!_hdrs.has_value())
 				return;
 
+			// zpr::println("buf:\n%s", buf.span().sv());
+
 			// ok, we got the headers.
 			auto hdrs = _hdrs.value();
 			if(auto len = hdrs.get("content-length"); contentLength == 0 && !len.empty())
@@ -135,8 +137,7 @@ namespace ikura::request
 		if(!cv.wait(true, DEFAULT_TIMEOUT))
 		{
 			sock->disconnect();
-			lg::error("http", "request timed out");
-			return { };
+			return lg::error_o("http", "request timed out");
 		}
 
 		sock->onReceive([](auto) { });
@@ -168,7 +169,7 @@ namespace ikura::request
 		for(const auto& h : headers)
 			hdr.add(h.name, h.value);
 
-		zpr::println("req: %s", hdr.status());
+		// zpr::println("req: %s", hdr.status());
 
 		if(body.size() > 0)
 		{

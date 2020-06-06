@@ -587,7 +587,9 @@ namespace kissnet
 		Initialize_SSL()
 		{
 #if OPENSSL_VERSION_NUMBER < 0x1010001FL
+			ERR_load_crypto_strings();
 			SSL_load_error_strings();
+
 			SSL_library_init();
 #else
 			OPENSSL_init_ssl(
@@ -896,18 +898,47 @@ namespace kissnet
 					return false;
 				}
 
-				auto* pMethod = TLSv1_2_client_method();
+				// auto* pMethod = TLSv1_2_client_method();
+				auto* pMethod = TLS_client_method();
 
 				pContext = SSL_CTX_new(pMethod);
 				pSSL = SSL_new(pContext);
 				if(!pSSL)
+				{
+					fprintf(stderr, "failed to allocate ssl: %s\n", strerror(errno));
 					return false;
+				}
 
+				SSL_set_min_proto_version(pSSL, TLS1_VERSION);
+				SSL_set_max_proto_version(pSSL, TLS1_2_VERSION);
 				if(!(static_cast<bool>(SSL_set_fd(pSSL, sock))))
+				{
+					fprintf(stderr, "failed to set ssl fd: %s\n", strerror(errno));
 					return false;
+				}
 
-				if(SSL_connect(pSSL) != 1)
+				SSL_set_tlsext_host_name(pSSL, this->bind_loc.address.c_str());
+
+				if(auto e = SSL_connect(pSSL); e != 1)
+				{
+					auto se = SSL_get_error(pSSL, e);
+					fprintf(stderr, "failed to connect ssl: %d\n", se);
+
+					if(se == SSL_ERROR_SSL)
+					{
+						auto err = ERR_get_error();
+						char msg[1024] = { };
+						ERR_error_string_n(err, msg, sizeof(msg));
+
+						fprintf(stderr, "errors: %s | %s | %s | %s\n", msg,
+							ERR_lib_error_string(err),
+							ERR_func_error_string(err),
+							ERR_reason_error_string(err)
+						);
+					}
+
 					return false;
+				}
 
 				return true;
 			}

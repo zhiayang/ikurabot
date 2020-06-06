@@ -109,6 +109,23 @@ namespace ikura
 			else                return Result<T, E>(err);
 		}
 
+	#if 0
+		// dumb stuff
+		template <size_t I> decltype(auto) get() const
+		{
+			if constexpr (I == 0)       return (this->val); // parens here force a reference
+			else if constexpr (I == 1)  return (this->err);
+			else if constexpr (I == 2)  return (this->state == STATE_VAL);
+		}
+
+		template <size_t I> decltype(auto) get()
+		{
+			if constexpr (I == 0)       return (this->val); // parens here force a reference
+			else if constexpr (I == 1)  return (this->err);
+			else if constexpr (I == 2)  return (this->state == STATE_VAL);
+		}
+	#endif
+
 	private:
 		// 0 = schrodinger -- no error, no value.
 		// 1 = valid
@@ -381,10 +398,10 @@ namespace ikura
 		struct Snowflake : Serialisable
 		{
 			Snowflake() : value(0) { }
-			Snowflake(uint64_t x) : value(x) { }
+			explicit Snowflake(uint64_t x) : value(x) { }
 
-			Snowflake(const std::string& s);
-			Snowflake(ikura::str_view sv);
+			explicit Snowflake(const std::string& s);
+			explicit Snowflake(ikura::str_view sv);
 
 			uint64_t value;
 
@@ -397,6 +414,64 @@ namespace ikura
 			virtual void serialise(Buffer& buf) const override;
 			static std::optional<Snowflake> deserialise(Span& buf);
 		};
+	}
+
+
+
+	namespace serialise
+	{
+		constexpr uint8_t TAG_U8                    = 0x01;
+		constexpr uint8_t TAG_U16                   = 0x02;
+		constexpr uint8_t TAG_U32                   = 0x03;
+		constexpr uint8_t TAG_U64                   = 0x04;
+		constexpr uint8_t TAG_S8                    = 0x05;
+		constexpr uint8_t TAG_S16                   = 0x06;
+		constexpr uint8_t TAG_S32                   = 0x07;
+		constexpr uint8_t TAG_S64                   = 0x08;
+		constexpr uint8_t TAG_STRING                = 0x09;
+		constexpr uint8_t TAG_STL_UNORD_MAP         = 0x0A;
+		constexpr uint8_t TAG_TSL_HASHMAP           = 0x0B;
+		constexpr uint8_t TAG_F32                   = 0x0C;
+		constexpr uint8_t TAG_F64                   = 0x0D;
+		constexpr uint8_t TAG_BOOL_TRUE             = 0x0E;
+		constexpr uint8_t TAG_BOOL_FALSE            = 0x0F;
+		constexpr uint8_t TAG_STL_VECTOR            = 0x10;
+		constexpr uint8_t TAG_STL_ORD_MAP           = 0x11;
+		constexpr uint8_t TAG_SMALL_U64             = 0x12;
+		constexpr uint8_t TAG_STL_PAIR              = 0x13;
+		constexpr uint8_t TAG_REL_STRING            = 0x14;
+
+		constexpr uint8_t TAG_TWITCH_DB             = 0x41;
+		constexpr uint8_t TAG_COMMAND_DB            = 0x42;
+		constexpr uint8_t TAG_TWITCH_USER           = 0x43;
+		constexpr uint8_t TAG_COMMAND               = 0x44;
+		constexpr uint8_t TAG_INTERP_STATE          = 0x45;
+		constexpr uint8_t TAG_MACRO                 = 0x46;
+		constexpr uint8_t TAG_FUNCTION              = 0x47;
+		constexpr uint8_t TAG_INTERP_VALUE          = 0x48;
+		constexpr uint8_t TAG_SHARED_DB             = 0x49;
+		constexpr uint8_t TAG_TWITCH_CHANNEL        = 0x4A;
+		constexpr uint8_t TAG_MARKOV_DB             = 0x4B;
+		constexpr uint8_t TAG_MARKOV_WORD_LIST      = 0x4C;
+		constexpr uint8_t TAG_MARKOV_WORD           = 0x4D;
+		constexpr uint8_t TAG_TWITCH_LOG            = 0x4E;
+		constexpr uint8_t TAG_TWITCH_LOG_MSG        = 0x4F;
+		constexpr uint8_t TAG_MESSAGE_DB            = 0x50;
+		constexpr uint8_t TAG_MARKOV_STORED_WORD    = 0x51;
+		constexpr uint8_t TAG_DISCORD_DB            = 0x52;
+		constexpr uint8_t TAG_DISCORD_GUILD         = 0x53;
+		constexpr uint8_t TAG_DISCORD_CHANNEL       = 0x54;
+		constexpr uint8_t TAG_DISCORD_USER          = 0x55;
+		constexpr uint8_t TAG_DISCORD_ROLE          = 0x56;
+		constexpr uint8_t TAG_PERMISSION_SET        = 0x57;
+		constexpr uint8_t TAG_GROUP                 = 0x58;
+		constexpr uint8_t TAG_GENERIC_USER          = 0x59;
+		constexpr uint8_t TAG_CACHED_EMOTE          = 0x5A;
+		constexpr uint8_t TAG_CACHED_EMOTE_DB       = 0x5B;
+
+		// if the byte has 0x80 set, then the lower 7 bits represents a truncated 64-bit number. it's a further
+		// extension of the SMALL_U64 thing, but literally only uses 1 byte for sizes between 0 - 127
+		constexpr uint8_t TAG_TINY_U64              = 0x80;
 	}
 }
 
@@ -437,4 +512,17 @@ namespace std
 			return std::hash<uint64_t>()(s.value);
 		}
 	};
+
+#if 0
+	// this is to allow
+	// auto [ val, err, ok ] = result; if(!ok) { ... }
+	template <typename T, typename E>
+	struct tuple_size<ikura::Result<T, E>> : std::integral_constant<size_t, 3> { };
+
+	template <size_t N, typename T, typename E>
+	struct tuple_element<N, ikura::Result<T, E>>
+	{
+		using type = decltype(std::declval<ikura::Result<T, E>>().template get<N>());
+	};
+#endif
 }

@@ -6,6 +6,7 @@
 #include "ast.h"
 #include "cmd.h"
 #include "zfu.h"
+#include "synchro.h"
 #include "serialise.h"
 
 #include "tsl/robin_set.h"
@@ -102,16 +103,10 @@ namespace ikura::interp
 	void InterpState::addGlobal(ikura::str_view name, Value val)
 	{
 		if(is_builtin_var(name) || name.find_first_of("0123456789") == 0)
-		{
-			lg::error("interp", "'%s' is a builtin global", name);
-			return;
-		}
+			return lg::error("interp", "'%s' is a builtin global", name);
 
 		if(auto it = this->globals.find(name); it != this->globals.end())
-		{
-			lg::error("interp", "redefinition of global '%s'", name);
-			return;
-		}
+			return lg::error("interp", "redefinition of global '%s'", name);
 
 		this->globals[name] = new Value(std::move(val));
 		lg::log("interp", "added global '%s'", name);
@@ -233,10 +228,7 @@ namespace ikura::interp
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		InterpState interp;
 		if(!rd.read(&interp.commands))
@@ -291,8 +283,8 @@ namespace ikura::db
 
 namespace ikura
 {
-	static Synchronised<interp::InterpState, std::shared_mutex> TheInterpreter;
-	Synchronised<interp::InterpState, std::shared_mutex>& interpreter()
+	static Synchronised<interp::InterpState> TheInterpreter;
+	Synchronised<interp::InterpState>& interpreter()
 	{
 		return TheInterpreter;
 	}

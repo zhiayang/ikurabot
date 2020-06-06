@@ -164,7 +164,7 @@ namespace ikura
 
 			{
 				auto lk = std::unique_lock<std::mutex>(this->mtx);
-				auto ret = this->queue.front();
+				auto ret = std::move(this->queue.front());
 				this->queue.pop_front();
 
 				return ret;
@@ -192,12 +192,14 @@ namespace ikura
 
 
 
-	template <typename T, typename Lk = std::shared_mutex>
+	template <typename T>
 	struct Synchronised
 	{
 	private:
 		struct ReadLockedInstance;
 		struct WriteLockedInstance;
+
+		using Lk = std::shared_mutex;
 
 		Lk lk;
 		T value;

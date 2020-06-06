@@ -8,6 +8,7 @@
 #include "irc.h"
 #include "defs.h"
 #include "timer.h"
+#include "config.h"
 #include "markov.h"
 #include "twitch.h"
 

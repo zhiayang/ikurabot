@@ -7,6 +7,8 @@
 
 #include "db.h"
 #include "zfu.h"
+#include "twitch.h"
+#include "config.h"
 #include "markov.h"
 #include "synchro.h"
 #include "serialise.h"
@@ -202,9 +204,15 @@ namespace ikura::markov
 
 	void retrain()
 	{
+		lg::log("markov", "retraining model (%zu)...", State.retrainingTotalSize);
+
 		reset();
 
-		database().perform_read([](auto& db) {
+		// copy out the thing, so we don't do a lot of processing while
+		// holding the lock. besides these are string_views, so they're lightweight.
+		std::vector<std::pair<ikura::str_view, std::vector<ikura::relative_str>>> inputs;
+
+		database().perform_read([&inputs](auto& db) {
 			auto& msgs = db.twitchData.messageLog.messages;
 
 			for(auto& msg : msgs)
@@ -219,12 +227,18 @@ namespace ikura::markov
 				if(txt.find('!') == 0 || txt.find('$') == 0)
 					continue;
 
-				State.retrainingTotalSize++;
-				State.queue.push_quiet(QueuedMsg::retrain(txt.str(), msg.emotePositions));
+				inputs.emplace_back(txt, msg.emotePositions);
+
+				// State.retrainingTotalSize++;
+				// State.queue.push_quiet(QueuedMsg::retrain(txt.str(), msg.emotePositions));
 			}
 		});
 
-		lg::log("markov", "retraining model (%zu)...", State.retrainingTotalSize);
+		for(auto& [ sv, ep ] : inputs)
+		{
+
+		}
+
 		State.queue.notify_pending();
 	}
 
@@ -568,10 +582,7 @@ namespace ikura::markov
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		Word ret;
 		if(!rd.read(&ret.index))
@@ -596,10 +607,7 @@ namespace ikura::markov
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		WordList ret;
 		if(!rd.read(&ret.totalFrequency))
@@ -627,10 +635,7 @@ namespace ikura::markov
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		DBWord ret;
 		if(!rd.read(&ret.word))
@@ -657,10 +662,7 @@ namespace ikura::markov
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		MarkovModel ret;
 		if(!rd.read(&ret.table))

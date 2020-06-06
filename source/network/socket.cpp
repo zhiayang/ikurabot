@@ -70,7 +70,7 @@ namespace ikura
 
 				// do a blocking read.
 				auto [ len, status ] = this->socket.recv(this->internal_buffer, BufferSize);
-				if(status == kissnet::socket_status::cleanly_disconnected)
+				if(status == kissnet::socket_status::cleanly_disconnected || !this->is_connected)
 				{
 					break;
 				}
@@ -106,8 +106,8 @@ namespace ikura
 
 		if(!this->is_connected)
 		{
+			lg::error("socket", "connection failed: %s", strerror(errno));
 			this->socket.close();
-			lg::error("socket", "connection failed");
 			return false;
 		}
 

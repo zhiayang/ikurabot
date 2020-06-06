@@ -11,8 +11,11 @@
 #include <filesystem>
 
 #include "db.h"
-#include "defs.h"
 #include "timer.h"
+#include "twitch.h"
+#include "markov.h"
+#include "discord.h"
+#include "synchro.h"
 #include "serialise.h"
 
 using namespace std::chrono_literals;
@@ -30,7 +33,7 @@ namespace ikura::db
 
 	static_assert(sizeof(Superblock) == 24);
 
-	constexpr uint32_t DB_VERSION   = 15;
+	constexpr uint32_t DB_VERSION   = 21;
 	constexpr const char* DB_MAGIC  = "ikura_db";
 
 	// the database will only sync to disk if it was modified
@@ -86,7 +89,7 @@ namespace ikura::db
 		if(!std::fs::exists(path))
 		{
 			if(create)  createNewDatabase(path);
-			else        return lg::error("db", "file does not exist");
+			else        return lg::error_b("db", "file does not exist");
 		}
 		else if(create)
 		{

@@ -19,15 +19,15 @@ namespace ikura::db
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		SharedDB ret;
 
 		if(!rd.read(&ret.groups))
 			return { };
+
+		for(auto it = ret.groups.begin(); it != ret.groups.end(); ++it)
+			ret.groupIds[it->second.id] = it->second.name;
 
 		return ret;
 	}
@@ -43,6 +43,73 @@ namespace ikura::db
 	const Group* SharedDB::getGroup(ikura::str_view name) const
 	{
 		return const_cast<SharedDB*>(this)->getGroup(name);
+	}
+
+	Group* SharedDB::getGroup(uint64_t id)
+	{
+		if(auto it = this->groupIds.find(id); it != this->groupIds.end())
+			return &this->groups[it->second];
+
+		return nullptr;
+	}
+
+	const Group* SharedDB::getGroup(uint64_t id) const
+	{
+		return const_cast<SharedDB*>(this)->getGroup(id);
+	}
+
+	bool SharedDB::addGroup(ikura::str_view name)
+	{
+		if(auto it = this->groups.find(name); it != this->groups.end())
+			return false;
+
+		Group g;
+		g.id = this->groups.size();
+		g.name = name;
+
+		this->groups[name] = g;
+		this->groupIds[g.id] = name;
+
+		return true;
+	}
+
+	bool SharedDB::removeGroup(ikura::str_view name)
+	{
+		if(auto it = this->groups.find(name); it != this->groups.end())
+		{
+			return false;
+		}
+		else
+		{
+			auto id = it->second.id;
+			this->groups.erase(it);
+			this->groupIds.erase(id);
+			return true;
+		}
+	}
+
+
+
+
+
+	void Group::addUser(const std::string& userid, Backend backend)
+	{
+		auto it = std::find_if(this->members.begin(), this->members.end(), [&](const auto& g) -> bool {
+			return g.id == userid && g.backend == backend;
+		});
+
+		if(it == this->members.end())
+			this->members.emplace_back(userid, backend);
+	}
+
+	void Group::removeUser(const std::string& userid, Backend backend)
+	{
+		auto it = std::find_if(this->members.begin(), this->members.end(), [&](const auto& g) -> bool {
+			return g.id == userid && g.backend == backend;
+		});
+
+		if(it != this->members.end())
+			this->members.erase(it);
 	}
 
 
@@ -62,10 +129,7 @@ namespace ikura::db
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		Group ret;
 
@@ -96,10 +160,7 @@ namespace ikura::db
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		GenericUser ret;
 

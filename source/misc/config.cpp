@@ -5,6 +5,7 @@
 #include <filesystem>
 
 #include "defs.h"
+#include "config.h"
 #include "twitch.h"
 #include "discord.h"
 
@@ -14,6 +15,8 @@ namespace std { namespace fs = filesystem; }
 
 namespace ikura::config
 {
+	using ikura::discord::Snowflake;
+
 	static struct {
 
 		bool present = false;
@@ -23,6 +26,7 @@ namespace ikura::config
 		std::string oauthToken;
 		std::vector<twitch::Chan> channels;
 		std::vector<std::string> ignoredUsers;
+		uint64_t emoteAutoUpdateInterval_millis;
 
 	} TwitchConfig;
 
@@ -30,12 +34,12 @@ namespace ikura::config
 
 		bool present = false;
 
-		std::string owner;
+		Snowflake owner;
 		std::string username;
-		ikura::discord::Snowflake userid;
+		Snowflake userid;
 		std::string oauthToken;
 		std::vector<discord::Guild> guilds;
-		std::vector<ikura::discord::Snowflake> ignoredUsers;
+		std::vector<Snowflake> ignoredUsers;
 
 	} DiscordConfig;
 
@@ -60,18 +64,24 @@ namespace ikura::config
 			return std::find(TwitchConfig.ignoredUsers.begin(), TwitchConfig.ignoredUsers.end(),
 				username.str()) != TwitchConfig.ignoredUsers.end();
 		}
+
+		uint64_t getEmoteAutoUpdateInterval()
+		{
+			return TwitchConfig.emoteAutoUpdateInterval_millis;
+		}
 	}
 
 	namespace discord
 	{
+		Snowflake getOwner()                { return DiscordConfig.owner; }
 		std::string getUsername()           { return DiscordConfig.username; }
 		std::string getOAuthToken()         { return DiscordConfig.oauthToken; }
 		std::vector<Guild> getJoinGuilds()  { return DiscordConfig.guilds; }
 
-		std::vector<ikura::discord::Snowflake> getIgnoredUsers() { return DiscordConfig.ignoredUsers; }
-		ikura::discord::Snowflake getUserId() { return DiscordConfig.userid; }
+		std::vector<Snowflake> getIgnoredUsers() { return DiscordConfig.ignoredUsers; }
+		Snowflake getUserId() { return DiscordConfig.userid; }
 
-		bool isUserIgnored(ikura::discord::Snowflake id)
+		bool isUserIgnored(Snowflake id)
 		{
 			return std::find(DiscordConfig.ignoredUsers.begin(), DiscordConfig.ignoredUsers.end(),
 				id) != DiscordConfig.ignoredUsers.end();
@@ -181,17 +191,22 @@ namespace ikura::config
 	{
 		auto username = get_string(discord, "username", "");
 		if(username.empty())
-			return lg::error("cfg/discord", "username cannot be empty");
+			return lg::error_b("cfg/discord", "username cannot be empty");
 
 		auto oauthToken = get_string(discord, "oauth_token", "");
 		if(oauthToken.empty())
-			return lg::error("cfg/discord", "oauth_token cannot be empty");
+			return lg::error_b("cfg/discord", "oauth_token cannot be empty");
 
 		auto userid = get_string(discord, "id", "");
 		if(userid.empty())
-			return lg::error("cfg/discord", "id cannot be empty");
+			return lg::error_b("cfg/discord", "id cannot be empty");
 
-		DiscordConfig.userid = userid;
+		auto owner = get_string(discord, "owner", "");
+		if(owner.empty())
+			return lg::error_b("cfg/discord", "owner cannot be empty");
+
+		DiscordConfig.owner = Snowflake(owner);
+		DiscordConfig.userid = Snowflake(userid);
 		DiscordConfig.username = username;
 		DiscordConfig.oauthToken = oauthToken;
 
@@ -257,19 +272,22 @@ namespace ikura::config
 	{
 		auto username = get_string(twitch, "username", "");
 		if(username.empty())
-			return lg::error("cfg/twitch", "username cannot be empty");
+			return lg::error_b("cfg/twitch", "username cannot be empty");
 
 		auto owner = get_string(twitch, "owner", "");
 		if(owner.empty())
-			return lg::error("cfg/twitch", "owner cannot be empty");
+			return lg::error_b("cfg/twitch", "owner cannot be empty");
 
 		auto oauthToken = get_string(twitch, "oauth_token", "");
 		if(oauthToken.empty())
-			return lg::error("cfg/twitch", "oauth_token cannot be empty");
+			return lg::error_b("cfg/twitch", "oauth_token cannot be empty");
 
 		TwitchConfig.owner = owner;
 		TwitchConfig.username = username;
 		TwitchConfig.oauthToken = oauthToken;
+
+		// config file in seconds, but we want milliseconds for internal consistency
+		TwitchConfig.emoteAutoUpdateInterval_millis = 1000 * get_integer(twitch, "bttv_ffz_autorefresh_interval", 0);
 
 		auto ignored = get_array(twitch, "ignored_users");
 		if(!ignored.empty())
@@ -337,11 +355,11 @@ namespace ikura::config
 	{
 		std::fs::path configPath = path.sv();
 		if(!std::fs::exists(configPath))
-			return lg::error("cfg", "file does not exist", path);
+			return lg::error_b("cfg", "file does not exist", path);
 
 		auto [ buf, sz ] = util::readEntireFile(configPath.string());
 		if(!buf || sz == 0)
-			return lg::error("cfg", "failed to read file");
+			return lg::error_b("cfg", "failed to read file");
 
 		pj::value config;
 
@@ -351,7 +369,7 @@ namespace ikura::config
 		pj::parse(config, begin, end, &err);
 
 		if(!err.empty())
-			return lg::error("cfg", "json error: %s", err);
+			return lg::error_b("cfg", "json error: %s", err);
 
 		if(auto global = config.get("global"); !global.is_null() && global.is_obj())
 		{

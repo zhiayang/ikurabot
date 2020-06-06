@@ -43,16 +43,14 @@ namespace ikura::twitch
 
 		wr.write(this->channels);
 		wr.write(this->messageLog);
+		wr.write(this->globalBttvEmotes);
 	}
 
 	std::optional<TwitchDB> TwitchDB::deserialise(Span& buf)
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		TwitchDB ret;
 
@@ -62,6 +60,12 @@ namespace ikura::twitch
 		if(!rd.read(&ret.messageLog))
 			return { };
 
+		if(db::getVersion() >= 20)
+		{
+			if(!rd.read(&ret.globalBttvEmotes))
+				return { };
+		}
+
 		return ret;
 	}
 
@@ -70,21 +74,44 @@ namespace ikura::twitch
 		auto wr = serialise::Writer(buf);
 		wr.tag(TYPE_TAG);
 
+		wr.write(this->id);
+		wr.write(this->name);
 		wr.write(this->knownUsers);
+		wr.write(this->ffzEmotes);
+		wr.write(this->bttvEmotes);
 	}
 
 	std::optional<TwitchChannel> TwitchChannel::deserialise(Span& buf)
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		TwitchChannel ret;
+
+		if(db::getVersion() >= 19)
+		{
+			if(!rd.read(&ret.id))
+				return { };
+
+			if(!rd.read(&ret.name))
+				return { };
+		}
+
 		if(!rd.read(&ret.knownUsers))
 			return { };
+
+		if(db::getVersion() >= 20)
+		{
+			if(!rd.read(&ret.bttvEmotes))
+				return { };
+		}
+
+		if(db::getVersion() >= 21)
+		{
+			if(!rd.read(&ret.ffzEmotes))
+				return { };
+		}
 
 		return ret;
 	}
@@ -107,10 +134,7 @@ namespace ikura::twitch
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
-			return { };
-		}
+			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		TwitchUser ret;
 		if(!rd.read(&ret.id))
