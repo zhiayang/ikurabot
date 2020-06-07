@@ -101,6 +101,8 @@ namespace ikura::discord
 
 			if(hdr.statusCode() != 200)
 				lg::error("discord", "send error %d: %s", hdr.statusCode(), res);
+
+			lg::log("msg", ">> discord/%s/#%s: %s", this->getGuild()->name, this->getName(), str);
 		}).discard();
 	}
 }

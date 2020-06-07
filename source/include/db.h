@@ -113,7 +113,7 @@ namespace ikura
 		};
 
 		uint32_t getVersion();
-		bool load(ikura::str_view path, bool create);
+		bool load(ikura::str_view path, bool create, bool readonly);
 	}
 
 	Synchronised<db::Database>& database();

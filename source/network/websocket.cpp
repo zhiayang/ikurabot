@@ -232,6 +232,11 @@ namespace ikura
 			this->buffer.clear();
 		});
 
+		this->conn.onDisconnect([this]() {
+			if(this->close_callback)
+				this->close_callback();
+		});
+
 		return true;
 	}
 
@@ -469,6 +474,10 @@ namespace ikura
 	}
 
 
+	void WebSocket::onDisconnect(std::function<void (void)>&& fn)
+	{
+		this->close_callback = std::move(fn);
+	}
 
 	void WebSocket::onReceiveText(std::function<RxTextCallbackFn>&& fn)
 	{

@@ -861,14 +861,14 @@ namespace kissnet
 		}
 
 		///Bind socket locally using the address and port of the endpoint
-		void bind()
+		bool bind()
 		{
 			memcpy(&socket_output, getaddrinfo_results->ai_addr, sizeof(SOCKADDR));
 
-			if(syscall_bind(sock, static_cast<SOCKADDR*>(getaddrinfo_results->ai_addr), socklen_t(getaddrinfo_results->ai_addrlen)) == SOCKET_ERROR)
-			{
-				kissnet_fatal_error("bind() failed\n");
-			}
+			auto addr = static_cast<SOCKADDR*>(getaddrinfo_results->ai_addr);
+			auto len = socklen_t(getaddrinfo_results->ai_addrlen);
+
+			return (syscall_bind(sock, addr, len) != SOCKET_ERROR);
 		}
 
 		///(For TCP) connect to the endpoint as client
@@ -938,15 +938,12 @@ namespace kissnet
 		}
 
 		///(for TCP= setup socket to listen to connection. Need to be called on binded socket, before being able to accept()
-		void listen()
+		bool listen()
 		{
 			if(this->sock_proto == protocol::tcp)
-			{
-				if(syscall_listen(sock, SOMAXCONN) == SOCKET_ERROR)
-				{
-					kissnet_fatal_error("listen failed\n");
-				}
-			}
+				return (syscall_listen(sock, SOMAXCONN) != SOCKET_ERROR);
+
+			return false;
 		}
 
 		///(for TCP) Wait for incoming connection, return socket connect to the client. Blocking.

@@ -286,8 +286,8 @@ namespace zfu
 		return -1;
 	}
 
-	template <typename T>
-	bool contains(const std::vector<T>& input, const T& x)
+	template <typename T, typename U>
+	bool contains(const std::vector<T>& input, const U& x)
 	{
 		return std::find(input.begin(), input.end(), x) != input.end();
 	}

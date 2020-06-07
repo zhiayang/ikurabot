@@ -135,6 +135,11 @@ namespace ikura
 		// from under the recv() call, which SSL does *not* like.
 		if(this->socket != nullptr)
 		{
+			if(this->close_callback)
+				this->close_callback();
+
+			this->onDisconnect([]() { });
+
 			this->socket->close();
 			delete this->socket;
 
@@ -157,8 +162,12 @@ namespace ikura
 		this->rx_callback = std::move(fn);
 	}
 
+	void Socket::onDisconnect(std::function<void (void)>&& fn)
+	{
+		this->close_callback = std::move(fn);
+	}
 
-	void Socket::listen()
+	bool Socket::listen()
 	{
 		this->socket = new kissnet::socket<4>(
 			this->_ssl ? kissnet::protocol::tcp_ssl : kissnet::protocol::tcp,
@@ -176,9 +185,11 @@ namespace ikura
 		int yes = 1;
 		setsockopt(this->socket->fd(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 
-		this->socket->bind();
-		this->socket->listen();
+		if(!this->socket->bind() || !this->socket->listen())
+			return false;
+
 		this->is_connected = true;
+		return true;
 	}
 
 	Socket* Socket::accept(std::chrono::nanoseconds timeout)

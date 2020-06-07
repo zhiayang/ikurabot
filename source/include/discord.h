@@ -85,7 +85,11 @@ namespace ikura::discord
 	{
 		DiscordState(URL url, std::chrono::nanoseconds timeout);
 
-		bool connected = false;
+		bool connect();
+		void disconnect();
+
+
+
 		tsl::robin_map<Snowflake, Channel> channels;
 
 		static constexpr int API_VERSION     = 6;
@@ -100,11 +104,17 @@ namespace ikura::discord
 		std::thread hb_thread;
 
 		int64_t sequence = -1;
+		std::string session_id;
 		bool didAckHeartbeat = false;
 		std::chrono::system_clock::time_point last_heartbeat_ack;
 
-		void connect();
-		void disconnect();
+		void send_resume();
+		void send_identify();
+
+		bool init(bool resume);
+		bool internal_connect(bool resume);
+
+		bool resume();
 
 		void processEvent(std::map<std::string, picojson::value> m);
 		void processMessage(std::map<std::string, picojson::value> m);
@@ -113,9 +123,6 @@ namespace ikura::discord
 		friend void recv_worker();
 
 		friend void heartbeat_worker();
-
-		friend void init();
-		friend void shutdown();
 	};
 
 	void init();

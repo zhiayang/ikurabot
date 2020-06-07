@@ -228,24 +228,6 @@ namespace ikura::console
 			return;
 		}
 
-		auto srv = new Socket("localhost", port, /* ssl: */ false);
-		State.is_connected = true;
-		srv->listen();
-
-		lg::log("console", "starting console on port %d", port);
-
-		auto reaper = std::thread([]() {
-			while(true)
-			{
-				auto sock = State.danglingSockets.pop();
-				if(sock == nullptr)
-					break;
-
-				sock->disconnect();
-				delete sock;
-			}
-		});
-
 		auto local_con = std::thread([]() {
 			while(true)
 			{
@@ -274,30 +256,53 @@ namespace ikura::console
 		});
 
 
-		while(true)
+		auto srv = new Socket("localhost", port, /* ssl: */ false);
+		State.is_connected = true;
+		if(srv->listen())
 		{
-			if(!State.is_connected)
-				break;
+			lg::log("console", "starting console on port %d", port);
 
-			if(auto sock = srv->accept(200ms); sock != nullptr)
+			auto reaper = std::thread([]() {
+				while(true)
+				{
+					auto sock = State.danglingSockets.pop();
+					if(sock == nullptr)
+						break;
+
+					sock->disconnect();
+					delete sock;
+				}
+			});
+
+			while(true)
 			{
-				lg::log("console", "started session");
-				State.socketBuffers.wlock()->emplace(sock, Buffer(512));
-				setup_receiver(sock);
+				if(!State.is_connected)
+					break;
 
-				print_prompt(sock);
+				if(auto sock = srv->accept(200ms); sock != nullptr)
+				{
+					lg::log("console", "started session");
+					State.socketBuffers.wlock()->emplace(sock, Buffer(512));
+					setup_receiver(sock);
+
+					print_prompt(sock);
+				}
 			}
+
+			// kill everything.
+			State.socketBuffers.perform_write([](auto& sb) {
+				for(auto& [ s, b ] : sb)
+					s->disconnect();
+			});
+
+			State.danglingSockets.push(nullptr);
+			reaper.join();
+		}
+		else
+		{
+			lg::warn("console", "could not bind console port %d", port);
 		}
 
-		// kill everything.
-		State.socketBuffers.perform_write([](auto& sb) {
-			for(auto& [ s, b ] : sb)
-				s->disconnect();
-		});
-
-		State.danglingSockets.push(nullptr);
-
 		local_con.join();
-		reaper.join();
 	}
 }

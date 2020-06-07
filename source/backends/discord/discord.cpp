@@ -5,6 +5,7 @@
 #include "picojson.h"
 
 #include "defs.h"
+#include "async.h"
 #include "config.h"
 #include "synchro.h"
 #include "discord.h"
@@ -16,7 +17,7 @@ constexpr int CONNECT_RETRIES            = 5;
 
 namespace ikura::discord
 {
-	static bool is_connected = false;
+	static bool should_heartbeat = false;
 	static Synchronised<DiscordState>* _state = nullptr;
 	static Synchronised<DiscordState>& state() { return *_state; }
 
@@ -41,7 +42,7 @@ namespace ikura::discord
 		auto last = std::chrono::system_clock::now();
 		while(true)
 		{
-			if(!is_connected)
+			if(!should_heartbeat)
 				break;
 
 			if(_state && state().rlock()->heartbeat_interval <= std::chrono::system_clock::now() - last)
@@ -51,26 +52,28 @@ namespace ikura::discord
 					{
 						// no ack between the intervals -- disconnect now. discord says just send a non-1000
 						// close code, so just use 1002 -- protocol_error.
-
-						// TODO: support resume!
-						lg::warn("discord", "did not receive heartbeat ack, disconnecting...");
+						lg::warn("discord", "did not receive heartbeat ack, reconnecting...");
 						st.ws.disconnect(1002);
-						st.connected = false;
-						is_connected = false;
+
+						// don't set should_heartbeat to false, since we want to keep this worker alive.
+						st.resume();
 						return;
 					}
 
-					last = std::chrono::system_clock::now();
-					st.didAckHeartbeat = false;
+					if(st.ws.connected())
+					{
+						last = std::chrono::system_clock::now();
+						st.didAckHeartbeat = false;
 
-					st.ws.send(pj::value(std::map<std::string, pj::value> {
-						{ "op", pj::value(opcode::HEARTBEAT) },
-						{ "d",  (st.sequence == -1)
-									? pj::value()
-									: pj::value(st.sequence)
-						}
-					}).serialise());
-					// lg::log("discord", "sent heartbeat");
+						st.ws.send(pj::value(std::map<std::string, pj::value> {
+							{ "op", pj::value(opcode::HEARTBEAT) },
+							{ "d",  (st.sequence == -1)
+										? pj::value()
+										: pj::value(st.sequence)
+							}
+						}).serialise());
+						// lg::log("discord", "heartbeat");
+					}
 				});
 			}
 
@@ -110,6 +113,10 @@ namespace ikura::discord
 
 	DiscordState::DiscordState(URL url, std::chrono::nanoseconds timeout) : ws(url, timeout)
 	{
+	}
+
+	bool DiscordState::init(bool resume)
+	{
 		auto backoff = 500ms;
 
 		int retries = 0;
@@ -133,8 +140,7 @@ namespace ikura::discord
 
 				// this is so dumb.
 				this->didAckHeartbeat = true;
-				this->connected = true;
-				is_connected = true;
+				should_heartbeat = true;
 				didcon.set(true);
 			}
 			else
@@ -159,24 +165,65 @@ namespace ikura::discord
 
 		if(!didcon.wait(true, 2000ms))
 		{
-			lg::error("discord", "connection failed (no hello)");
+			lg::warn("discord", "connection failed (no hello)");
 			this->ws.disconnect();
 			if(++retries > CONNECT_RETRIES)
 			{
 				lg::error("discord", "too many failures, aborting");
-				return;
+				return false;
 			}
 
 			goto retry;
 		}
 
-		this->hb_thread = std::thread(heartbeat_worker);
+		if(!resume)
+			this->hb_thread = std::thread(heartbeat_worker);
+
+		return true;
 	}
 
-	void DiscordState::connect()
+	void DiscordState::send_identify()
 	{
-		if(!this->ws.connected() || !this->connected)
-			return;
+		this->ws.send(pj::value(std::map<std::string, pj::value> {
+			{ "op", pj::value(opcode::IDENTIFY) },
+			{
+				"d", pj::value(std::map<std::string, pj::value> {
+					{ "token",      pj::value(config::discord::getOAuthToken()) },
+					{ "compress",   pj::value(false) },
+					{ "intents",    pj::value(intent::GUILDS
+											| intent::GUILD_MESSAGES
+											| intent::GUILD_MESSAGE_REACTIONS)
+					},
+					{ "guild_subscriptions", pj::value(false) },
+					{ "properties", pj::value(std::map<std::string, pj::value> {
+						{ "$os",      pj::value("linux") },
+						{ "$browser", pj::value("ikura") },
+						{ "$device",  pj::value("ikura") }
+					})}
+				})
+			}
+		}).serialise());
+	}
+
+	void DiscordState::send_resume()
+	{
+		// send an identify
+		this->ws.send(pj::value(std::map<std::string, pj::value> {
+			{ "op", pj::value(opcode::RESUME) },
+			{
+				"d", pj::value(std::map<std::string, pj::value> {
+					{ "token",      pj::value(config::discord::getOAuthToken()) },
+					{ "session_id", pj::value(this->session_id) },
+					{ "seq",        pj::value(this->sequence) },
+				})
+			}
+		}).serialise());
+	}
+
+	bool DiscordState::internal_connect(bool resume)
+	{
+		if(!this->ws.connected())
+			return false;
 
 		bool success = false;
 		condvar<bool> cv;
@@ -195,7 +242,7 @@ namespace ikura::discord
 				{
 					success = true;
 					cv.set(true);
-					lg::log("discord", "identified");
+					lg::log("discord", "%s", resume ? "resumed" : "identified");
 				}
 
 				// we should still send this to the queue, because there is a chance that
@@ -220,41 +267,24 @@ namespace ikura::discord
 		int retries = 0;
 
 	retry:
-		// send an identify
-		this->ws.send(pj::value(std::map<std::string, pj::value> {
-			{ "op", pj::value(opcode::IDENTIFY) },
-			{
-				"d", pj::value(std::map<std::string, pj::value> {
-					{ "token",      pj::value(config::discord::getOAuthToken()) },
-					{ "compress",   pj::value(false) },
-					{ "intents",    pj::value(intent::GUILDS
-											| intent::GUILD_MESSAGES
-											| intent::GUILD_MESSAGE_REACTIONS)
-					},
-					{ "guild_subscriptions", pj::value(false) },
-					{ "properties", pj::value(std::map<std::string, pj::value> {
-						{ "$os",      pj::value("linux") },
-						{ "$browser", pj::value("ikura") },
-						{ "$device",  pj::value("ikura") }
-					})}
-				})
-			}
-		}).serialise());
+		if(resume)  this->send_resume();
+		else        this->send_identify();
+
 
 		// wait for a ready
 		if(!cv.wait(true, 1500ms) || !success)
 		{
 			if(++retries < CONNECT_RETRIES && this->ws.connected())
 			{
-				lg::warn("discord", "identify timed out, waiting a little while...");
+				lg::warn("discord", "%s timed out, waiting a little while...", resume ? "resume" : "identify");
 				std::this_thread::sleep_for(6s);
 				goto retry;
 			}
 			else
 			{
-				lg::warn("discord", "identify timed out");
+				lg::warn("discord", "%s timed out", resume ? "resume" : "identify");
 				this->disconnect();
-				return;
+				return false;
 			}
 		}
 
@@ -282,11 +312,45 @@ namespace ikura::discord
 				this->didAckHeartbeat = true;
 				// lg::log("discord", "heartbeat ack");
 			}
+			else if(op == opcode::RECONNECT)
+			{
+				// ugh.
+				this->ws.disconnect();
+				this->resume();
+			}
 			else
 			{
 				lg::warn("discord", "unhandled opcode '%d'", op);
 			}
 		});
+
+		this->ws.onDisconnect([&]() {
+
+			lg::warn("discord", "server disconnected us, attempting resume...");
+			dispatcher().run([&]() {
+				std::this_thread::sleep_for(1000ms);
+				this->resume();
+			}).discard();
+		});
+
+		return true;
+	}
+
+
+	bool DiscordState::resume()
+	{
+		if(!this->init(/* resume: */ true))
+			return false;
+
+		return this->internal_connect(/* resume: */ true);
+	}
+
+	bool DiscordState::connect()
+	{
+		if(!this->init(/* resume: */ false))
+			return false;
+
+		return this->internal_connect(/* resume: */ false);
 	}
 
 	void DiscordState::disconnect()
@@ -297,13 +361,14 @@ namespace ikura::discord
 		mqueue().push_send(QueuedMsg::disconnect());
 		mqueue().push_receive(QueuedMsg::disconnect());
 
-		this->connected = false;
-		is_connected = false;
+		should_heartbeat = false;
 
 		this->hb_thread.join();
 		this->tx_thread.join();
 		this->rx_thread.join();
 
+		// this prevents us from reconnecting when we wanted to disconnect, lmao
+		this->ws.onDisconnect([]() { });
 		this->ws.disconnect();
 		lg::log("discord", "disconnected");
 	}
@@ -380,7 +445,7 @@ namespace ikura::discord
 
 	void shutdown()
 	{
-		if(!config::haveDiscord() || !_state || !state().rlock()->connected)
+		if(!config::haveDiscord() || !_state || !should_heartbeat)
 			return;
 
 		state().wlock()->disconnect();

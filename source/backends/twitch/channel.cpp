@@ -55,18 +55,29 @@ namespace ikura::twitch
 
 	void Channel::sendMessage(const Message& msg) const
 	{
-		std::string str;
+		std::string out;
 		for(size_t i = 0; i < msg.fragments.size(); i++)
 		{
 			const auto& frag = msg.fragments[i];
 
-			if(frag.isEmote)    str += frag.emote.name;
-			else                str += frag.str;
+			if(frag.isEmote)    out += frag.emote.name;
+			else                out += frag.str;
 
 			if(i + 1 != msg.fragments.size())
-				str += ' ';
+				out += ' ';
 		}
 
-		this->state->sendMessage(this->name, str);
+		constexpr const char* MAGIC_MESSAGE_SUFFIX = u8" \U000E0000";
+
+		ikura::str_view str = out;
+
+		// OMEGALUL -- https://github.com/Chatterino/chatterino2/tree/master/src/providers/twitch/TwitchChannel.cpp#L37
+		if(out == this->lastSentMessage)
+			out += MAGIC_MESSAGE_SUFFIX;
+
+		this->state->sendMessage(this->name, out);
+		this->lastSentMessage = out;
+
+		lg::log("msg", ">> twitch/#%s: %s", this->getName(), str);
 	}
 }

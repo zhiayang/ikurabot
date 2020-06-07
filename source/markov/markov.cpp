@@ -545,8 +545,9 @@ namespace ikura::markov
 		if(output.size() < min_length)
 			lg::warn("markov", "failed to generate %zu markov words after %zu attempts", min_length, _retries);
 
-		Message msg;
-		markovModel().perform_read([&output, &msg](auto& markov) {
+
+		return markovModel().map_read([&output](auto& markov) -> Message {
+			Message msg;
 			for(size_t i = 0; i < output.size(); i++)
 			{
 				auto [ word, em ] = markov.wordList[output[i]];
@@ -570,9 +571,9 @@ namespace ikura::markov
 						msg.add(std::move(word));
 				}
 			}
-		});
 
-		return msg;
+			return msg;
+		});
 	}
 
 

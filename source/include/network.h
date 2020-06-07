@@ -67,12 +67,13 @@ namespace ikura
 
 		void send(Span data);
 		void onReceive(std::function<RxCallbackFn>&& fn);
+		void onDisconnect(std::function<void (void)>&& fn);
 
 		const std::string& host() const { return this->_host; }
 		uint16_t port() const { return this->_port; }
 
 		// server stuff
-		void listen();
+		bool listen();
 		Socket* accept(std::chrono::nanoseconds timeout);
 
 	private:
@@ -93,6 +94,7 @@ namespace ikura
 		std::chrono::nanoseconds timeout;
 
 		std::function<RxCallbackFn> rx_callback;
+		std::function<void (void)> close_callback;
 
 		static constexpr size_t BufferSize = 4096;
 		uint8_t internal_buffer[BufferSize] = { };
@@ -123,6 +125,7 @@ namespace ikura
 		void sendFragment(Span data, bool last);
 		void sendFragment(ikura::str_view sv, bool last);
 
+		void onDisconnect(std::function<void (void)>&& fn);
 		void onReceiveText(std::function<RxTextCallbackFn>&& fn);
 		void onReceiveBinary(std::function<RxBinaryCallbackFn>&& fn);
 
@@ -139,6 +142,7 @@ namespace ikura
 
 		URL url;
 
+		std::function<void (void)> close_callback;
 		std::function<RxTextCallbackFn> text_callback;
 		std::function<RxBinaryCallbackFn> binary_callback;
 

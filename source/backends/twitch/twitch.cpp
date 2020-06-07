@@ -187,8 +187,9 @@ namespace ikura::twitch
 			mqueue().notify_pending_receives();
 		});
 
-		// request tags
+		// request tags and commands
 		this->ws.send("CAP REQ :twitch.tv/tags");
+		this->ws.send("CAP REQ :twitch.tv/commands");
 
 		// join channels
 		for(auto& [ _, chan ] : this->channels)

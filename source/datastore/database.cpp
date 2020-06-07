@@ -44,6 +44,7 @@ namespace ikura::db
 	static std::atomic<bool> databaseDirty = false;
 	static Synchronised<Database> TheDatabase;
 	static std::fs::path databasePath;
+	static bool readOnly = false;
 
 	// this is kind of a dirty hack, but whatever. it's not like we'll have more than 1 database instance
 	// per program. what this stores is the version of the database that we read from disk; this lets
@@ -81,10 +82,11 @@ namespace ikura::db
 		TheDatabase.rlock()->sync();
 	}
 
-	bool load(ikura::str_view p, bool create)
+	bool load(ikura::str_view p, bool create, bool readonly)
 	{
 		std::fs::path path = p.str();
 		databasePath = path;
+		readOnly = readonly;
 
 		if(!std::fs::exists(path))
 		{
@@ -113,23 +115,29 @@ namespace ikura::db
 
 		if(succ)
 		{
-			TheDatabase.on_write_lock([]() { databaseDirty = true; });
+			if(!readOnly)
+			{
+				TheDatabase.on_write_lock([]() { databaseDirty = true; });
 
-			// setup an idiot to periodically synchronise the database to disk.
-			auto thr = std::thread([]() {
-				while(true)
-				{
-					std::this_thread::sleep_for(SYNC_INTERVAL);
-					if(databaseDirty)
+				// setup an idiot to periodically synchronise the database to disk.
+				auto thr = std::thread([]() {
+					while(true)
 					{
-						databaseDirty = false;
-						ikura::database().rlock()->sync();
+						std::this_thread::sleep_for(SYNC_INTERVAL);
+						if(databaseDirty)
+						{
+							databaseDirty = false;
+							ikura::database().rlock()->sync();
+						}
 					}
-				}
-			});
+				});
 
-			thr.detach();
-			lg::log("db", "database (version %d) loaded in %.2f ms", currentDatabaseVersion, t.measure());
+				thr.detach();
+			}
+
+			lg::log("db", "%sdatabase (version %d) loaded in %.2f ms",
+				readOnly ? "READONLY " : "",
+				currentDatabaseVersion, t.measure());
 		}
 
 		return succ;
@@ -212,6 +220,9 @@ namespace ikura::db
 
 	void Database::sync() const
 	{
+		if(readOnly)
+			return;
+
 		auto t = timer();
 
 		auto buf = Buffer(512);

@@ -53,7 +53,12 @@ namespace ikura::discord
 		}
 		else if(type == "READY")
 		{
-			// do nothing
+			auto sess = msg["d"].as_obj()["session_id"].as_str();
+			if(sess != this->session_id)
+			{
+				lg::log("discord", "session id: %s", sess);
+				this->session_id = sess;
+			}
 		}
 		else
 		{

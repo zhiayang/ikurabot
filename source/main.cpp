@@ -16,14 +16,10 @@ using namespace std::chrono_literals;
 /*
 	TODO:
 
-	onClose callbacks for both Socket and WebSocket
-	handle discord opcode7 reconnect
 	builtin function to reload bttv and ffz emotes
 	console command to re-emotify all logged messages (and move this functionality out of markov)
 	start logging discord messages
 	proper oauth flow for twitch using clientid+clientsecret
-	see if zero-width spaces are preserved by twitch
-	make socket bind not abort() the program on error
 
 	...
 
@@ -34,16 +30,20 @@ int main(int argc, char** argv)
 {
 	if(argc < 3)
 	{
-		zpr::println("usage: ./ikurabot <config.json> <database.db> [--create]");
+		zpr::println("usage: ./ikurabot <config.json> <database.db> [--create] [--readonly]");
 		exit(1);
 	}
 
-	ikura::lg::log("ikura", "starting...");
-	if(!ikura::config::load(argv[1]))
-		ikura::lg::fatal("cfg", "failed to load config file '%s'", argv[1]);
+	auto opts = zfu::map(zfu::rangeOpen(1, argc), [&](int i) -> auto {
+		return std::string(argv[i]);
+	});
 
-	if(!ikura::db::load(argv[2], (argc > 3 && std::string(argv[3]) == "--create")))
-		ikura::lg::fatal("db", "failed to load database '%s'", argv[2]);
+	ikura::lg::log("ikura", "starting...");
+	if(!ikura::config::load(opts[0]))
+		ikura::lg::fatal("cfg", "failed to load config file '%s'", opts[0]);
+
+	if(!ikura::db::load(opts[1], zfu::contains(opts, "--create"), zfu::contains(opts, "--readonly")))
+		ikura::lg::fatal("db", "failed to load database '%s'", opts[1]);
 
 	if(ikura::config::haveTwitch())
 		ikura::twitch::init();

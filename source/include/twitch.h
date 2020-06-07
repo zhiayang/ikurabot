@@ -43,6 +43,8 @@ namespace ikura::twitch
 		bool silentInterpErrors;
 		std::string commandPrefix;
 
+		mutable std::string lastSentMessage;
+
 		TwitchState* state = nullptr;
 
 		friend struct TwitchState;

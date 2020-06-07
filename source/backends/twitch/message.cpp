@@ -66,6 +66,13 @@ namespace ikura::twitch
 
 			log("parted %s", msg.params[1]);
 		}
+		else if(msg.command == "NOTICE")
+		{
+			auto channel = msg.params[0];
+			auto message = msg.params[1];
+
+			lg::log("twitch", "notice in #%s: %s", channel, message);
+		}
 		else if(msg.command == "PRIVMSG")
 		{
 			if(msg.params.size() < 2)
@@ -129,17 +136,17 @@ namespace ikura::twitch
 
 			lg::log("msg", "(%.2f ms) twitch/#%s: <%s> %s", time.measure(), channel, username, message_u8);
 		}
-		else if(msg.command == "353" || msg.command == "366")
+		else if(zfu::match(msg.command, "353", "366"))
 		{
 			// ignore. these are MOTD markers i think
 		}
+		else if(zfu::match(msg.command, "CLEARCHAT", "CLEARMSG", "HOSTTARGET", "RECONNECT", "ROOMSTATE", "USERNOTICE", "USERSTATE"))
+		{
+			// don't care about these. we only did the commands capability to get NOTICEs.
+		}
 		else
 		{
-			warn("ignoring unhandled irc command '%s'", msg.command);
-			for(size_t i = 0; i < input.size(); i++)
-				printf(" %02x (%c)", input[i], input[i]);
-
-			zpr::println("\n");
+			lg::warn("twitch", "ignoring unhandled irc command %s", msg.command);
 		}
 	}
 
