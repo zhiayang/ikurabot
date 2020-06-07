@@ -29,6 +29,7 @@ namespace ikura::twitch
 		uint64_t lastUpdatedTimestamp = 0;
 
 		void update(ikura::string_map<CachedEmote>&& new_list);
+		bool contains(ikura::str_view emote) const;
 
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<EmoteCacheDB> deserialise(Span& buf);
@@ -39,6 +40,8 @@ namespace ikura::twitch
 
 	void initEmotes();
 
+	// get emote positions for bttv and ffz emotes *only*
+	std::vector<ikura::str_view> getExternalEmotePositions(ikura::str_view msg, ikura::str_view channel);
 
 	namespace bttv
 	{

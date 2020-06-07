@@ -6,21 +6,20 @@
 #include <chrono>
 
 #include "db.h"
+#include "zfu.h"
 #include "defs.h"
 #include "async.h"
 #include "config.h"
-#include "twitch.h"
-#include "markov.h"
-#include "discord.h"
-#include "network.h"
 
 using namespace std::chrono_literals;
 
 /*
 	TODO:
 
-	retrain markov with bttv/ffz emote detection
+	onClose callbacks for both Socket and WebSocket
 	handle discord opcode7 reconnect
+	builtin function to reload bttv and ffz emotes
+	console command to re-emotify all logged messages (and move this functionality out of markov)
 	start logging discord messages
 	proper oauth flow for twitch using clientid+clientsecret
 	see if zero-width spaces are preserved by twitch
@@ -46,18 +45,14 @@ int main(int argc, char** argv)
 	if(!ikura::db::load(argv[2], (argc > 3 && std::string(argv[3]) == "--create")))
 		ikura::lg::fatal("db", "failed to load database '%s'", argv[2]);
 
-	// start twitch and discord simultaneously since they like to be slow at
-	// network stuff.
 	if(ikura::config::haveTwitch())
 		ikura::twitch::init();
 
-	// if(ikura::config::haveDiscord())
-	// 	ikura::discord::init();
+	if(ikura::config::haveDiscord())
+		ikura::discord::init();
 
-	// this just starts a worker thread that automatically refreshes the emotes
 	ikura::twitch::initEmotes();
 
-	// this just starts a worker thread to process input in the background.
 	ikura::markov::init();
 
 	// when this returns, then the bot should shutdown.

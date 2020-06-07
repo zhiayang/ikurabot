@@ -61,7 +61,7 @@ namespace ikura::twitch
 		void sendRawMessage(ikura::str_view msg, ikura::str_view associated_channel = "");
 
 		void logMessage(uint64_t timestamp, ikura::str_view userid, Channel* chan, ikura::str_view message,
-			const std::vector<ikura::str_view>& emote_idxs, bool isCmd);
+			const std::vector<ikura::relative_str>& emote_idxs, bool isCmd);
 
 	private:
 		WebSocket ws;

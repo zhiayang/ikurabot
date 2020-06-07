@@ -25,7 +25,7 @@ INCLUDES        = $(shell pkg-config --cflags openssl) -Isource/include -Iextern
 .DEFAULT_GOAL = all
 
 all: build
-	@build/ikurabot build/config.json build/database.db --create
+	@rlwrap build/ikurabot build/config.json build/database.db --create
 
 build: build/ikurabot
 

@@ -1,3 +1,4 @@
+
 // util.cpp
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
@@ -55,6 +56,17 @@ namespace ikura
 
 	namespace util
 	{
+		std::pair<ikura::str_view, ikura::str_view> bisect(ikura::str_view input, char delim)
+		{
+			// note that ikura::str_view has well-defined behaviour for drop and take if
+			// the size is overrun -- they return empty views.
+			auto x = input.take(input.find(delim));
+			auto xs = input.drop(x.size() + 1).trim_front();
+
+			return { x, xs };
+		}
+
+
 		Result<pj::value> parseJson(ikura::str_view str)
 		{
 			pj::value json; std::string err;

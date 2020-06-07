@@ -24,8 +24,8 @@ namespace ikura::twitch
 	// each "view" has a pointer and a size, which represents the position of the emote in the original
 	// byte stream. eg. if you use KEKW twice in a message, then you will get one str_view for each
 	// instance of the emote.
-	static std::vector<ikura::str_view> get_emote_indices(const ikura::string_map<std::string>& tags, ikura::str_view utf8,
-		const std::vector<int32_t>& utf32);
+	static std::vector<ikura::str_view> extract_emotes(ikura::str_view channel, const ikura::string_map<std::string>& tags,
+		ikura::str_view utf8, const std::vector<int32_t>& utf32);
 
 
 	void TwitchState::processMessage(ikura::str_view input)
@@ -103,7 +103,12 @@ namespace ikura::twitch
 
 			auto message_u32 = unicode::to_utf32(message);
 			auto message_u8  = unicode::to_utf8(message_u32);
-			auto emote_idxs  = get_emote_indices(msg.tags, message_u8, message_u32);
+			auto rel_emotes  = zfu::map(extract_emotes(channel, msg.tags, message_u8, message_u32),
+				[&message_u8](const auto& sv) -> auto {
+					return ikura::relative_str(sv.data() - message_u8.data(), sv.size());
+				}
+			);
+
 
 			// only process commands if we're not lurking
 			bool ran_cmd = false;
@@ -116,15 +121,11 @@ namespace ikura::twitch
 				: util::getMillisecondTimestamp()
 			);
 
-			std::vector<ikura::relative_str> rel_emote_idxs;
-			for(const auto& em : emote_idxs)
-				rel_emote_idxs.emplace_back(em.data() - message_u8.data(), em.size());
-
 			// don't train on commands.
 			if(!ran_cmd)
-				markov::process(message_u8, std::move(rel_emote_idxs));
+				markov::process(message_u8, rel_emotes);
 
-			this->logMessage(ts, userid, &this->channels[channel], message_u8, emote_idxs, ran_cmd);
+			this->logMessage(ts, userid, &this->channels[channel], message_u8, rel_emotes, ran_cmd);
 
 			lg::log("msg", "(%.2f ms) twitch/#%s: <%s> %s", time.measure(), channel, username, message_u8);
 		}
@@ -240,8 +241,8 @@ namespace ikura::twitch
 		return userid;
 	}
 
-	static std::vector<ikura::str_view> get_emote_indices(const ikura::string_map<std::string>& tags, ikura::str_view utf8,
-		const std::vector<int32_t>& utf32)
+	static std::vector<ikura::str_view> extract_emotes(ikura::str_view channelName, const ikura::string_map<std::string>& tags,
+		ikura::str_view utf8, const std::vector<int32_t>& utf32)
 	{
 		// first split the tags.
 		auto pos_arr = [&tags]() -> std::vector<std::pair<size_t, size_t>> {
@@ -279,46 +280,47 @@ namespace ikura::twitch
 			return { };
 		}();
 
-		// no emotes.
-		if(pos_arr.empty())
-			return { };
-
-		// sort by the start index. since you can't have overlapping ranges, this will suffice.
-		std::sort(pos_arr.begin(), pos_arr.end(), [](auto& a, auto& b) -> bool { return a.first < b.first; });
-		ikura::span positions = pos_arr;
 
 		std::vector<ikura::str_view> ret;
 
-		// TODO: support ffz and bttv emotes. we just need to scan the utf8 stream in-parallel with the
-		// utf-32 stream, i think.
-
-		size_t idx8 = 0;
-		size_t idx32 = 0;
-		size_t first_idx8 = 0;
-
-		while(idx8 < utf8.size() && idx32 < utf32.size())
+		if(!pos_arr.empty())
 		{
-			if(positions.empty())
-				break;
+			// sort by the start index. since you can't have overlapping ranges, this will suffice.
+			std::sort(pos_arr.begin(), pos_arr.end(), [](auto& a, auto& b) -> bool { return a.first < b.first; });
+			ikura::span positions = pos_arr;
 
-			// how this will go is that we keep the "current" emote index pair at positions[0]; when we
-			// find a match, then it gets removed from the span. that way we don't need a 4th index.
+			// TODO: support ffz and bttv emotes. we just need to scan the utf8 stream in-parallel with the
+			// utf-32 stream, i think.
 
-			if(idx32 == positions[0].first)
+			size_t idx8 = 0;
+			size_t idx32 = 0;
+			size_t first_idx8 = 0;
+
+			while(idx8 < utf8.size() && idx32 < utf32.size())
 			{
-				first_idx8 = idx8;
-			}
-			else if(idx32 == positions[0].second)
-			{
-				// it's begin,end inclusive, so calc the length and substr that.
-				ret.push_back(utf8.substr(first_idx8, idx8 + 1 - first_idx8));
-				positions.remove_prefix(1);
-			}
+				if(positions.empty())
+					break;
 
-			idx8 += unicode::get_byte_length(utf32[idx32]);
-			idx32 += 1;
+				// how this will go is that we keep the "current" emote index pair at positions[0]; when we
+				// find a match, then it gets removed from the span. that way we don't need a 4th index.
+
+				if(idx32 == positions[0].first)
+				{
+					first_idx8 = idx8;
+				}
+				else if(idx32 == positions[0].second)
+				{
+					// it's begin,end inclusive, so calc the length and substr that.
+					ret.push_back(utf8.substr(first_idx8, idx8 + 1 - first_idx8));
+					positions.remove_prefix(1);
+				}
+
+				idx8 += unicode::get_byte_length(utf32[idx32]);
+				idx32 += 1;
+			}
 		}
 
+		ret += getExternalEmotePositions(utf8, channelName);
 		return ret;
 	}
 

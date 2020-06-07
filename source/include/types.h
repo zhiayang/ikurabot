@@ -385,6 +385,7 @@ namespace ikura
 		size_t end_excl() const { return this->_start + this->_size; }
 		size_t end_incl() const { return this->_start + this->_size - 1; }
 
+		str_view get(str_view str) const { return str.substr(_start, _size); };
 		str_view get(const char* ptr) const { return str_view(ptr + _start, _size); };
 		str_view get(const std::string& str) const { return str_view(str).substr(_start, _size); };
 

@@ -9,7 +9,7 @@
 namespace ikura::twitch
 {
 	void TwitchState::logMessage(uint64_t timestamp, ikura::str_view userid, Channel* chan, ikura::str_view message,
-		const std::vector<ikura::str_view>& emote_idxs, bool isCmd)
+		const std::vector<ikura::relative_str>& emote_idxs, bool isCmd)
 	{
 		TwitchMessage tmsg;
 
@@ -28,9 +28,8 @@ namespace ikura::twitch
 		tmsg.channel = chan->getName();
 		tmsg.isCommand = isCmd;
 
+		tmsg.emotePositions = emote_idxs;
 		tmsg.message = database().wlock()->messageData.logMessageContents(message);
-		for(const auto& em : emote_idxs)
-			tmsg.emotePositions.emplace_back(em.data() - message.data(), em.size());
 
 		database().wlock()->twitchData.messageLog.messages.push_back(std::move(tmsg));
 	}

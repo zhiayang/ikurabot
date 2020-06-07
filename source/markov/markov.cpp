@@ -210,7 +210,7 @@ namespace ikura::markov
 
 		// copy out the thing, so we don't do a lot of processing while
 		// holding the lock. besides these are string_views, so they're lightweight.
-		std::vector<std::pair<ikura::str_view, std::vector<ikura::relative_str>>> inputs;
+		std::vector<std::tuple<ikura::str_view, std::vector<ikura::relative_str>, ikura::str_view>> inputs;
 
 		database().perform_read([&inputs](auto& db) {
 			auto& msgs = db.twitchData.messageLog.messages;
@@ -227,16 +227,28 @@ namespace ikura::markov
 				if(txt.find('!') == 0 || txt.find('$') == 0)
 					continue;
 
-				inputs.emplace_back(txt, msg.emotePositions);
-
-				// State.retrainingTotalSize++;
-				// State.queue.push_quiet(QueuedMsg::retrain(txt.str(), msg.emotePositions));
+				inputs.emplace_back(txt, msg.emotePositions, msg.channel);
 			}
 		});
 
-		for(auto& [ sv, ep ] : inputs)
+		for(auto& [ msg, existing_emotes, chan ] : inputs)
 		{
+			// get any new emotes
+			auto& tmp = msg;
+			auto emotes = zfu::map(twitch::getExternalEmotePositions(msg, chan), [&tmp](const auto& em) -> auto {
+				return ikura::relative_str(em.data() - tmp.data(), em.size());
+			}) + existing_emotes;
 
+			std::sort(emotes.begin(), emotes.end(), [](auto& a, auto& b) -> bool {
+				return a.start() < b.start();
+			});
+
+			emotes.erase(std::unique(emotes.begin(), emotes.end(), [](auto& a, auto& b) -> bool {
+				return a.start() == b.start() && a.size() == b.size();
+			}), emotes.end());
+
+			State.retrainingTotalSize++;
+			State.queue.push_quiet(QueuedMsg::retrain(msg.str(), emotes));
 		}
 
 		State.queue.notify_pending();
@@ -462,7 +474,7 @@ namespace ikura::markov
 				// get the frequency
 				if(auto it = markov.table.find(prefix); it != markov.table.end())
 				{
-					WordList& wl = it.value();
+					const WordList& wl = it.value();
 					auto selection = random::get<size_t>(0, wl.totalFrequency - 1);
 
 					// find the word.
@@ -537,7 +549,7 @@ namespace ikura::markov
 		markovModel().perform_read([&output, &msg](auto& markov) {
 			for(size_t i = 0; i < output.size(); i++)
 			{
-				auto& [ word, em ] = markov.wordList[output[i]];
+				auto [ word, em ] = markov.wordList[output[i]];
 				if(word.empty())
 					continue;
 
@@ -545,17 +557,17 @@ namespace ikura::markov
 				else if(config::global::stripMentionsFromMarkov() && word.find('@') == 0)
 					word = word.substr(1);
 
-				if(em)
+				if(em & WORD_FLAG_EMOTE)
 				{
-					msg.add(Emote(word));
+					msg.add(Emote(std::move(word)));
 				}
 				else
 				{
 					if(word.find_first_of(".,?!") == 0 && word.size() == 1)
-						msg.addNoSpace(word);
+						msg.addNoSpace(std::move(word));
 
 					else
-						msg.add(word);
+						msg.add(std::move(word));
 				}
 			}
 		});

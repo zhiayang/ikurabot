@@ -201,8 +201,8 @@ namespace ikura
 
 		using Lk = std::shared_mutex;
 
-		Lk lk;
 		T value;
+		mutable Lk lk;
 		std::function<void ()> write_lock_callback = { };
 
 	public:
@@ -227,7 +227,7 @@ namespace ikura
 		}
 
 		template <typename Functor>
-		void perform_read(Functor&& fn)
+		void perform_read(Functor&& fn) const
 		{
 			std::shared_lock lk(this->lk);
 			fn(this->value);
@@ -244,7 +244,7 @@ namespace ikura
 		}
 
 		template <typename Functor>
-		auto map_read(Functor&& fn) -> decltype(fn(this->value))
+		auto map_read(Functor&& fn) const -> decltype(fn(this->value))
 		{
 			std::shared_lock lk(this->lk);
 			return fn(this->value);
@@ -266,7 +266,7 @@ namespace ikura
 			return this->lk;
 		}
 
-		ReadLockedInstance rlock()
+		ReadLockedInstance rlock() const
 		{
 			return ReadLockedInstance(*this);
 		}
@@ -290,7 +290,7 @@ namespace ikura
 			~ReadLockedInstance() { this->sync.lk.unlock_shared(); }
 
 		private:
-			ReadLockedInstance(Synchronised& sync) : sync(sync) { this->sync.lk.lock_shared(); }
+			ReadLockedInstance(const Synchronised& sync) : sync(sync) { this->sync.lk.lock_shared(); }
 
 			ReadLockedInstance(ReadLockedInstance&&) = delete;
 			ReadLockedInstance(const ReadLockedInstance&) = delete;
@@ -298,7 +298,7 @@ namespace ikura
 			ReadLockedInstance& operator = (ReadLockedInstance&&) = delete;
 			ReadLockedInstance& operator = (const ReadLockedInstance&) = delete;
 
-			Synchronised& sync;
+			const Synchronised& sync;
 
 			friend struct Synchronised;
 		};

@@ -120,6 +120,8 @@ namespace ikura
 		std::optional<int64_t>  stoi(ikura::str_view s, int base = 10);
 		std::optional<uint64_t> stou(ikura::str_view s, int base = 10);
 
+		std::pair<ikura::str_view, ikura::str_view> bisect(ikura::str_view input, char delim);
+
 		Result<picojson::value> parseJson(ikura::str_view json);
 	}
 

@@ -3,7 +3,7 @@
 // Licensed under the Apache License Version 2.0.
 
 // origin: ikurabot
-// updated 04/06/2020
+// updated 07/06/2020
 
 #pragma once
 #include <map>
@@ -38,6 +38,21 @@ std::vector<T> operator + (const std::vector<T>& a, const std::vector<T>& b)
 	ret.insert(ret.end(), b.begin(), b.end());
 
 	return ret;
+}
+
+
+template <typename T>
+std::vector<T>& operator += (std::vector<T>& vec, const T& elm)
+{
+	vec.push_back(elm);
+	return vec;
+}
+
+template <typename T>
+std::vector<T>& operator += (std::vector<T>& vec, const std::vector<T>& xs)
+{
+	vec.insert(vec.end(), xs.begin(), xs.end());
+	return vec;
 }
 
 

@@ -8,16 +8,6 @@
 
 namespace ikura::irc
 {
-	static std::pair<ikura::str_view, ikura::str_view> bisect(ikura::str_view input, char delim)
-	{
-		// note that ikura::str_view has well-defined behaviour for drop and take if
-		// the size is overrun -- they return empty views.
-		auto x = input.take(input.find(delim));
-		auto xs = input.drop(x.size() + 1).trim_front();
-
-		return { x, xs };
-	}
-
 	static void parse_tags(IRCMessage& msg, ikura::str_view tags)
 	{
 		/*
@@ -140,7 +130,7 @@ namespace ikura::irc
 		ikura::str_view x;
 		ikura::str_view xs;
 
-		std::tie(x, xs) = bisect(input, ' ');
+		std::tie(x, xs) = util::bisect(input, ' ');
 		if(x.empty()) return { };
 
 		/*
@@ -163,13 +153,13 @@ namespace ikura::irc
 		if(x[0] == '@')
 		{
 			parse_tags(msg, x);
-			std::tie(x, xs) = bisect(xs, ' ');
+			std::tie(x, xs) = util::bisect(xs, ' ');
 		}
 
 		if(x[0] == ':')
 		{
 			parse_prefix(msg, x);
-			std::tie(x, xs) = bisect(xs, ' ');
+			std::tie(x, xs) = util::bisect(xs, ' ');
 		}
 
 		// no command is not ok.
@@ -201,7 +191,7 @@ namespace ikura::irc
 						xs.remove_suffix(1);
 						msg.isCTCP = true;
 
-						std::tie(x, xs) = bisect(xs, ' ');
+						std::tie(x, xs) = util::bisect(xs, ' ');
 						msg.ctcpCommand = x;
 					}
 				}
@@ -213,7 +203,7 @@ namespace ikura::irc
 			else
 			{
 				// split again
-				std::tie(x, xs) = bisect(xs, ' ');
+				std::tie(x, xs) = util::bisect(xs, ' ');
 				msg.params.push_back(x);
 
 				if(xs.empty())
