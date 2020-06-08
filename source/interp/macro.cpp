@@ -96,7 +96,17 @@ namespace ikura::interp
 			{
 				if(auto v = fs->evaluateExpr(a.drop(1), cs); v.has_value())
 				{
-					list.push_back(v.unwrap());
+					// dismantle the list, if it is one.
+					if(v->is_list())
+					{
+						auto& l = v->get_list();
+						for(auto& x : l)
+							list.push_back(Value::of_string(x.raw_str()));
+					}
+					else
+					{
+						list.push_back(Value::of_string(v->raw_str()));
+					}
 				}
 				else
 				{

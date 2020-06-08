@@ -103,6 +103,13 @@ namespace ikura
 		this->conn.onReceive([&](Span data) {
 
 			buf.write(data);
+
+			// if we already succeeded, don't try parsing it again
+			// (because websocket data might come in before the outer thread
+			// has a chance to unblock at the condvar)
+			if(success)
+				return;
+
 			auto _hdrs = HttpHeaders::parse(buf);
 
 			// if the response is invalid (ie. there's no \r\n on the last line), then we get
@@ -135,6 +142,8 @@ namespace ikura
 				lg::error("ws", "invalid key (got '%s')", key);
 			}
 
+			// zpr::println("rx:\n%s\n", buf.sv());
+			buf.clear();
 			cv.set(true);
 		});
 
@@ -143,14 +152,18 @@ namespace ikura
 		this->conn.send(Span::fromString(http.bytes()));
 		if(!cv.wait(true, DEFAULT_TIMEOUT))
 		{
+			lg::error("ws", "connection timed out (while waiting for websocket upgrade reply)");
+
 			this->conn.disconnect();
-			return lg::error_b("ws", "connection timed out (while waiting for websocket upgrade reply)");
+			return false;
 		}
 
 		if(!success)
 		{
+			lg::error("ws", "websocket upgrade failed");
+
 			this->conn.disconnect();
-			return lg::error_b("ws", "websocket upgrade failed");
+			return false;
 		}
 
 		// setup the handler.
@@ -237,10 +250,14 @@ namespace ikura
 				this->close_callback();
 		});
 
+		// try to flush the buffer, if there's stuff inside.
+		if(buf.size() > 0)
+			this->conn.rx_callback(buf.span());
+
 		return true;
 	}
 
-	void WebSocket::disconnect(uint16_t code)
+	void WebSocket::disconnect(bool quietly, uint16_t code)
 	{
 		if(!this->conn.connected())
 			return;
@@ -257,10 +274,7 @@ namespace ikura
 
 			auto frame = buf.as<raw_frame_t>();
 			if(frame->opcode == OP_CLOSE)
-			{
 				cv.set(true);
-				cv.notify_one();
-			}
 		});
 
 		code = util::to_network(code);
@@ -273,7 +287,7 @@ namespace ikura
 		cv.wait(true, 500ms);
 
 		this->conn.onReceive([](auto) { });
-		this->conn.disconnect();
+		this->conn.force_disconnect();
 	}
 
 
@@ -384,7 +398,7 @@ namespace ikura
 					: "<none>");
 
 			this->send_raw(OP_CLOSE, /* fin: */ true, Buffer::empty());
-			this->conn.disconnect();
+			this->conn.force_disconnect();
 		}
 		else if(opcode == OP_TEXT)
 		{

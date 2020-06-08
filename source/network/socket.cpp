@@ -5,6 +5,7 @@
 #include <poll.h>
 
 #include "defs.h"
+#include "async.h"
 #include "network.h"
 #include "kissnet.h"
 
@@ -63,11 +64,12 @@ namespace ikura
 		// cannot be set by user code; that only controls the timeout for the initial connection.
 		this->socket->set_timeout(LOOP_PERIOD.count());
 
+		// lg::error("socket", "SETUP_RECEIVER");
 		this->thread = std::thread([this]() {
 			while(true)
 			{
 				// fprintf(stderr, ".");
-				if(!this->is_connected || this->socket->fd() == -1)
+				if(!this->is_connected || this->socket == nullptr || this->socket->fd() == -1)
 					break;
 
 				// do a blocking read.
@@ -118,32 +120,61 @@ namespace ikura
 		return true;
 	}
 
-	void Socket::disconnect()
+	void Socket::force_disconnect()
 	{
-		if(this->is_connected)
-			this->is_connected = false;
+		this->is_connected = false;
 
 		this->onReceive([](auto) { });
+		this->onDisconnect([]() { });
 
-		// don't try to call join from the thread itself. this can happen when we want
-		// to call disconnect while inside a packet handler; for example, the remote end
-		// tells us to die.
-		if(this->thread.joinable() && this->thread.get_id() != std::this_thread::get_id())
+		// the socket will be closed, and we set it to null -- since we cannot join the thread,
+		// just detach it and trust that it will exit properly.
+		this->thread.detach();
+
+		if(this->socket != nullptr)
+		{
+			// this is really quite dumb. to prevent SSL from throwing a fit because we deleted
+			// the socket (and hence deleted pSSL and pContext), we can only perform this in a
+			// separate thread, after waiting for some amount of time to ensure that the handler
+			// has definitely (a) timed out from SSL_read, and (b) exited.
+
+			// we can set it to nullptr, just store it first.
+			auto sock = this->socket;
+			this->socket = nullptr;
+
+			dispatcher().run([](kissnet::socket<4>* sock) {
+				std::this_thread::sleep_for(2 * LOOP_PERIOD);
+				sock->close();
+				delete sock;
+			}, sock);
+		}
+	}
+
+	void Socket::disconnect(bool quietly)
+	{
+		if(this->thread.get_id() == std::this_thread::get_id())
+			lg::fatal("socket", "cannot disconnect from handler thread!");
+
+
+		this->is_connected = false;
+		this->onReceive([](auto) { });
+
+		if(this->thread.joinable())
 			this->thread.join();
 
 		// must join the thread before closing the socket, if not we risk closing the socket
 		// from under the recv() call, which SSL does *not* like.
 		if(this->socket != nullptr)
 		{
-			if(this->close_callback)
-				this->close_callback();
-
-			this->onDisconnect([]() { });
-
 			this->socket->close();
 			delete this->socket;
 
 			this->socket = nullptr;
+
+			if(!quietly && this->close_callback)
+				this->close_callback();
+
+			this->onDisconnect([]() { });
 		}
 	}
 
@@ -159,12 +190,12 @@ namespace ikura
 
 	void Socket::onReceive(std::function<RxCallbackFn>&& fn)
 	{
-		this->rx_callback = std::move(fn);
+		this->rx_callback = fn;
 	}
 
 	void Socket::onDisconnect(std::function<void (void)>&& fn)
 	{
-		this->close_callback = std::move(fn);
+		this->close_callback = fn;
 	}
 
 	bool Socket::listen()

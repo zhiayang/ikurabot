@@ -57,19 +57,15 @@ namespace ikura::cmd
 
 	Message value_to_message(const interp::Value& val)
 	{
-		Message msg;
-
-		std::function<void (Message&, const interp::Value&)> do_one;
-		do_one = [&do_one](Message& m, const interp::Value& v) {
+		std::function<Message& (Message&, const interp::Value&)> do_one;
+		do_one = [&do_one](Message& m, const interp::Value& v) -> Message& {
 			if(v.is_void())
-				return;
+				return m;
 
 			if(v.is_string())
 			{
-				auto s = v.str();
-
-				// drop the quotes.
-				auto sv = ikura::str_view(s).remove_prefix(1).remove_suffix(1);
+				auto s = v.raw_str();
+				auto sv = ikura::str_view(s);
 
 				// syntax is :NAME for emotes
 				// but you can escape the : with \:
@@ -80,16 +76,33 @@ namespace ikura::cmd
 			else if(v.is_list())
 			{
 				auto& l = v.get_list();
-				for(auto& x : l)
-					do_one(m, x);
+
+				if(v.flags() & interp::Value::FLAG_DISMANTLE_LIST)
+				{
+					auto next = &m;
+					for(const auto& x : l)
+					{
+						Message tmp; do_one(tmp, x);
+						next = &next->link(std::move(tmp));
+					}
+				}
+				else
+				{
+					for(const auto& x : l)
+						do_one(m, x);
+				}
 			}
 			else
 			{
 				m.add(v.str());
 			}
+
+			return m;
 		};
 
+		Message msg;
 		do_one(msg, val);
+
 		return msg;
 	}
 
@@ -105,6 +118,7 @@ namespace ikura::cmd
 			return;
 
 		interp::CmdContext cs;
+		cs.executionStart = util::getMillisecondTimestamp();
 		cs.callername = username;
 		cs.callerid = userid;
 		cs.channel = chan;

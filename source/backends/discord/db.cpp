@@ -2,6 +2,7 @@
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
 
+#include "db.h"
 #include "defs.h"
 #include "discord.h"
 #include "serialise.h"
@@ -79,6 +80,7 @@ namespace ikura::discord
 		wr.tag(TYPE_TAG);
 
 		wr.write(this->guilds);
+		wr.write(this->messageLog);
 	}
 
 	std::optional<DiscordDB> DiscordDB::deserialise(Span& buf)
@@ -91,6 +93,12 @@ namespace ikura::discord
 
 		if(!rd.read(&ret.guilds))
 			return { };
+
+		if(db::getVersion() >= 22)
+		{
+			if(!rd.read(&ret.messageLog))
+				return { };
+		}
 
 		return ret;
 	}

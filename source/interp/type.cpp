@@ -38,9 +38,8 @@ namespace ikura::interp
 		else if(this->is_list() && other->is_list())
 		{
 			// for now, we use list[void] and map[void, void] as "generic" any placeholder types.
-			// you can cast from a concrete [T] -> [void] with some acceptable cost, but you cannot
-			// go from [void] -> T.
-			if(other->elm_type()->is_void())
+			// and also for empty lists.
+			if(this->elm_type()->is_void() || other->elm_type()->is_void())
 				return 2;
 		}
 		else if(this->is_map() && other->is_map())

@@ -14,16 +14,22 @@
 using namespace std::chrono_literals;
 
 /*
-	TODO:
+	TODO (bot):
 
+	"join" discord channels to say stuff from console
 	builtin function to reload bttv and ffz emotes
 	console command to re-emotify all logged messages (and move this functionality out of markov)
-	start logging discord messages
 	proper oauth flow for twitch using clientid+clientsecret
+	consolidate message sending for discord? use a dedicated worker thread instead of using the dispatcher
 
 	...
 
 	refactor/rewrite kissnet
+
+
+	TODO (interpreter):
+
+	type finnagling for math? ideally sqrt(-1) should directly return a complex number...
 */
 
 int main(int argc, char** argv)

@@ -14,6 +14,9 @@ CXXSRC          = $(shell find source -iname "*.cpp" -print)
 CXXOBJ          = $(CXXSRC:.cpp=.cpp.o)
 CXXDEPS         = $(CXXOBJ:.o=.d)
 
+PRECOMP_HDRS    := source/include/precompile.h
+PRECOMP_GCH     := $(PRECOMP_HDRS:.h=.h.gch)
+
 UTF8PROC_SRC    = external/utf8proc/utf8proc.c
 UTF8PROC_OBJ    = $(UTF8PROC_SRC:.c=.c.o)
 UTF8PROC_DEPS   = $(UTF8PROC_OBJ:.o=.d)
@@ -22,10 +25,11 @@ DEFINES         = -DKISSNET_NO_EXCEP -DKISSNET_USE_OPENSSL
 INCLUDES        = $(shell pkg-config --cflags openssl) -Isource/include -Iexternal
 
 .PHONY: all clean build
+.PRECIOUS: $(PRECOMP_GCH)
 .DEFAULT_GOAL = all
 
 all: build
-	@rlwrap build/ikurabot build/config.json build/database.db --create
+	@build/ikurabot build/config.json build/database.db --create
 
 build: build/ikurabot
 
@@ -33,13 +37,17 @@ build/ikurabot: $(CXXOBJ) $(UTF8PROC_OBJ)
 	@echo "  linking..."
 	@$(CXX) $(CXXFLAGS) -o $@ $^ $(shell pkg-config --libs openssl)
 
-%.cpp.o: %.cpp makefile
+%.cpp.o: %.cpp makefile $(PRECOMP_GCH)
 	@echo "  $(notdir $<)"
-	@$(CXX) $(CXXFLAGS) $(WARNINGS) $(INCLUDES) $(DEFINES) -MMD -MP -c -o $@ $<
+	@$(CXX) $(CXXFLAGS) $(WARNINGS) $(INCLUDES) $(DEFINES) -include source/include/precompile.h -MMD -MP -c -o $@ $<
 
 %.c.o: %.c makefile
 	@echo "  $(notdir $<)"
 	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+
+%.h.gch: %.h makefile
+	@printf "# precompiling header $<\n"
+	@$(CXX) $(CXXFLAGS) $(WARNINGS) $(INCLUDES) -x c++-header -o $@ $<
 
 clean:
 	@find source -iname "*.cpp.d" | xargs rm

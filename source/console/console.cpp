@@ -221,13 +221,7 @@ namespace ikura::console
 
 	void init()
 	{
-		auto port = config::global::getConsolePort();
-		if(port == 0 || !(0 < port && port < 65536))
-		{
-			lg::warn("console", "invalid port for console, ignoring.");
-			return;
-		}
-
+		State.is_connected = true;
 		auto local_con = std::thread([]() {
 			while(true)
 			{
@@ -256,51 +250,55 @@ namespace ikura::console
 		});
 
 
-		auto srv = new Socket("localhost", port, /* ssl: */ false);
-		State.is_connected = true;
-		if(srv->listen())
+		auto port = config::global::getConsolePort();
+		if(0 < port && port < 65536)
 		{
-			lg::log("console", "starting console on port %d", port);
+			auto srv = new Socket("localhost", port, /* ssl: */ false);
+			State.is_connected = true;
+			if(srv->listen())
+			{
+				lg::log("console", "starting console on port %d", port);
 
-			auto reaper = std::thread([]() {
+				auto reaper = std::thread([]() {
+					while(true)
+					{
+						auto sock = State.danglingSockets.pop();
+						if(sock == nullptr)
+							break;
+
+						sock->disconnect();
+						delete sock;
+					}
+				});
+
 				while(true)
 				{
-					auto sock = State.danglingSockets.pop();
-					if(sock == nullptr)
+					if(!State.is_connected)
 						break;
 
-					sock->disconnect();
-					delete sock;
+					if(auto sock = srv->accept(200ms); sock != nullptr)
+					{
+						lg::log("console", "started session");
+						State.socketBuffers.wlock()->emplace(sock, Buffer(512));
+						setup_receiver(sock);
+
+						print_prompt(sock);
+					}
 				}
-			});
 
-			while(true)
-			{
-				if(!State.is_connected)
-					break;
+				// kill everything.
+				State.socketBuffers.perform_write([](auto& sb) {
+					for(auto& [ s, b ] : sb)
+						s->disconnect();
+				});
 
-				if(auto sock = srv->accept(200ms); sock != nullptr)
-				{
-					lg::log("console", "started session");
-					State.socketBuffers.wlock()->emplace(sock, Buffer(512));
-					setup_receiver(sock);
-
-					print_prompt(sock);
-				}
+				State.danglingSockets.push(nullptr);
+				reaper.join();
 			}
-
-			// kill everything.
-			State.socketBuffers.perform_write([](auto& sb) {
-				for(auto& [ s, b ] : sb)
-					s->disconnect();
-			});
-
-			State.danglingSockets.push(nullptr);
-			reaper.join();
-		}
-		else
-		{
-			lg::warn("console", "could not bind console port %d", port);
+			else
+			{
+				lg::warn("console", "could not bind console port %d", port);
+			}
 		}
 
 		local_con.join();

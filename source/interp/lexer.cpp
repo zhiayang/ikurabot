@@ -201,6 +201,12 @@ namespace ikura::interp::lexer
 			src.remove_prefix(2);
 			return ret;
 		}
+		else if(src.find("=>") == 0)
+		{
+			auto ret = Token(TT::FatRightArrow, src.take(2));
+			src.remove_prefix(2);
+			return ret;
+		}
 		else if('0' <= src[0] && src[0] <= '9')
 		{
 			auto tmp = src;
@@ -285,9 +291,41 @@ namespace ikura::interp::lexer
 			src.remove_prefix(didRead);
 			return ret;
 		}
+		else if(src[0] == '\'')
+		{
+			if(src.size() < 2)
+			{
+				lg::error("cmd/lex", "unexpected end of input");
+				return INVALID;
+			}
+
+			src.remove_prefix(1);
+
+			int32_t codepoint = 0;
+			auto bytes = utf8proc_iterate((const uint8_t*) src.data(), src.size(), &codepoint);
+			if(codepoint == -1)
+			{
+				lg::error("cmd/lex", "invalid unicode sequence");
+				return INVALID;
+			}
+
+			auto tmp = src.take(bytes);
+
+			src.remove_prefix(bytes);
+			if(src.size() == 0 || src[0] != '\'')
+			{
+				lg::error("cmd/lex", "expected closing '");
+				return INVALID;
+			}
+
+			src.remove_prefix(1);
+			auto ret = Token(TT::CharLit, tmp);
+
+			return ret;
+		}
 		else if(src[0] == '"')
 		{
-			if(src.size() == 1)
+			if(src.size() < 2)
 			{
 				lg::error("cmd/lex", "unexpected end of input");
 				return INVALID;

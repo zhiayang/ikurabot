@@ -88,14 +88,10 @@ namespace ikura::interp::ast
 					left = &lhs;
 				}
 
-				if(rhs.is_list())
+				if(rhs.is_list() && (left->type()->elm_type()->is_same(rhs.type()->elm_type())
+					|| left->type()->elm_type()->is_void()
+					|| rhs.type()->elm_type()->is_void()))
 				{
-					if(left->type()->elm_type() != rhs.type()->elm_type())
-					{
-						return zpr::sprint("cannot concatenate lists of type '%s' and '%s'",
-							left->type()->str(), rhs.type()->str());
-					}
-
 					auto rl = rhs.get_list();
 
 					// plus equals will modify, plus will make a new temporary.
@@ -112,14 +108,8 @@ namespace ikura::interp::ast
 						return lhs;
 					}
 				}
-				else
+				else if(left->type()->elm_type()->is_same(rhs.type()))
 				{
-					if(left->type()->elm_type() != rhs.type())
-					{
-						return zpr::sprint("cannot append value of type '%s' to a list of type '%s'",
-							rhs.type()->str(), left->type()->str());
-					}
-
 					// plus equals will modify, plus will make a new temporary.
 					if(op == TT::Plus)
 					{
@@ -131,6 +121,20 @@ namespace ikura::interp::ast
 						if(didAppend) *didAppend = true;
 
 						left->get_list().push_back(rhs);
+						return lhs;
+					}
+				}
+				else if(left->type()->elm_type()->is_void())
+				{
+					if(op == TT::Plus)
+					{
+						return Value::of_list(rhs.type(), { rhs });
+					}
+					else
+					{
+						if(didAppend) *didAppend = true;
+
+						*left = Value::of_list(rhs.type(), { rhs });
 						return lhs;
 					}
 				}
@@ -265,6 +269,9 @@ namespace ikura::interp::ast
 
 			if(didAppend) return ret;
 			else          rhs = ret;
+
+			if(!rhs)
+				return rhs;
 		}
 
 		// check if they're assignable.
@@ -403,7 +410,7 @@ namespace ikura::interp::ast
 		else if(base->is_map())
 		{
 			auto* map = &base->get_map();
-			if(base->type()->key_type() != idx->type())
+			if(!base->type()->key_type()->is_same(idx->type()))
 				return zpr::sprint("cannot index '%s' with key '%s'", base->type()->str(), idx->type()->str());
 
 			if(auto it = map->find(idx.unwrap()); it != map->end())
@@ -540,84 +547,24 @@ namespace ikura::interp::ast
 	}
 
 
-	static constexpr size_t RECURSION_LIMIT = 50;
 
-	Result<Value> FunctionCall::evaluate(InterpState* fs, CmdContext& cs) const
-	{
-		auto target = this->callee->evaluate(fs, cs);
-		if(!target) return target;
 
-		if(!target->type()->is_function())
-			return zpr::sprint("type '%s' is not callable", target->type()->str());
 
-		Command* function = target->get_function();
-		if(!function) return zpr::sprint("error retrieving function");
 
-		if(cs.recursionCount > RECURSION_LIMIT)
-			return zpr::sprint("recursion limit exceeded");
 
-		// special handling for macros.
-		if(auto macro = dynamic_cast<Macro*>(function))
-		{
-			// macros take in a list of strings, and return a list of strings.
-			// so we just iterate over all our arguments, make convert them all to strings,
-			// make a list, then pass it in.
-			std::vector<Value> args;
-			for(Expr* e : this->arguments)
-			{
-				auto res = e->evaluate(fs, cs);
-				if(!res) return res;
 
-				// check for splat
-				if(auto splat = dynamic_cast<SplatOp*>(e))
-				{
-					assert(res->is_list());
-					auto xs = res->get_list();
-					for(const auto& x : xs)
-						args.push_back(Value::of_string(x.raw_str()));
-				}
-				else
-				{
-					args.push_back(Value::of_string(res->raw_str()));
-				}
-			}
 
-			// clone the thing, and replace the args. this way we keep the rest of the stuff
-			// like caller, channel, etc.
-			CmdContext params = cs;
-			params.recursionCount++;
-			params.macro_args = std::move(args);
 
-			return macro->run(fs, params);
-		}
-		else
-		{
-			std::vector<Value> args;
-			for(Expr* e : this->arguments)
-			{
-				auto res = e->evaluate(fs, cs);
-				if(!res) return res;
 
-				if(auto splat = dynamic_cast<SplatOp*>(e))
-				{
-					assert(res->is_list());
-					auto xs = res->get_list();
-					for(const auto& x : xs)
-						args.push_back(x);
-				}
-				else
-				{
-					args.push_back(res.unwrap());
-				}
-			}
 
-			CmdContext params = cs;
-			params.recursionCount++;
-			params.macro_args = std::move(args);
 
-			return function->run(fs, params);
-		}
-	}
+
+
+
+
+
+
+
 
 	Result<Value> LitInteger::evaluate(InterpState* fs, CmdContext& cs) const
 	{
@@ -631,7 +578,30 @@ namespace ikura::interp::ast
 		else     return make_flt(this->value);
 	}
 
+	Result<Value> LitList::evaluate(InterpState* fs, CmdContext& cs) const
+	{
+		// make sure all the elements have the same type.
+		if(this->elms.empty())
+			return Value::of_list(Type::get_void(), { });
 
+		std::vector<Value> vals;
+		for(auto e : this->elms)
+		{
+			auto x = e->evaluate(fs, cs);
+			if(!x) return x;
+
+			vals.push_back(x.unwrap());
+		}
+
+		auto ty = vals[0].type();
+		for(size_t i = 1; i < vals.size(); i++)
+			if(!vals[i].type()->is_same(ty))
+				return zpr::sprint("conflicting types in list -- '%s' and '%s'", ty->str(), vals[i].type()->str());
+
+		return Value::of_list(ty, std::move(vals));
+	}
+
+	Result<Value> LitChar::evaluate(InterpState* fs, CmdContext& cs) const       { return Value::of_char(this->codepoint); }
 	Result<Value> LitString::evaluate(InterpState* fs, CmdContext& cs) const     { return Value::of_string(this->value); }
 	Result<Value> LitBoolean::evaluate(InterpState* fs, CmdContext& cs) const    { return make_bool(this->value); }
 
@@ -644,12 +614,14 @@ namespace ikura::interp::ast
 
 
 	// destructors
+	LitChar::~LitChar() { }
 	LitString::~LitString() { }
 	LitInteger::~LitInteger() { }
 	LitDouble::~LitDouble() { }
 	LitBoolean::~LitBoolean() { }
 	VarRef::~VarRef() { }
 
+	LitList::~LitList()             { for(auto e : elms) delete e; }
 	SubscriptOp::~SubscriptOp()     { delete list; delete index; }
 	SliceOp::~SliceOp()             { delete list; if(start) delete start; if(end) delete end; }
 	UnaryOp::~UnaryOp()             { delete expr; }
@@ -658,5 +630,5 @@ namespace ikura::interp::ast
 	TernaryOp::~TernaryOp()         { delete op1; delete op2; delete op3; }
 	ComparisonOp::~ComparisonOp()   { for(auto e : exprs) delete e; }
 	AssignOp::~AssignOp()           { delete lhs; delete rhs; }
-	FunctionCall::~FunctionCall()   { delete callee; for(auto e : arguments) delete e; }
+
 }

@@ -109,6 +109,19 @@ namespace ikura
 			else                return Result<T, E>(err);
 		}
 
+		// we use this in the parser a lot, so why not lmao
+		template <typename U, typename = std::enable_if_t<
+			std::is_pointer_v<T> && std::is_pointer_v<U>
+			&& std::is_base_of_v<std::remove_pointer_t<U>, std::remove_pointer_t<T>>
+		>>
+		operator Result<U, E> () const
+		{
+			if(state == STATE_VAL)  return Result<U, E>(this->val);
+			if(state == STATE_ERR)  return Result<U, E>(this->err);
+
+			abort();
+		}
+
 	#if 0
 		// dumb stuff
 		template <size_t I> decltype(auto) get() const
@@ -421,6 +434,7 @@ namespace ikura
 
 	namespace serialise
 	{
+		// "primitive" types
 		constexpr uint8_t TAG_U8                    = 0x01;
 		constexpr uint8_t TAG_U16                   = 0x02;
 		constexpr uint8_t TAG_U32                   = 0x03;
@@ -442,6 +456,26 @@ namespace ikura
 		constexpr uint8_t TAG_STL_PAIR              = 0x13;
 		constexpr uint8_t TAG_REL_STRING            = 0x14;
 
+		// interp part 1
+		constexpr uint8_t TAG_AST_LIT_CHAR          = 0x30;
+		constexpr uint8_t TAG_AST_LIT_STRING        = 0x31;
+		constexpr uint8_t TAG_AST_LIT_LIST          = 0x32;
+		constexpr uint8_t TAG_AST_LIT_INTEGER       = 0x33;
+		constexpr uint8_t TAG_AST_LIT_DOUBLE        = 0x34;
+		constexpr uint8_t TAG_AST_LIT_BOOLEAN       = 0x35;
+		constexpr uint8_t TAG_AST_VAR_REF           = 0x36;
+		constexpr uint8_t TAG_AST_OP_SUBSCRIPT      = 0x37;
+		constexpr uint8_t TAG_AST_OP_SLICE          = 0x38;
+		constexpr uint8_t TAG_AST_OP_SPLAT          = 0x39;
+		constexpr uint8_t TAG_AST_OP_UNARY          = 0x3A;
+		constexpr uint8_t TAG_AST_OP_BINARY         = 0x3B;
+		constexpr uint8_t TAG_AST_OP_TERNARY        = 0x3C;
+		constexpr uint8_t TAG_AST_OP_COMPARISON     = 0x3D;
+		constexpr uint8_t TAG_AST_OP_ASSIGN         = 0x3E;
+		constexpr uint8_t TAG_AST_FUNCTION_CALL     = 0x3F;
+		constexpr uint8_t TAG_AST_BLOCK             = 0x40;
+
+		// backend (twitch, discord, markov) stuff
 		constexpr uint8_t TAG_TWITCH_DB             = 0x41;
 		constexpr uint8_t TAG_COMMAND_DB            = 0x42;
 		constexpr uint8_t TAG_TWITCH_USER           = 0x43;
@@ -469,6 +503,12 @@ namespace ikura
 		constexpr uint8_t TAG_GENERIC_USER          = 0x59;
 		constexpr uint8_t TAG_CACHED_EMOTE          = 0x5A;
 		constexpr uint8_t TAG_CACHED_EMOTE_DB       = 0x5B;
+		constexpr uint8_t TAG_DISCORD_LOG           = 0x5C;
+		constexpr uint8_t TAG_DISCORD_LOG_MSG       = 0x5D;
+
+		// interp part 2
+		constexpr uint8_t TAG_AST_FUNCTION_DEFN     = 0x68;
+
 
 		// if the byte has 0x80 set, then the lower 7 bits represents a truncated 64-bit number. it's a further
 		// extension of the SMALL_U64 thing, but literally only uses 1 byte for sizes between 0 - 127

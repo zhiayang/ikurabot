@@ -5,6 +5,7 @@
 #include "picojson.h"
 
 #include "defs.h"
+#include "rate.h"
 #include "async.h"
 #include "config.h"
 #include "synchro.h"
@@ -21,21 +22,9 @@ namespace ikura::discord
 	static Synchronised<DiscordState>* _state = nullptr;
 	static Synchronised<DiscordState>& state() { return *_state; }
 
-	struct QueuedMsg
-	{
-		QueuedMsg() { }
-		QueuedMsg(bool dc) : disconnected(dc) { }
-		QueuedMsg(std::map<std::string, pj::value> m) : msg(std::move(m)) { }
 
-		static QueuedMsg disconnect() { return QueuedMsg(true); }
-
-		std::map<std::string, pj::value> msg;
-		bool disconnected = false;
-	};
-
-
-	static MessageQueue<discord::QueuedMsg> msg_queue;
-	MessageQueue<discord::QueuedMsg>& mqueue() { return msg_queue; }
+	static MessageQueue<RxEvent, TxMessage> msg_queue;
+	MessageQueue<RxEvent, TxMessage>& mqueue() { return msg_queue; }
 
 	void heartbeat_worker()
 	{
@@ -53,10 +42,13 @@ namespace ikura::discord
 						// no ack between the intervals -- disconnect now. discord says just send a non-1000
 						// close code, so just use 1002 -- protocol_error.
 						lg::warn("discord", "did not receive heartbeat ack, reconnecting...");
-						st.ws.disconnect(1002);
 
-						// don't set should_heartbeat to false, since we want to keep this worker alive.
-						st.resume();
+						dispatcher().run([&st]() {
+							st.disconnect();
+							st.resume();
+						}).discard();
+
+						should_heartbeat = false;
 						return;
 					}
 
@@ -72,7 +64,6 @@ namespace ikura::discord
 										: pj::value(st.sequence)
 							}
 						}).serialise());
-						// lg::log("discord", "heartbeat");
 					}
 				});
 			}
@@ -80,23 +71,10 @@ namespace ikura::discord
 			std::this_thread::sleep_for(250ms);
 		}
 
-		lg::log("discord", "heartbeat worker exited");
+		lg::dbglog("discord", "heartbeat worker exited");
 	}
 
-	void send_worker()
-	{
-		while(true)
-		{
-			auto msg = mqueue().pop_send();
-			if(msg.disconnected)
-				break;
-
-			state().wlock()->ws.send(pj::value(std::move(msg.msg)).serialise());
-		}
-
-		lg::log("twitch", "send worker exited");
-	}
-
+	void send_worker(); // defined in discord/channel.cpp
 	void recv_worker()
 	{
 		while(true)
@@ -108,15 +86,17 @@ namespace ikura::discord
 			state().wlock()->processEvent(msg.msg);
 		}
 
-		lg::log("twitch", "receive worker exited");
+		lg::dbglog("discord", "receive worker exited");
 	}
 
 	DiscordState::DiscordState(URL url, std::chrono::nanoseconds timeout) : ws(url, timeout)
 	{
 	}
 
-	bool DiscordState::init(bool resume)
+	bool DiscordState::init(bool _)
 	{
+		(void) _;
+
 		auto backoff = 500ms;
 
 		int retries = 0;
@@ -176,9 +156,8 @@ namespace ikura::discord
 			goto retry;
 		}
 
-		if(!resume)
-			this->hb_thread = std::thread(heartbeat_worker);
-
+		this->didAckHeartbeat = true;
+		this->hb_thread = std::thread(heartbeat_worker);
 		return true;
 	}
 
@@ -207,7 +186,6 @@ namespace ikura::discord
 
 	void DiscordState::send_resume()
 	{
-		// send an identify
 		this->ws.send(pj::value(std::map<std::string, pj::value> {
 			{ "op", pj::value(opcode::RESUME) },
 			{
@@ -225,6 +203,7 @@ namespace ikura::discord
 		if(!this->ws.connected())
 			return false;
 
+		bool resumable = true;
 		bool success = false;
 		condvar<bool> cv;
 
@@ -238,21 +217,25 @@ namespace ikura::discord
 			if(op == opcode::DISPATCH)
 			{
 				// do a quick peek.
-				if(obj["t"].is_str() && obj["t"].as_str() == "READY")
-				{
-					success = true;
-					cv.set(true);
-					lg::log("discord", "%s", resume ? "resumed" : "identified");
-				}
+				bool is_ready = (obj["t"].is_str() && obj["t"].as_str() == "READY");
 
 				// we should still send this to the queue, because there is a chance that
 				// we receive subsequent messages in fast succession (eg. GUILD_CREATE).
 				mqueue().push_receive(std::move(obj));
+
+				if(is_ready)
+				{
+					lg::log("discord", "%s", resume ? "resumed" : "identified");
+					success = true;
+					cv.set(true);
+				}
 			}
 			else if(op == opcode::INVALID_SESS)
 			{
 				lg::warn("discord", "received invalid session");
+				resumable = obj["d"].as_bool();
 				success = false;
+
 				cv.set(true);
 			}
 			else
@@ -261,23 +244,33 @@ namespace ikura::discord
 			}
 		});
 
+		int retries = 0;
+
 		this->tx_thread = std::thread(send_worker);
 		this->rx_thread = std::thread(recv_worker);
 
-		int retries = 0;
-
 	retry:
-		if(resume)  this->send_resume();
-		else        this->send_identify();
+		cv.set(false);
 
+		if(resume) this->send_resume();
+		else       this->send_identify();
 
 		// wait for a ready
 		if(!cv.wait(true, 1500ms) || !success)
 		{
 			if(++retries < CONNECT_RETRIES && this->ws.connected())
 			{
-				lg::warn("discord", "%s timed out, waiting a little while...", resume ? "resume" : "identify");
-				std::this_thread::sleep_for(6s);
+				if(!resume || resumable)
+				{
+					lg::warn("discord", "%s timed out, waiting a little while...", resume ? "resume" : "identify");
+					std::this_thread::sleep_for(6s);
+				}
+				else
+				{
+					lg::warn("discord", "resume failed, reconnecting normally");
+					resume = false;
+				}
+
 				goto retry;
 			}
 			else
@@ -287,6 +280,7 @@ namespace ikura::discord
 				return false;
 			}
 		}
+
 
 		// setup the real handler
 		this->ws.onReceiveText([&](bool, ikura::str_view msg) {
@@ -305,6 +299,9 @@ namespace ikura::discord
 			}
 			else if(op == opcode::DISPATCH)
 			{
+				if(obj["t"].as_str() == "MESSAGE_CREATE" && obj["d"].as_obj()["content"].as_str().find("'x") == 0)
+					goto uwu;
+
 				mqueue().push_receive(std::move(obj));
 			}
 			else if(op == opcode::HEARTBEAT_ACK)
@@ -314,9 +311,16 @@ namespace ikura::discord
 			}
 			else if(op == opcode::RECONNECT)
 			{
-				// ugh.
-				this->ws.disconnect();
-				this->resume();
+			uwu:
+				// since we are in the callback thread, we cannot disconnect from here.
+				// so, use the dispatcher to disconnect and reconnect externally.
+				dispatcher().run([this]() {
+
+					lg::warn("discord", "server requested reconnect...");
+					this->disconnect();
+					this->resume();
+
+				}).discard();
 			}
 			else
 			{
@@ -325,10 +329,12 @@ namespace ikura::discord
 		});
 
 		this->ws.onDisconnect([&]() {
-
 			lg::warn("discord", "server disconnected us, attempting resume...");
+
 			dispatcher().run([&]() {
 				std::this_thread::sleep_for(1000ms);
+
+				this->disconnect();
 				this->resume();
 			}).discard();
 		});
@@ -353,23 +359,31 @@ namespace ikura::discord
 		return this->internal_connect(/* resume: */ false);
 	}
 
-	void DiscordState::disconnect()
+	void DiscordState::disconnect(uint16_t code)
 	{
 		if(!this->ws.connected())
 			return;
 
-		mqueue().push_send(QueuedMsg::disconnect());
-		mqueue().push_receive(QueuedMsg::disconnect());
+		this->ws.onReceiveText([](auto, auto) { });
+
+		this->sequence = -1;
+		mqueue().push_send(TxMessage::disconnect());
+		mqueue().push_receive(RxEvent::disconnect());
 
 		should_heartbeat = false;
 
-		this->hb_thread.join();
-		this->tx_thread.join();
-		this->rx_thread.join();
+		if(this->hb_thread.joinable())
+			this->hb_thread.join();
+
+		if(this->tx_thread.joinable())
+			this->tx_thread.join();
+
+		if(this->rx_thread.joinable())
+			this->rx_thread.join();
 
 		// this prevents us from reconnecting when we wanted to disconnect, lmao
 		this->ws.onDisconnect([]() { });
-		this->ws.disconnect();
+		this->ws.disconnect(code);
 		lg::log("discord", "disconnected");
 	}
 

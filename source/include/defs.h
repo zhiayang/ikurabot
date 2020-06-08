@@ -183,7 +183,7 @@ namespace ikura
 		static void fatal(ikura::str_view sys, const std::string& fmt, Args&&... args)
 		{
 			__generic_log(3, sys, fmt, args...);
-			exit(1);
+			abort();
 		}
 
 		template <typename... Args>
@@ -256,7 +256,26 @@ namespace ikura
 		Message() { }
 		Message(ikura::str_view sv) { this->add(sv); }
 
+		Message(Message&&) = default;
+		Message& operator = (Message&& other)
+		{
+			if(&other != this)
+			{
+				this->fragments = std::move(other.fragments);
+				this->next = std::move(other.next);
+			}
+
+			return *this;
+		}
+
 		std::vector<Fragment> fragments;
+		std::unique_ptr<Message> next;
+
+		Message& link(Message m)
+		{
+			this->next = std::make_unique<Message>(std::move(m));
+			return *this->next;
+		}
 
 		Message& add(ikura::str_view sv) { fragments.emplace_back(sv); return *this; }
 		Message& addNoSpace(ikura::str_view sv)

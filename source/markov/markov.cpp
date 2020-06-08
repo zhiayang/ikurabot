@@ -210,12 +210,14 @@ namespace ikura::markov
 
 		// copy out the thing, so we don't do a lot of processing while
 		// holding the lock. besides these are string_views, so they're lightweight.
-		std::vector<std::tuple<ikura::str_view, std::vector<ikura::relative_str>, ikura::str_view>> inputs;
+		std::vector<std::tuple<ikura::str_view, std::vector<ikura::relative_str>, ikura::str_view>> twitchInputs;
+		std::vector<std::pair<ikura::str_view, std::vector<ikura::relative_str>>> discordInputs;
 
-		database().perform_read([&inputs](auto& db) {
-			auto& msgs = db.twitchData.messageLog.messages;
+		database().perform_read([&twitchInputs, &discordInputs](auto& db) {
+			auto& tmsgs = db.twitchData.messageLog.messages;
+			auto& dmsgs = db.discordData.messageLog.messages;
 
-			for(auto& msg : msgs)
+			for(auto& msg : tmsgs)
 			{
 				// ignore commands
 				if(msg.isCommand)
@@ -227,11 +229,23 @@ namespace ikura::markov
 				if(txt.find('!') == 0 || txt.find('$') == 0)
 					continue;
 
-				inputs.emplace_back(txt, msg.emotePositions, msg.channel);
+				twitchInputs.emplace_back(txt, msg.emotePositions, msg.channel);
+			}
+
+			for(auto& msg : dmsgs)
+			{
+				if(msg.isCommand)
+					continue;
+
+				auto txt = msg.message.get(db.messageData.data());
+				if(txt.find('!') == 0 || txt.find('$') == 0)
+					continue;
+
+				discordInputs.emplace_back(txt, msg.emotePositions);
 			}
 		});
 
-		for(auto& [ msg, existing_emotes, chan ] : inputs)
+		for(auto& [ msg, existing_emotes, chan ] : twitchInputs)
 		{
 			// get any new emotes
 			auto& tmp = msg;
@@ -251,6 +265,12 @@ namespace ikura::markov
 			State.queue.push_quiet(QueuedMsg::retrain(msg.str(), emotes));
 		}
 
+		for(auto& [ msg, emotes ] : discordInputs)
+		{
+			State.retrainingTotalSize++;
+			State.queue.push_quiet(QueuedMsg::retrain(msg.str(), emotes));
+		}
+
 		State.queue.notify_pending();
 	}
 
@@ -258,7 +278,9 @@ namespace ikura::markov
 	{
 		// push an empty string to terminate.
 		State.queue.push(QueuedMsg::stop());
-		State.worker.join();
+
+		if(State.worker.joinable())
+			State.worker.join();
 	}
 
 	void process(ikura::str_view input, const std::vector<ikura::relative_str>& emote_idxs)

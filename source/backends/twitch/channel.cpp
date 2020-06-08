@@ -70,14 +70,22 @@ namespace ikura::twitch
 		constexpr const char* MAGIC_MESSAGE_SUFFIX = u8" \U000E0000";
 
 		ikura::str_view str = out;
+		str = str.trim();
 
-		// OMEGALUL -- https://github.com/Chatterino/chatterino2/tree/master/src/providers/twitch/TwitchChannel.cpp#L37
-		if(out == this->lastSentMessage)
-			out += MAGIC_MESSAGE_SUFFIX;
+		if(!str.empty())
+		{
+			// OMEGALUL -- https://github.com/Chatterino/chatterino2/tree/master/src/providers/twitch/TwitchChannel.cpp#L37
+			if(out == this->lastSentMessage)
+				out += MAGIC_MESSAGE_SUFFIX;
 
-		this->state->sendMessage(this->name, out);
-		this->lastSentMessage = out;
+			this->state->sendMessage(this->name, out);
+			this->lastSentMessage = out;
 
-		lg::log("msg", ">> twitch/#%s: %s", this->getName(), str);
+			lg::log("msg", "twitch/#%s: %s>>>%s %s", this->getName(),
+				colours::GREEN_BOLD, colours::COLOUR_RESET, str);
+		}
+
+		if(msg.next)
+			this->sendMessage(*msg.next);
 	}
 }

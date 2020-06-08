@@ -2,12 +2,15 @@
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
 
+#include <regex>
+
 #include "db.h"
 #include "zfu.h"
 #include "cmd.h"
 #include "defs.h"
 #include "timer.h"
 #include "config.h"
+#include "markov.h"
 #include "discord.h"
 
 #include "picojson.h"
@@ -24,12 +27,16 @@ namespace ikura::discord
 	static DiscordGuild& get_guild(Snowflake id);
 	static DiscordUser& update_user(DiscordGuild& guild, pj::object json);
 
-	static std::pair<std::string, std::vector<ikura::relative_str>> preprocess_discord_message(ikura::str_view msg, DiscordGuild& guild);
+	uint64_t parse_timestamp(ikura::str_view s);
+	static std::pair<std::string, std::vector<ikura::relative_str>> sanitise_discord_message(ikura::str_view msg, DiscordGuild& guild);
 
-
-	void DiscordState::processMessage(pj::object json)
+	void DiscordState::processMessage(pj::object json, bool wasEdit)
 	{
 		auto time = timer();
+
+		// if there's no author, no content, or if it's a webhook, ignore it.
+		if(json["author"].is_null() || json["content"].is_null() || !json["webhook_id"].is_null())
+			return;
 
 		auto& guild  = get_guild(Snowflake(json["guild_id"].as_str()));
 		auto& chan   = guild.channels[Snowflake(json["channel_id"].as_str())];
@@ -54,7 +61,29 @@ namespace ikura::discord
 		if(!this->channels[chan.id].lurk)
 			ran_cmd = cmd::processMessage(author.id.str(), author.nickname, &this->channels[chan.id], msg, /* enablePings: */ true);
 
-		lg::log("msg", "(%.2f ms) discord/%s/#%s: <%s> %s", time.measure(), guild.name, chan.name, author.nickname, msg);
+		auto [ sanitised, emote_idxs ] = sanitise_discord_message(msg, guild);
+
+		/*
+			auto timestamp = parse_timestamp((wasEdit
+				? (json["edited_timestamp"].is_null()
+					? json["timestamp"]
+					: json["edited_timestamp"]
+				)
+				: json["timestamp"]
+			).as_str());
+		*/
+
+		if(!ran_cmd)
+			markov::process(sanitised, emote_idxs);
+
+		// zpr::println("the raw message:\n%s", json["content"].as_str());
+		// zpr::println("the sanitised message:\n%s", sanitised);
+
+		auto ts = util::getMillisecondTimestamp();
+		this->logMessage(ts, author, chan, guild, Snowflake(json["id"].as_str()), sanitised, emote_idxs, ran_cmd, wasEdit);
+
+		lg::log("msg", "discord/%s/#%s: %s(%.2f ms) <%s> %s", guild.name, chan.name, wasEdit ? " (edit) " : "",
+			time.measure(), author.nickname, msg);
 	}
 
 
@@ -163,7 +192,7 @@ namespace ikura::discord
 	}
 
 
-	static std::pair<std::string, std::vector<ikura::relative_str>> preprocess_discord_message(ikura::str_view msg, DiscordGuild& guild)
+	static std::pair<std::string, std::vector<ikura::relative_str>> sanitise_discord_message(ikura::str_view msg, DiscordGuild& guild)
 	{
 		std::string output;
 		output.reserve(msg.size());
@@ -259,16 +288,6 @@ namespace ikura::discord
 						output += ' ';
 				}
 			}
-			else if(msg[0] == '\\')
-			{
-				msg.remove_prefix(1);
-
-				if(msg.size() > 0)
-				{
-					output += msg[0];
-					msg.remove_prefix(1);
-				}
-			}
 			else
 			{
 			normal:
@@ -280,10 +299,10 @@ namespace ikura::discord
 			}
 		}
 
-		zpr::println("output = %s", output);
-		zpr::println("emotes:");
-		for(auto& rs : emote_idxs)
-			zpr::println("  %s", rs.get(output));
+		// zpr::println("output = %s", output);
+		// zpr::println("emotes:");
+		// for(auto& rs : emote_idxs)
+		// 	zpr::println("  %s", rs.get(output));
 
 		return { output, emote_idxs };
 	}
@@ -344,5 +363,57 @@ namespace ikura::discord
 		guild.nicknameMap[user.nickname] = user.id;
 
 		return user;
+	}
+
+	static auto timestamp_regex = std::regex("(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})\\.(\\d+)(\\+|-)(\\d{2}):(\\d{2})");
+	uint64_t parse_timestamp(ikura::str_view s)
+	{
+		// eg: 2017-07-11T17:27:07.299000+00:00
+
+		{
+			auto tmp = s.str();
+
+			std::smatch sm;
+			std::regex_match(tmp, sm, timestamp_regex);
+
+			if(sm.size() != 1 + 10)
+			{
+				lg::error("discord", "malformed timestamp '%s'", s);
+				return 0;
+			}
+
+			auto year   = util::stoi(sm[1].str()).value_or(0);
+			auto month  = util::stoi(sm[2].str()).value_or(0);
+			auto day    = util::stoi(sm[3].str()).value_or(0);
+			auto hour   = util::stoi(sm[4].str()).value_or(0);
+			auto minute = util::stoi(sm[5].str()).value_or(0);
+			auto second = util::stoi(sm[6].str()).value_or(0);
+			auto sfrac  = util::stoi(sm[7].str()).value_or(0);
+			auto tz_neg = (sm[8] == "-");
+			auto tz_hr  = util::stoi(sm[9].str()).value_or(0);
+			auto tz_min = util::stoi(sm[10].str()).value_or(0);
+
+			// std::chrono is useless until c++20 (even so debatable), so just use good old .
+			// just deal with the base date+time here; we'll use std::chrono to add the timezone
+			// and fractional seconds.
+			auto tm = std::tm();
+			tm.tm_year = year;
+			tm.tm_mon  = month;
+			tm.tm_mday = day;
+			tm.tm_hour = hour;
+			tm.tm_min  = minute;
+			tm.tm_sec  = second;
+
+			// zpr::println("%s", s);
+			// zpr::println("%04d-%02d-%02dT%02d:%02d:%02d.%06d%c%02d:%02d", year, month, day, hour, minute, second, sfrac,
+			// 	tz_neg ? '-' : '+', tz_hr, tz_min);
+
+			auto tp = std::chrono::system_clock::from_time_t(std::mktime(&tm));
+			tp += std::chrono::hours((tz_neg ? -1 : 1) * tz_hr);
+			tp += std::chrono::minutes((tz_neg ? -1 : 1) * tz_min);
+			tp += std::chrono::milliseconds(1000 / sfrac);
+
+			return std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()).count();
+		}
 	}
 }

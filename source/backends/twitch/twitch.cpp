@@ -28,8 +28,8 @@ namespace ikura::twitch
 	{
 		// twitch says 20 messages every 30 seconds, so set it a little lower.
 		// for channels that it moderates, the bot gets 100 every 30s.
-		auto pleb_rate = new RateLimit(18, 30s);
-		auto mod_rate  = new RateLimit(95, 30s);
+		auto pleb_rate = new RateLimit(18, 30s, 0.5s);
+		auto mod_rate  = new RateLimit(95, 30s, 0.5s);
 
 		while(true)
 		{
@@ -40,18 +40,16 @@ namespace ikura::twitch
 			auto rate = (msg.is_moderator ? mod_rate : pleb_rate);
 			if(!rate->attempt())
 			{
-				lg::warn("twitch", "exceeded rate limit");
+				if(rate->exceeded())
+					lg::warn("twitch", "exceeded rate limit");
+
 				std::this_thread::sleep_until(rate->next());
 			}
 
-			// if(msg.msg.size() > 512)
-			// 	lg::warn("twitch", "exceeded message limit");
-
-			// lg::log("twitch", "> %s", msg.msg);
 			state().wlock()->ws.send(msg.msg);
 		}
 
-		lg::log("twitch", "send worker exited");
+		lg::dbglog("twitch", "send worker exited");
 	}
 
 	void recv_worker()
@@ -65,7 +63,7 @@ namespace ikura::twitch
 			state().wlock()->processMessage(std::move(msg.msg));
 		}
 
-		lg::log("twitch", "receive worker exited");
+		lg::dbglog("twitch", "receive worker exited");
 	}
 
 

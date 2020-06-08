@@ -45,8 +45,11 @@ namespace ikura::discord
 		constexpr int64_t DIRECT_MESSAGE_TYPING     = (1 << 14);
 	}
 
+
+	struct DiscordUser;
 	struct DiscordGuild;
 	struct DiscordState;
+	struct DiscordChannel;
 
 	struct Channel : ikura::Channel
 	{
@@ -86,7 +89,7 @@ namespace ikura::discord
 		DiscordState(URL url, std::chrono::nanoseconds timeout);
 
 		bool connect();
-		void disconnect();
+		void disconnect(uint16_t code = 1000);
 
 
 
@@ -117,7 +120,11 @@ namespace ikura::discord
 		bool resume();
 
 		void processEvent(std::map<std::string, picojson::value> m);
-		void processMessage(std::map<std::string, picojson::value> m);
+		void processMessage(std::map<std::string, picojson::value> m, bool wasEdit);
+
+		void logMessage(uint64_t timestamp, DiscordUser& user, DiscordChannel& channel, DiscordGuild& guild,
+			Snowflake messageId, ikura::str_view message, const std::vector<ikura::relative_str>& emote_idxs,
+			bool isCmd, bool isEdit);
 
 		friend void send_worker();
 		friend void recv_worker();
@@ -128,10 +135,49 @@ namespace ikura::discord
 	void init();
 	void shutdown();
 
-	struct QueuedMsg;
-	MessageQueue<discord::QueuedMsg>& mqueue();
-
 	std::optional<Snowflake> parseMention(ikura::str_view str, size_t* consumed);
+
+	struct RxEvent
+	{
+		RxEvent() { }
+		RxEvent(bool dc) : disconnected(dc) { }
+		RxEvent(std::map<std::string, pj::value> m) : msg(std::move(m)) { }
+
+		static RxEvent disconnect() { return RxEvent(true); }
+
+		std::map<std::string, pj::value> msg;
+		bool disconnected = false;
+	};
+
+	struct TxMessage
+	{
+		TxMessage() { }
+		TxMessage(bool dc) : disconnected(dc) { }
+		TxMessage(std::string m, Snowflake chanId, std::string guildName, std::string chanName)
+			: msg(std::move(m)), channelId(std::move(chanId)), guildName(std::move(guildName)),
+			  channelName(std::move(chanName)) { }
+
+		static TxMessage disconnect() { return TxMessage(true); }
+
+		std::string msg;
+		Snowflake channelId;
+		std::string guildName;
+		std::string channelName;
+		bool disconnected = false;
+	};
+
+	MessageQueue<RxEvent, TxMessage>& mqueue();
+
+
+
+
+
+
+
+
+
+
+
 
 	struct DiscordUser : Serialisable
 	{
@@ -207,9 +253,49 @@ namespace ikura::discord
 		static constexpr uint8_t TYPE_TAG = serialise::TAG_DISCORD_GUILD;
 	};
 
+	struct DiscordMessage : Serialisable
+	{
+		// in milliseconds, as usual.
+		uint64_t timestamp = 0;
+
+		Snowflake messageId;
+
+		Snowflake userId;
+		std::string username;
+		std::string nickname;
+
+		Snowflake guildId;
+		std::string guildName;
+
+		Snowflake channelId;
+		std::string channelName;
+
+		ikura::relative_str message;
+		std::vector<ikura::relative_str> emotePositions;
+
+		bool isEdit = false;
+		bool isCommand = false;
+
+		virtual void serialise(Buffer& buf) const override;
+		static std::optional<DiscordMessage> deserialise(Span& buf);
+
+		static constexpr uint8_t TYPE_TAG = serialise::TAG_DISCORD_LOG_MSG;
+	};
+
+	struct DiscordMessageLog : Serialisable
+	{
+		std::vector<DiscordMessage> messages;
+
+		virtual void serialise(Buffer& buf) const override;
+		static std::optional<DiscordMessageLog> deserialise(Span& buf);
+
+		static constexpr uint8_t TYPE_TAG = serialise::TAG_DISCORD_LOG;
+	};
+
 	struct DiscordDB : Serialisable
 	{
 		tsl::robin_map<Snowflake, DiscordGuild> guilds;
+		DiscordMessageLog messageLog;
 
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<DiscordDB> deserialise(Span& buf);

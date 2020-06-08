@@ -49,7 +49,7 @@ namespace ikura::interp
 		{ "usermod",    command_usermod  },
 		{ "groupadd",   command_groupadd },
 		{ "groupdel",   command_groupdel },
-		{ "showmod",    command_showmod },
+		{ "showmod",    command_showmod  },
 	};
 
 	static constexpr uint64_t DEFAULT_NEW_MACRO_PERMISSIONS
@@ -354,6 +354,7 @@ namespace ikura::interp
 	static constexpr auto t_vla  = Type::get_variadic_list;
 
 	static Result<interp::Value> fn_markov(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_dismantle(InterpState* fs, CmdContext& cs);
 
 	static Result<interp::Value> fn_int_to_int(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_str_to_int(InterpState* fs, CmdContext& cs);
@@ -478,6 +479,7 @@ namespace ikura::interp
 		{ "rtod",   BuiltinFunction("rtod",   t_fn(t_dbl(), { t_dbl() }), &fn_rtod) },
 		{ "dtor",   BuiltinFunction("dtor",   t_fn(t_dbl(), { t_dbl() }), &fn_dtor) },
 		{ "__builtin_markov", BuiltinFunction("__builtin_markov", t_fn(t_list(t_str()), { t_vla(t_str()) }), &fn_markov) },
+		{ "__builtin_dismantle", BuiltinFunction("__builtin_dismantle", t_fn(t_list(t_str()), { t_vla(t_str()) }), &fn_dismantle) }
 	};
 
 
@@ -554,9 +556,9 @@ namespace ikura::interp
 				this->name, target.size(), cs.macro_args.size());
 		}
 
-		auto type_mismatch = [](size_t i, const Type::Ptr& exp, const Type::Ptr& got) -> Result<interp::Value> {
-			return zpr::sprint("argument %zu: type mismatch, expected '%s', found '%s'",
-				i, exp->str(), got->str());
+		auto type_mismatch = [this](size_t i, const Type::Ptr& exp, const Type::Ptr& got) -> Result<interp::Value> {
+			return zpr::sprint("'%s': arg %zu: type mismatch, expected '%s', found '%s'",
+				this->name, i + 1, exp->str(), got->str());
 		};
 
 		std::vector<Value> final_args;
@@ -639,6 +641,19 @@ namespace ikura::interp
 		}
 
 		return cmd::message_to_value(markov::generateMessage(seeds));
+	}
+
+	static Result<Value> fn_dismantle(InterpState* fs, CmdContext& cs)
+	{
+		if(cs.macro_args.empty() || !cs.macro_args[0].is_list())
+			return zpr::sprint("invalid argument");
+
+		auto ret = Value::of_list(cs.macro_args[0].type()->elm_type(), cs.macro_args[0].get_list());
+		ret.set_flags(ret.flags() /*  | Value::FLAG_DISMANTLE_LIST */);
+
+		lg::warn("cmd", "user '%s' tried to dismantle", cs.callername);
+
+		return ret;
 	}
 
 

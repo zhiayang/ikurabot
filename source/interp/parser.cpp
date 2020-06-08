@@ -5,9 +5,7 @@
 #include "ast.h"
 #include "zfu.h"
 
-#include <tuple>
-#include <utility>
-#include <functional>
+#include "utf8proc/utf8proc.h"
 
 namespace ikura::interp::ast
 {
@@ -126,17 +124,17 @@ namespace ikura::interp::ast
 
 
 	template <typename Ast, typename... Args>
-	static Result<Expr*> makeAST(Args&&... args)
+	static Result<Ast*> makeAST(Args&&... args)
 	{
 		auto opts = __unwrap(std::forward<Args&&>(args)...);
 		auto opt = __transpose(opts);
 		if(opt.has_value())
 		{
-			auto foozle = [](auto... xs) -> Expr* {
+			auto foozle = [](auto... xs) -> Ast* {
 				return new Ast(xs...);
 			};
 
-			return Result<Expr*>(std::apply(foozle, opt.value()));
+			return Result<Ast*>(std::apply(foozle, opt.value()));
 		}
 
 		auto errs = std::apply([](auto&&... xs) { return __concat_errors(xs...); }, __get_error(std::forward<Args&&>(args)...));
@@ -258,17 +256,23 @@ namespace ikura::interp::ast
 		ikura::span<lexer::Token> tokens;
 	};
 
+	Result<interp::Type::Ptr> parseType(State& st);
 
-	static Result<Expr*> parsePostfix(State& st, Expr* lhs, TT op);
-	static Result<Expr*> parseParenthesised(State& st);
-	static Result<Expr*> parseIdentifier(State& st);
-	static Result<Expr*> parsePrimary(State& st);
-	static Result<Expr*> parseNumber(State& st);
-	static Result<Expr*> parseString(State& st);
-	static Result<Expr*> parseUnary(State& st);
-	static Result<Expr*> parseStmt(State& st);
-	static Result<Expr*> parseExpr(State& st);
-	static Result<Expr*> parseBool(State& st);
+	static Result<Expr*>  parsePostfix(State& st, Expr* lhs, TT op);
+	static Result<Expr*>  parseParenthesised(State& st);
+	static Result<Expr*>  parseIdentifier(State& st);
+	static Result<Expr*>  parsePrimary(State& st);
+	static Result<Expr*>  parseNumber(State& st);
+	static Result<Expr*>  parseString(State& st);
+	static Result<Expr*>  parseUnary(State& st);
+	static Result<Expr*>  parseList(State& st);
+	static Result<Expr*>  parseChar(State& st);
+	static Result<Expr*>  parseBool(State& st);
+	static Result<Expr*>  parseExpr(State& st);
+
+	static Result<Stmt*>  parseStmt(State& st);
+	static Result<Block*> parseBlock(State& st);
+	static Result<Stmt*>  parseFuncDefn(State& st);
 
 	Result<Expr*> parseExpr(ikura::str_view src)
 	{
@@ -276,14 +280,16 @@ namespace ikura::interp::ast
 		ikura::span span = tokens;
 
 		auto st = State(span);
-
-		// lg::log("parser", "parsing '%s'", src);
-		return parseStmt(st);
+		return parseExpr(st);
 	}
 
-	Result<Expr*> parse(ikura::str_view src)
+	Result<Stmt*> parse(ikura::str_view src)
 	{
-		return parseExpr(src);
+		auto tokens = lexer::lexString(src);
+		ikura::span span = tokens;
+
+		auto st = State(span);
+		return parseStmt(st);
 	}
 
 
@@ -310,6 +316,9 @@ namespace ikura::interp::ast
 			case TT::StringLit:
 				return parseString(st);
 
+			case TT::CharLit:
+				return parseChar(st);
+
 			case TT::NumberLit:
 				return parseNumber(st);
 
@@ -318,6 +327,9 @@ namespace ikura::interp::ast
 
 			case TT::LParen:
 				return parseParenthesised(st);
+
+			case TT::LSquare:
+				return parseList(st);
 
 			case TT::Dollar:
 			case TT::Identifier:
@@ -419,6 +431,39 @@ namespace ikura::interp::ast
 	}
 
 
+
+
+	static Result<Expr*> parseList(State& st)
+	{
+		assert(st.peek() == TT::LSquare);
+		st.pop();
+
+		std::vector<Expr*> elms;
+		while(!st.empty() && st.peek() != TT::RSquare)
+		{
+			auto e = parseExpr(st);
+			if(!e) return e;
+
+			elms.push_back(e.unwrap());
+
+			if(st.peek() == TT::Comma)
+				st.pop();
+
+			else if(st.peek() == TT::RSquare)
+				break;
+
+			else
+				return zpr::sprint("expected ',' or ']' in list literal, found '%s'", st.peek().str());
+		}
+
+		if(st.peek() != TT::RSquare)
+			return zpr::sprint("expected ']'");
+
+		st.pop();
+		return makeAST<LitList>(elms);
+	}
+
+
 	static Result<Expr*> parseNumber(State& st)
 	{
 		assert(st.peek() == TT::NumberLit);
@@ -442,6 +487,20 @@ namespace ikura::interp::ast
 
 		if(is_floating) return makeAST<LitDouble>(std::stod(num.str()), imag);
 		else            return makeAST<LitInteger>(std::stoll(num.str(), nullptr, base), imag);
+	}
+
+	static Result<Expr*> parseChar(State& st)
+	{
+		assert(st.peek() == TT::CharLit);
+		auto str = st.peek().str();
+		st.pop();
+
+		int32_t codepoint = 0;
+		auto bytes = utf8proc_iterate((const uint8_t*) str.data(), str.size(), &codepoint);
+		assert((size_t) bytes == str.size());
+		assert(codepoint != -1);
+
+		return makeAST<LitChar>((uint32_t) codepoint);
 	}
 
 	static Result<Expr*> parseString(State& st)
@@ -605,10 +664,187 @@ namespace ikura::interp::ast
 		return makeAST<VarRef>(unicode::normalise(name));
 	}
 
-	static Result<Expr*> parseStmt(State& st)
+
+
+
+
+	static Result<Stmt*> parseStmt(State& st)
 	{
-		return parseExpr(st);
+		if(st.peek() == TT::Function)
+			return parseFuncDefn(st);
+
+		if(st.peek() == TT::LBrace || st.peek() == TT::FatRightArrow)
+			return parseBlock(st);
+
+		return zpr::sprint("unexpected token '%s'", st.peek().str());
 	}
+
+
+	static Result<Block*> parseBlock(State& st)
+	{
+		if(st.peek() != TT::LBrace && st.peek() != TT::FatRightArrow)
+			return zpr::sprint("expected either '{' pr '=>'");
+
+		bool single = (st.peek() == TT::FatRightArrow);
+		st.pop();
+
+		std::vector<Stmt*> stmts;
+		while(!st.empty() && st.peek() != TT::RBrace)
+		{
+			auto s = parseStmt(st);
+			if(!s) return s.error();
+
+			stmts.push_back(s.unwrap());
+
+			if(single)
+				goto out;
+
+			if(st.peek() != TT::Semicolon)
+				return zpr::sprint("expected ';'");
+
+			st.pop();
+		}
+
+		if(st.empty() || st.peek() != TT::RBrace)
+			return zpr::sprint("expected '}'");
+
+	out:
+		return makeAST<Block>(stmts);
+	}
+
+
+	static Result<Stmt*> parseFuncDefn(State& st)
+	{
+		assert(st.peek() == TT::Function);
+		st.pop();
+
+		std::string name;
+		if(st.peek() != TT::Identifier)
+			return zpr::sprint("expected identifier after 'fn'");
+
+		name = st.peek().str().str();
+		st.pop();
+
+		auto type = parseType(st);
+		if(!type) return type.error();
+
+		auto body = parseBlock(st);
+		if(!body) return body;
+
+		return makeAST<FunctionDefn>(name, type.unwrap(), body.unwrap());
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	// dumbness.
+	Result<interp::Type::Ptr> parseType(State& st)
+	{
+		using interp::Type;
+		if(st.empty())
+			return zpr::sprint("unexpected end of input");
+
+		if(st.peek() == TT::Identifier)
+		{
+			auto s = st.peek().str();
+			st.pop();
+
+			if(s == "int")       return Type::get_integer();
+			else if(s == "dbl")  return Type::get_double();
+			else if(s == "bool") return Type::get_bool();
+			else if(s == "str")  return Type::get_string();
+			else if(s == "void") return Type::get_void();
+			else                 return zpr::sprint("unknown type '%s'", s);
+		}
+		else if(st.peek() == TT::LSquare)
+		{
+			st.pop();
+
+			auto et = parseType(st);
+			if(!et) return et;
+
+			if(st.peek() == TT::Colon)
+			{
+				st.pop();
+				auto vt = parseType(st);
+				if(!vt) return vt;
+
+				if(st.peek() != TT::RSquare)
+					return zpr::sprint("expected ']'");
+
+				st.pop();
+				return Type::get_map(et.unwrap(), vt.unwrap());
+			}
+			else if(st.peek() == TT::RSquare)
+			{
+				st.pop();
+				return Type::get_list(et.unwrap());
+			}
+			else
+			{
+				return zpr::sprint("expected ']'");
+			}
+		}
+		else if(st.peek() == TT::LParen)
+		{
+			st.pop();
+			std::vector<Type::Ptr> tup;
+
+			while(!st.empty() && st.peek() != TT::RParen)
+			{
+				auto t = parseType(st);
+				if(!t) return t;
+
+				tup.push_back(t.unwrap());
+
+				if(st.peek() == TT::Comma)
+					st.pop();
+
+				else if(st.peek() == TT::RParen)
+					break;
+
+				else
+					return zpr::sprint("expected either ',' or ')', found '%s'", st.peek().str());
+			}
+
+			if(st.empty() || st.peek() != TT::RParen)
+				return zpr::sprint("expected ')'");
+
+			st.pop();
+
+			// no tuples for now
+			Type::Ptr retty;
+			if(st.peek() == TT::RightArrow)
+			{
+				st.pop();
+				auto t = parseType(st);
+				if(!t) return t;
+
+				retty = t.unwrap();
+			}
+			else
+			{
+				retty = Type::get_void();
+			}
+
+			return Type::get_function(retty, tup);
+		}
+		else
+		{
+			return zpr::sprint("unexpected token '%s' in type", st.peek().str());
+		}
+	}
+
 
 
 	std::optional<interp::Type::Ptr> parseType(ikura::str_view str)
@@ -624,40 +860,85 @@ namespace ikura::interp::ast
 		else if(str == "bool")  return Type::get_bool();
 		else if(str == "str")   return Type::get_string();
 		else if(str == "void")  return Type::get_void();
-		else if(str[0] != '[')  return { };
+		else if(str[0] == '(')
+		{
+			str.remove_prefix(1);
+			std::vector<Type::Ptr> tys;
 
-		str.remove_prefix(1);
-		auto tmp = str.find_first_of("[]:");
-		auto k = str.take(tmp);
-		str = str.drop(tmp);
+			while(str.size() > 0 && str[0] != ')')
+			{
+				auto t = parseType(str);
+				if(!t) return { };
 
-		auto key = parseType(k);
-		if(!key || str.empty())
-			return { };
+				tys.push_back(t.value());
 
-		str = str.trim();
-		if(str[0] == ':')
+				if(str.empty())
+					return { };
+
+				if(str[0] == ',')
+					str.remove_prefix(1);
+
+				else if(str[0] == ')')
+					break;
+
+				else
+					return { };
+			}
+
+			if(str.empty() || str[0] != ')')
+				return { };
+
+			str = str.drop(1).trim_front();
+			Type::Ptr rty;
+
+			if(str.find("->") == 0)
+			{
+				str.remove_prefix(2);
+				auto t = parseType(str);
+				if(!t) return { };
+
+				rty = t.value();
+			}
+			else
+			{
+				rty = Type::get_void();
+			}
+
+			return Type::get_function(rty, tys);
+		}
+		else if(str[0] == '[')
 		{
 			str.remove_prefix(1);
 			auto tmp = str.find_first_of("[]:");
-			auto e = str.take(tmp).trim();
-			str = str.drop(tmp).trim();
+			auto k = str.take(tmp);
+			str = str.drop(tmp);
 
-			auto elm = parseType(e);
-			str = str.trim();
-
-			if(!elm || str.empty() || str[0] != ']')
+			auto key = parseType(k);
+			if(!key || str.empty())
 				return { };
 
-			return Type::get_map(key.value(), elm.value());
+			str = str.trim();
+			if(str[0] == ':')
+			{
+				str.remove_prefix(1);
+				auto tmp = str.find_first_of("[]:");
+				auto e = str.take(tmp).trim();
+				str = str.drop(tmp).trim();
+
+				auto elm = parseType(e);
+				str = str.trim();
+
+				if(!elm || str.empty() || str[0] != ']')
+					return { };
+
+				return Type::get_map(key.value(), elm.value());
+			}
+			else if(str[0] == ']')
+			{
+				return Type::get_list(key.value());
+			}
 		}
-		else if(str[0] == ']')
-		{
-			return Type::get_list(key.value());
-		}
-		else
-		{
-			return { };
-		}
+
+		return { };
 	}
 }

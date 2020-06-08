@@ -47,9 +47,12 @@ namespace ikura::discord
 		}
 		else if(type == "MESSAGE_CREATE")
 		{
-			this->processMessage(msg["d"].as_obj());
-
-			// zpr::println("%s", pj::value(msg).serialise(true));
+			this->processMessage(msg["d"].as_obj(), /* wasEdit: */ false);
+		}
+		else if(type == "MESSAGE_UPDATE")
+		{
+			// for now, we just treat a message edit as a new message.
+			this->processMessage(msg["d"].as_obj(), /* wasEdit: */ true);
 		}
 		else if(type == "READY")
 		{
@@ -59,6 +62,10 @@ namespace ikura::discord
 				lg::log("discord", "session id: %s", sess);
 				this->session_id = sess;
 			}
+		}
+		else if(type == "MESSAGE_REACTION_ADD" || type == "MESSAGE_REACTION_REMOVE")
+		{
+			// do nothing for now
 		}
 		else
 		{

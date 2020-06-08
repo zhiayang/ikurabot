@@ -148,6 +148,14 @@ namespace ikura::interp
 
 		static constexpr uint8_t TYPE_TAG = serialise::TAG_INTERP_VALUE;
 
+
+		// when converting this value to a message, send one message per list element
+		static constexpr uint8_t FLAG_DISMANTLE_LIST = 0x1;
+
+		uint8_t flags() const { return this->_flags; }
+		void set_flags(uint8_t f) { this->_flags = f; }
+
+
 		bool operator == (const Value& other) const
 		{
 			if(!this->is_same_type(other) || this->is_lvalue() != other.is_lvalue())
@@ -192,6 +200,7 @@ namespace ikura::interp
 		friend struct Hasher;
 		Type::Ptr _type;
 
+		uint8_t _flags = 0;
 		bool v_is_lvalue = false;
 		struct {
 			int64_t  v_integer   = 0;
@@ -215,7 +224,7 @@ namespace ikura::interp
 
 		const Channel* channel = nullptr;
 
-		size_t recursionCount = 0;
+		uint64_t executionStart = 0;
 
 		// the arguments, split by spaces and Value::of_string-ed
 		std::vector<interp::Value> macro_args;

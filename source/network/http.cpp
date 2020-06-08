@@ -175,7 +175,7 @@ namespace ikura
 	{
 		auto x = data.find("\r\n");
 		if(x == std::string::npos)
-			return std::nullopt;
+			{ lg::warn("http", "A"); return std::nullopt; }
 
 		auto hdrs = HttpHeaders(data.substr(0, x));
 		data.remove_prefix(x + 2);
@@ -184,7 +184,7 @@ namespace ikura
 		{
 			auto ki = data.find(':');
 			if(ki == std::string::npos)
-				return std::nullopt;
+				{ lg::warn("http", "B"); return std::nullopt; }
 
 			auto key = util::lowercase(data.substr(0, ki));
 			data.remove_prefix(ki + 1);
@@ -194,11 +194,11 @@ namespace ikura
 				data.remove_prefix(1);
 
 			if(data.size() == 0)
-				return std::nullopt;
+				{ lg::warn("http", "C"); return std::nullopt; }
 
 			auto vi = data.find("\r\n");
 			if(vi == std::string::npos)
-				return std::nullopt;
+				{ lg::warn("http", "D"); return std::nullopt; }
 
 			auto value = std::string(data.substr(0, vi));
 			hdrs.add(std::move(key), std::move(value));
@@ -207,7 +207,7 @@ namespace ikura
 		}
 
 		if(data.find("\r\n") != 0)
-			return std::nullopt;
+			{ lg::warn("http", "E"); return std::nullopt; }
 
 		return hdrs;
 	}

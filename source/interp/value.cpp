@@ -52,7 +52,7 @@ namespace ikura::interp
 			}
 			else
 			{
-				return zfu::listToString(this->v_list, [](const auto& x) -> auto { return x.str(); },
+				return zfu::listToString(this->v_list, [](const auto& x) -> auto { return x.raw_str(); },
 					/* braces: */ false, /* sep: */ " ");
 			}
 		}
@@ -252,8 +252,10 @@ namespace ikura::interp
 			return Value::of_complex(this->get_double(), 0);
 
 		if((this->is_list() && type->is_list()) || (this->is_map() && type->is_map()))
-			return *this;
-
+		{
+			auto t = type->elm_type();
+			return Value::of_list(t, this->v_list);
+		}
 		else
 			return { };
 	}

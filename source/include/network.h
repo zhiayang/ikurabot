@@ -60,7 +60,7 @@ namespace ikura
 
 		// client stuff
 		bool connect();
-		void disconnect();
+		void disconnect(bool quietly = false);
 
 		size_t availableBytes();
 		bool connected();
@@ -81,6 +81,7 @@ namespace ikura
 		Socket(std::string host, uint16_t port, kissnet::socket<4>* socket, std::chrono::nanoseconds = { });
 
 		void setup_receiver();
+		void force_disconnect();
 
 		std::string _host;
 		uint16_t _port;
@@ -115,7 +116,9 @@ namespace ikura
 		void resizeBuffer(size_t sz);
 
 		bool connect();
-		void disconnect(uint16_t code = 1000);
+		void disconnect()              { this->disconnect(false, 1000); }
+		void disconnect(uint16_t code) { this->disconnect(false, code); }
+		void disconnect(bool quietly, uint16_t code = 1000);
 
 		bool connected();
 
