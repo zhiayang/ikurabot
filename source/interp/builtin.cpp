@@ -26,6 +26,7 @@ namespace ikura::interp
 	static void command_redef(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_undef(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_chmod(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
+	static void command_defun(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_global(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_usermod(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_showmod(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
@@ -34,7 +35,8 @@ namespace ikura::interp
 
 	bool is_builtin_command(ikura::str_view x)
 	{
-		return zfu::match(x, "def", "eval", "show", "redef", "undef", "chmod", "global", "usermod", "groupadd", "groupdel", "showmod");
+		return zfu::match(x, "def", "eval", "show", "redef", "undef", "chmod", "global",
+			"usermod", "groupadd", "groupdel", "showmod", "defun");
 	}
 
 	// tsl::robin_map doesn't let us do this for some reason, so just fall back to std::unordered_map.
@@ -50,6 +52,7 @@ namespace ikura::interp
 		{ "groupadd",   command_groupadd },
 		{ "groupdel",   command_groupdel },
 		{ "showmod",    command_showmod  },
+		{ "defun",      command_defun    },
 	};
 
 	static constexpr uint64_t DEFAULT_NEW_MACRO_PERMISSIONS
@@ -244,27 +247,23 @@ namespace ikura::interp
 		if(!type)
 			return chan->sendMessage(Message(zpr::sprint("invalid type '%s'", type_str)));
 
-		interpreter().wlock()->addGlobal(name, Value::default_of(type.value()));
-		chan->sendMessage(Message(zpr::sprint("added global '%s' with type '%s'", name, type.value()->str())));
+		auto res = interpreter().wlock()->addGlobal(name, Value::default_of(type.value()));
+		if(!res) chan->sendMessage(Message(res.error()));
+		else     chan->sendMessage(Message(zpr::sprint("added global '%s' with type '%s'",
+					name, type.value()->str())));
 	}
 
-	static void internal_def(const Channel* chan, bool redef, ikura::str_view name, ikura::str_view expansion)
+	static bool internal_def(const Channel* chan, ikura::str_view name, Command* thing)
 	{
 		if(interpreter().rlock()->findCommand(name) != nullptr)
 		{
-			if(!redef)  return chan->sendMessage(Message(zpr::sprint("'%s' is already defined", name)));
-			else        interpreter().wlock()->removeCommandOrAlias(name);
-		}
-		else if(redef)
-		{
-			return chan->sendMessage(Message(zpr::sprint("'%s' does not exist", name)));
+			chan->sendMessage(Message(zpr::sprint("'%s' is already defined", name)));
+			return false;
 		}
 
-		auto macro = new Macro(name.str(), expansion);
-		macro->perms() = PermissionSet::fromFlags(DEFAULT_NEW_MACRO_PERMISSIONS);
-
-		interpreter().wlock()->commands.emplace(name, macro);
-		chan->sendMessage(Message(zpr::sprint("%sdefined '%s'", redef ? "re" : "", name)));
+		interpreter().wlock()->commands.emplace(name, thing);
+		chan->sendMessage(Message(zpr::sprint("defined '%s'", name)));
+		return true;
 	}
 
 	static void command_def(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
@@ -276,7 +275,11 @@ namespace ikura::interp
 		if(name.empty())        return chan->sendMessage(Message("not enough arguments to 'def'"));
 		if(expansion.empty())   return chan->sendMessage(Message("'def' expansion cannot be empty"));
 
-		internal_def(chan, false, name, expansion);
+		auto macro = new Macro(name.str(), expansion);
+		macro->perms() = PermissionSet::fromFlags(DEFAULT_NEW_MACRO_PERMISSIONS);
+
+		if(!internal_def(chan, name, macro))
+			delete macro;
 	}
 
 	static void command_redef(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
@@ -288,7 +291,16 @@ namespace ikura::interp
 		if(name.empty())        return chan->sendMessage(Message("not enough arguments to 'redef'"));
 		if(expansion.empty())   return chan->sendMessage(Message("'redef' expansion cannot be empty"));
 
-		internal_def(chan, true, name, expansion);
+		auto existing = interpreter().rlock()->findCommand(name);
+		if(!existing)
+			return chan->sendMessage(Message(zpr::sprint("'%s' does not exist", name)));
+
+		auto macro = dynamic_cast<Macro*>(existing.get());
+		if(!macro)
+			return chan->sendMessage(Message(zpr::sprint("'%s' is not a macro", name)));
+
+		macro->setCode(expansion);
+		chan->sendMessage(Message(zpr::sprint("redefined '%s'", name)));
 	}
 
 	static void command_undef(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
@@ -318,7 +330,7 @@ namespace ikura::interp
 		if(cmd == nullptr)
 			return chan->sendMessage(Message(zpr::sprint("'%s' does not exist", arg_str)));
 
-		if(auto macro = dynamic_cast<Macro*>(cmd))
+		if(auto macro = dynamic_cast<Macro*>(cmd.get()))
 		{
 			Message msg;
 			msg.add(zpr::sprint("'%s' is defined as: ", arg_str));
@@ -329,10 +341,35 @@ namespace ikura::interp
 
 			return chan->sendMessage(msg);
 		}
+		else if(auto function = dynamic_cast<Function*>(cmd.get()))
+		{
+			return chan->sendMessage(Message(zpr::sprint("'%s' is defined as: %s",
+				arg_str, function->getDefinition()->str())));
+		}
 		else
 		{
-			return chan->sendMessage(Message(zpr::sprint("'%s' cannot be shown", arg_str)).add(Emote("monkaTOS")));
+			if(is_builtin_command(arg_str) || getBuiltinFunction(arg_str))
+				return chan->sendMessage(Message(zpr::sprint("'%s' is builtin", arg_str)));
+
+			return chan->sendMessage(Message(zpr::sprint("'%s' cannot be shown", arg_str))
+				.add(Emote("monkaTOS")));
 		}
+	}
+
+
+	static void command_defun(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
+	{
+		// syntax: defun <name> <type> <body>
+		// but the name-type-body is all handled by the parser.
+		auto f = ast::parseFuncDefn(arg_str);
+		if(!f) return chan->sendMessage(Message(f.error()));
+
+		auto& def = f.unwrap();
+		auto name = def->name;
+
+		auto func = new Function(def);
+		if(!internal_def(chan, name, func))
+			delete func;
 	}
 }
 
@@ -342,6 +379,7 @@ namespace ikura::interp
 namespace ikura::interp
 {
 	static constexpr auto t_fn = Type::get_function;
+	static constexpr auto t_gen = Type::get_generic;
 	static constexpr auto t_int = Type::get_integer;
 	static constexpr auto t_cmp = Type::get_complex;
 	static constexpr auto t_str = Type::get_string;
@@ -447,31 +485,31 @@ namespace ikura::interp
 
 	static std::unordered_map<std::string, FunctionOverloadSet> builtin_overloaded_fns = {
 		{
-			"int", FunctionOverloadSet("int", {
+			"int", FunctionOverloadSet("int", t_fn(t_int(), { t_gen("T", 0) }), {
 				&bfn_int_to_int, &bfn_str_to_int, &bfn_dbl_to_int, &bfn_bool_to_int, &bfn_char_to_int,
 			})
 		},
 
 		{
-			"str", FunctionOverloadSet("str", {
+			"str", FunctionOverloadSet("str", t_fn(t_str(), { t_gen("T", 0) }), {
 				&bfn_str_to_str, &bfn_int_to_str, &bfn_dbl_to_str, &bfn_bool_to_str, &bfn_char_to_str,
 				&bfn_list_to_str, &bfn_map_to_str,
 			})
 		},
 
-		{ "ln",   FunctionOverloadSet("ln",   { &bfn_ln_real,   &bfn_ln_complex }) },
-		{ "lg",   FunctionOverloadSet("lg",   { &bfn_lg_real,   &bfn_lg_complex }) },
-		{ "log",  FunctionOverloadSet("log",  { &bfn_log_real,  &bfn_log_complex }) },
-		{ "exp",  FunctionOverloadSet("exp",  { &bfn_exp_real,  &bfn_exp_complex }) },
-		{ "abs",  FunctionOverloadSet("abs",  { &bfn_abs_real,  &bfn_abs_complex }) },
-		{ "sqrt", FunctionOverloadSet("sqrt", { &bfn_sqrt_real, &bfn_sqrt_complex }) },
+		{ "ln",   FunctionOverloadSet("ln",   t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_ln_real,   &bfn_ln_complex }) },
+		{ "lg",   FunctionOverloadSet("lg",   t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_lg_real,   &bfn_lg_complex }) },
+		{ "log",  FunctionOverloadSet("log",  t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_log_real,  &bfn_log_complex }) },
+		{ "exp",  FunctionOverloadSet("exp",  t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_exp_real,  &bfn_exp_complex }) },
+		{ "abs",  FunctionOverloadSet("abs",  t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_abs_real,  &bfn_abs_complex }) },
+		{ "sqrt", FunctionOverloadSet("sqrt", t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_sqrt_real, &bfn_sqrt_complex }) },
 
-		{ "sin",  FunctionOverloadSet("sin",  { &bfn_sin_real,  &bfn_sin_complex }) },
-		{ "cos",  FunctionOverloadSet("cos",  { &bfn_cos_real,  &bfn_cos_complex }) },
-		{ "tan",  FunctionOverloadSet("tan",  { &bfn_tan_real,  &bfn_tan_complex }) },
-		{ "asin", FunctionOverloadSet("asin", { &bfn_asin_real, &bfn_asin_complex }) },
-		{ "acos", FunctionOverloadSet("acos", { &bfn_acos_real, &bfn_acos_complex }) },
-		{ "atan", FunctionOverloadSet("atan", { &bfn_atan_real, &bfn_atan_complex }) },
+		{ "sin",  FunctionOverloadSet("sin",  t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_sin_real,  &bfn_sin_complex }) },
+		{ "cos",  FunctionOverloadSet("cos",  t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_cos_real,  &bfn_cos_complex }) },
+		{ "tan",  FunctionOverloadSet("tan",  t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_tan_real,  &bfn_tan_complex }) },
+		{ "asin", FunctionOverloadSet("asin", t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_asin_real, &bfn_asin_complex }) },
+		{ "acos", FunctionOverloadSet("acos", t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_acos_real, &bfn_acos_complex }) },
+		{ "atan", FunctionOverloadSet("atan", t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_atan_real, &bfn_atan_complex }) },
 	};
 
 	static std::unordered_map<std::string, BuiltinFunction> builtin_fns = {
@@ -496,106 +534,13 @@ namespace ikura::interp
 
 
 
-
-	static int get_overload_dist(const std::vector<Type::Ptr>& target, const std::vector<Type::Ptr>& given)
-	{
-		int cost = 0;
-		auto target_size = target.size();
-		if(!target.empty() && target.back()->is_variadic_list())
-			target_size--;
-
-		auto cnt = std::min(target_size, given.size());
-
-		// if there are no variadics involved, you failed if the counts are different.
-		if(target.empty() || !target.back()->is_variadic_list())
-			if(target.size() != given.size())
-				return -1;
-
-		// make sure the normal args are correct first
-		for(size_t i = 0; i < cnt; i++)
-		{
-			int k = given[i]->get_cast_dist(target[i]);
-			if(k == -1) return -1;
-			else        cost += k;
-		}
-
-		if(target_size != target.size())
-		{
-			// we got variadics.
-			auto vla = target.back();
-			auto elm = vla->elm_type();
-
-			// the cost of doing business.
-			cost += 10;
-			for(size_t i = cnt; i < given.size(); i++)
-			{
-				int k = given[i]->get_cast_dist(elm);
-				if(k == -1) return -1;
-				else        cost += k;
-			}
-		}
-
-		return cost;
-	}
-
 	Result<interp::Value> BuiltinFunction::run(InterpState* fs, CmdContext& cs) const
 	{
-		const auto& given = cs.macro_args;
-		auto target = this->signature->arg_types();
-
-		auto target_size = target.size();
-		if(!target.empty() && target.back()->is_variadic_list())
-			target_size--;
-
-		auto cnt = std::min(target_size, given.size());
-
-		// if there are no variadics involved, you failed if the counts are different.
-		if((target.empty() || !target.back()->is_variadic_list()) && target.size() != given.size())
-		{
-			return zpr::sprint("call to '%s' with wrong number of arguments (expected %zu, found %zu)",
-				this->name, target.size(), cs.macro_args.size());
-		}
-
-		auto type_mismatch = [this](size_t i, const Type::Ptr& exp, const Type::Ptr& got) -> Result<interp::Value> {
-			return zpr::sprint("'%s': arg %zu: type mismatch, expected '%s', found '%s'",
-				this->name, i + 1, exp->str(), got->str());
-		};
-
-		std::vector<Value> final_args;
-
-		// make sure the normal args are correct first
-		for(size_t i = 0; i < cnt; i++)
-		{
-			auto tmp = given[i].cast_to(target[i]);
-			if(!tmp)
-				return type_mismatch(i, target[i], given[i].type());
-
-			final_args.push_back(tmp.value());
-		}
-
-		if(target_size != target.size())
-		{
-			// we got variadics.
-			assert(target.back()->is_variadic_list());
-			auto elm = target.back()->elm_type();
-
-			std::vector<Value> vla;
-
-			// the cost of doing business.
-			for(size_t i = cnt; i < given.size(); i++)
-			{
-				auto tmp = given[i].cast_to(elm);
-				if(!tmp)
-					return type_mismatch(i, elm, given[i].type());
-
-				vla.push_back(tmp.value());
-			}
-
-			final_args.push_back(Value::of_variadic_list(elm, vla));
-		}
+		auto res = coerceTypesForFunctionCall(this->name, this->signature, cs.arguments);
+		if(!res) return res.error();
 
 		CmdContext params = cs;
-		params.macro_args = final_args;
+		params.arguments = res.unwrap();
 
 		return this->action(fs, params);
 	}
@@ -606,12 +551,12 @@ namespace ikura::interp
 		Command* best = 0;
 
 		std::vector<Type::Ptr> arg_types;
-		for(const auto& a : cs.macro_args)
+		for(const auto& a : cs.arguments)
 			arg_types.push_back(a.type());
 
 		for(auto cand : this->functions)
 		{
-			auto cost = get_overload_dist(cand->getSignature()->arg_types(), arg_types);
+			auto cost = getFunctionOverloadDistance(cand->getSignature()->arg_types(), arg_types);
 			if(cost == -1)
 			{
 				continue;
@@ -634,9 +579,9 @@ namespace ikura::interp
 	static Result<interp::Value> fn_markov(InterpState* fs, CmdContext& cs)
 	{
 		std::vector<std::string> seeds;
-		if(!cs.macro_args.empty() && cs.macro_args[0].is_list())
+		if(!cs.arguments.empty() && cs.arguments[0].is_list())
 		{
-			for(const auto& v : cs.macro_args[0].get_list())
+			for(const auto& v : cs.arguments[0].get_list())
 				seeds.push_back(v.raw_str());
 		}
 
@@ -645,11 +590,11 @@ namespace ikura::interp
 
 	static Result<Value> fn_dismantle(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_list())
+		if(cs.arguments.empty() || !cs.arguments[0].is_list())
 			return zpr::sprint("invalid argument");
 
-		auto ret = Value::of_list(cs.macro_args[0].type()->elm_type(), cs.macro_args[0].get_list());
-		ret.set_flags(ret.flags() /*  | Value::FLAG_DISMANTLE_LIST */);
+		auto ret = Value::of_list(cs.arguments[0].type()->elm_type(), cs.arguments[0].get_list());
+		ret.set_flags(ret.flags() | Value::FLAG_DISMANTLE_LIST);
 
 		lg::warn("cmd", "user '%s' tried to dismantle", cs.callername);
 
@@ -667,51 +612,51 @@ namespace ikura::interp
 
 	static Result<interp::Value> fn_ln_real(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_double())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(std::log(cs.macro_args[0].get_double()));
+		return Value::of_double(std::log(cs.arguments[0].get_double()));
 	}
 
 	static Result<interp::Value> fn_lg_real(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_double())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(std::log10(cs.macro_args[0].get_double()));
+		return Value::of_double(std::log10(cs.arguments[0].get_double()));
 	}
 
 	static Result<interp::Value> fn_log_real(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.size() != 2 || !(cs.macro_args[0].is_double() && cs.macro_args[1].is_double()))
+		if(cs.arguments.size() != 2 || !(cs.arguments[0].is_double() && cs.arguments[1].is_double()))
 			return zpr::sprint("invalid argument");
 
 		// change of base
-		return Value::of_double(std::log(cs.macro_args[1].get_double()) / std::log(cs.macro_args[0].get_double()));
+		return Value::of_double(std::log(cs.arguments[1].get_double()) / std::log(cs.arguments[0].get_double()));
 	}
 
 	static Result<interp::Value> fn_exp_real(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_double())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(std::exp(cs.macro_args[0].get_double()));
+		return Value::of_double(std::exp(cs.arguments[0].get_double()));
 	}
 
 	static Result<interp::Value> fn_abs_real(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_double())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::abs(cs.macro_args[0].get_double()));
+		return Value::of_complex(std::abs(cs.arguments[0].get_double()));
 	}
 
 	static Result<interp::Value> fn_sqrt_real(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_double())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(std::sqrt(cs.macro_args[0].get_double()));
+		return Value::of_double(std::sqrt(cs.arguments[0].get_double()));
 	}
 
 
@@ -719,51 +664,51 @@ namespace ikura::interp
 
 	static Result<interp::Value> fn_ln_complex(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_complex())
+		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::log(cs.macro_args[0].get_complex()));
+		return Value::of_complex(std::log(cs.arguments[0].get_complex()));
 	}
 
 	static Result<interp::Value> fn_lg_complex(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_complex())
+		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::log10(cs.macro_args[0].get_complex()));
+		return Value::of_complex(std::log10(cs.arguments[0].get_complex()));
 	}
 
 	static Result<interp::Value> fn_log_complex(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.size() != 2 || !(cs.macro_args[0].is_complex() && cs.macro_args[1].is_complex()))
+		if(cs.arguments.size() != 2 || !(cs.arguments[0].is_complex() && cs.arguments[1].is_complex()))
 			return zpr::sprint("invalid argument");
 
 		// change of base
-		return Value::of_complex(std::log(cs.macro_args[1].get_complex()) / std::log(cs.macro_args[0].get_complex()));
+		return Value::of_complex(std::log(cs.arguments[1].get_complex()) / std::log(cs.arguments[0].get_complex()));
 	}
 
 	static Result<interp::Value> fn_exp_complex(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_complex())
+		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::exp(cs.macro_args[0].get_complex()));
+		return Value::of_complex(std::exp(cs.arguments[0].get_complex()));
 	}
 
 	static Result<interp::Value> fn_abs_complex(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_complex())
+		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::abs(cs.macro_args[0].get_complex()));
+		return Value::of_complex(std::abs(cs.arguments[0].get_complex()));
 	}
 
 	static Result<interp::Value> fn_sqrt_complex(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_complex())
+		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::sqrt(cs.macro_args[0].get_complex()));
+		return Value::of_complex(std::sqrt(cs.arguments[0].get_complex()));
 	}
 
 
@@ -774,50 +719,50 @@ namespace ikura::interp
 
 	static Result<interp::Value> fn_sin_real(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_double())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(::sin(cs.macro_args[0].get_double()));
+		return Value::of_double(::sin(cs.arguments[0].get_double()));
 	}
 
 	static Result<interp::Value> fn_cos_real(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_double())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(::cos(cs.macro_args[0].get_double()));
+		return Value::of_double(::cos(cs.arguments[0].get_double()));
 	}
 
 	static Result<interp::Value> fn_tan_real(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_double())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(::tan(cs.macro_args[0].get_double()));
+		return Value::of_double(::tan(cs.arguments[0].get_double()));
 	}
 
 	static Result<interp::Value> fn_asin_real(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_double())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(::asin(cs.macro_args[0].get_double()));
+		return Value::of_double(::asin(cs.arguments[0].get_double()));
 	}
 
 	static Result<interp::Value> fn_acos_real(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_double())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(::acos(cs.macro_args[0].get_double()));
+		return Value::of_double(::acos(cs.arguments[0].get_double()));
 	}
 
 	static Result<interp::Value> fn_atan_real(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_double())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(::atan(cs.macro_args[0].get_double()));
+		return Value::of_double(::atan(cs.arguments[0].get_double()));
 	}
 
 
@@ -827,50 +772,50 @@ namespace ikura::interp
 
 	static Result<interp::Value> fn_sin_complex(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_complex())
+		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::sin(cs.macro_args[0].get_complex()));
+		return Value::of_complex(std::sin(cs.arguments[0].get_complex()));
 	}
 
 	static Result<interp::Value> fn_cos_complex(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_complex())
+		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::cos(cs.macro_args[0].get_complex()));
+		return Value::of_complex(std::cos(cs.arguments[0].get_complex()));
 	}
 
 	static Result<interp::Value> fn_tan_complex(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_complex())
+		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::tan(cs.macro_args[0].get_complex()));
+		return Value::of_complex(std::tan(cs.arguments[0].get_complex()));
 	}
 
 	static Result<interp::Value> fn_asin_complex(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_complex())
+		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::asin(cs.macro_args[0].get_complex()));
+		return Value::of_complex(std::asin(cs.arguments[0].get_complex()));
 	}
 
 	static Result<interp::Value> fn_acos_complex(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_complex())
+		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::acos(cs.macro_args[0].get_complex()));
+		return Value::of_complex(std::acos(cs.arguments[0].get_complex()));
 	}
 
 	static Result<interp::Value> fn_atan_complex(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_complex())
+		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::atan(cs.macro_args[0].get_complex()));
+		return Value::of_complex(std::atan(cs.arguments[0].get_complex()));
 	}
 
 
@@ -883,26 +828,26 @@ namespace ikura::interp
 	constexpr double PI = 3.14159265358979323846264338327950;
 	static Result<interp::Value> fn_rtod(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_double())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(180.0 * (cs.macro_args[0].get_double() / PI));
+		return Value::of_double(180.0 * (cs.arguments[0].get_double() / PI));
 	}
 
 	static Result<interp::Value> fn_dtor(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_double())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(PI * (cs.macro_args[0].get_double() / 180.0));
+		return Value::of_double(PI * (cs.arguments[0].get_double() / 180.0));
 	}
 
 	static Result<interp::Value> fn_atan2(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.size() != 2 || !(cs.macro_args[0].is_double() && cs.macro_args[1].is_double()))
+		if(cs.arguments.size() != 2 || !(cs.arguments[0].is_double() && cs.arguments[1].is_double()))
 			return zpr::sprint("invalid arguments");
 
-		return Value::of_double(::atan2(cs.macro_args[0].get_double(), cs.macro_args[1].get_double()));
+		return Value::of_double(::atan2(cs.arguments[0].get_double(), cs.arguments[1].get_double()));
 	}
 
 
@@ -921,18 +866,18 @@ namespace ikura::interp
 
 	static Result<interp::Value> fn_int_to_int(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_integer())
+		if(cs.arguments.empty() || !cs.arguments[0].type()->is_integer())
 			return zpr::sprint("invalid argument");
 
-		return cs.macro_args[0];
+		return cs.arguments[0];
 	}
 
 	static Result<interp::Value> fn_str_to_int(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_string())
+		if(cs.arguments.empty() || !cs.arguments[0].type()->is_string())
 			return zpr::sprint("invalid argument");
 
-		auto ret = util::stoi(cs.macro_args[0].raw_str());
+		auto ret = util::stoi(cs.arguments[0].raw_str());
 		if(!ret) return zpr::sprint("invalid argument");
 
 		return Value::of_integer(ret.value());
@@ -940,26 +885,26 @@ namespace ikura::interp
 
 	static Result<interp::Value> fn_dbl_to_int(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].type()->is_double())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_integer((int64_t) cs.macro_args[0].get_double());
+		return Value::of_integer((int64_t) cs.arguments[0].get_double());
 	}
 
 	static Result<interp::Value> fn_char_to_int(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_char())
+		if(cs.arguments.empty() || !cs.arguments[0].type()->is_char())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_integer((int64_t) cs.macro_args[0].get_char());
+		return Value::of_integer((int64_t) cs.arguments[0].get_char());
 	}
 
 	static Result<interp::Value> fn_bool_to_int(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_bool())
+		if(cs.arguments.empty() || !cs.arguments[0].type()->is_bool())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_integer(cs.macro_args[0].get_bool() ? 1 : 0);
+		return Value::of_integer(cs.arguments[0].get_bool() ? 1 : 0);
 	}
 
 
@@ -967,64 +912,64 @@ namespace ikura::interp
 
 	static Result<interp::Value> fn_str_to_str(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_string())
+		if(cs.arguments.empty() || !cs.arguments[0].type()->is_string())
 			return zpr::sprint("invalid argument");
 
-		return cs.macro_args[0];
+		return cs.arguments[0];
 	}
 
 	static Result<interp::Value> fn_int_to_str(InterpState* fs, CmdContext& cs)
 	{
 
-		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_integer())
+		if(cs.arguments.empty() || !cs.arguments[0].type()->is_integer())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_string(cs.macro_args[0].str());
+		return Value::of_string(cs.arguments[0].str());
 	}
 
 	static Result<interp::Value> fn_dbl_to_str(InterpState* fs, CmdContext& cs)
 	{
 
-		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].type()->is_double())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_string(cs.macro_args[0].str());
+		return Value::of_string(cs.arguments[0].str());
 	}
 
 	static Result<interp::Value> fn_map_to_str(InterpState* fs, CmdContext& cs)
 	{
 
-		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_map())
+		if(cs.arguments.empty() || !cs.arguments[0].type()->is_map())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_string(cs.macro_args[0].str());
+		return Value::of_string(cs.arguments[0].str());
 	}
 
 	static Result<interp::Value> fn_list_to_str(InterpState* fs, CmdContext& cs)
 	{
 
-		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_list())
+		if(cs.arguments.empty() || !cs.arguments[0].type()->is_list())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_string(cs.macro_args[0].str());
+		return Value::of_string(cs.arguments[0].str());
 	}
 
 	static Result<interp::Value> fn_char_to_str(InterpState* fs, CmdContext& cs)
 	{
 
-		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_char())
+		if(cs.arguments.empty() || !cs.arguments[0].type()->is_char())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_string(cs.macro_args[0].str());
+		return Value::of_string(cs.arguments[0].str());
 	}
 
 	static Result<interp::Value> fn_bool_to_str(InterpState* fs, CmdContext& cs)
 	{
 
-		if(cs.macro_args.empty() || !cs.macro_args[0].type()->is_bool())
+		if(cs.arguments.empty() || !cs.arguments[0].type()->is_bool())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_string(cs.macro_args[0].str());
+		return Value::of_string(cs.arguments[0].str());
 	}
 
 
@@ -1054,16 +999,28 @@ namespace ikura::interp
 
 
 
+	FunctionOverloadSet::~FunctionOverloadSet() {  }
+	FunctionOverloadSet::FunctionOverloadSet(std::string name, Type::Ptr sig, std::vector<BuiltinFunction*> fns)
+		: Command(name), signature(std::move(sig)), functions(std::move(fns)) { }
 
-	FunctionOverloadSet::FunctionOverloadSet(std::string name, std::vector<Command*> fns)
-		: Command(name, Type::get_macro_function()), functions(std::move(fns)) { }
+	Type::Ptr FunctionOverloadSet::getSignature() const
+	{
+		return this->signature;
+	}
+
+
+	BuiltinFunction::BuiltinFunction(std::string name, Type::Ptr type, Result<interp::Value> (*action)(InterpState*, CmdContext&))
+		: Command(std::move(name)), signature(std::move(type)), action(action) { }
+
+	Type::Ptr BuiltinFunction::getSignature() const { return this->signature; }
+
+
+
+
+
 
 	void FunctionOverloadSet::serialise(Buffer& buf) const { assert(!"not supported"); }
 	void FunctionOverloadSet::deserialise(Span& buf) { assert(!"not supported"); }
-
-
-	BuiltinFunction::BuiltinFunction(std::string name, Type::Ptr type,
-		Result<interp::Value> (*action)(InterpState*, CmdContext&)) : Command(std::move(name), std::move(type)), action(action) { }
 
 	void BuiltinFunction::serialise(Buffer& buf) const { assert(!"not supported"); }
 	void BuiltinFunction::deserialise(Span& buf) { assert(!"not supported"); }

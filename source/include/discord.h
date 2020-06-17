@@ -90,6 +90,7 @@ namespace ikura::discord
 
 		bool connect();
 		void disconnect(uint16_t code = 1000);
+		bool resume(int64_t seq = 0, const std::string& sess = "");
 
 
 
@@ -108,16 +109,15 @@ namespace ikura::discord
 
 		int64_t sequence = -1;
 		std::string session_id;
+
 		bool didAckHeartbeat = false;
 		std::chrono::system_clock::time_point last_heartbeat_ack;
 
-		void send_resume();
+		void send_resume(int64_t seq, const std::string& sess);
 		void send_identify();
 
-		bool init(bool resume);
+		bool init();
 		bool internal_connect(bool resume);
-
-		bool resume();
 
 		void processEvent(std::map<std::string, picojson::value> m);
 		void processMessage(std::map<std::string, picojson::value> m, bool wasEdit);
@@ -136,6 +136,7 @@ namespace ikura::discord
 	void shutdown();
 
 	std::optional<Snowflake> parseMention(ikura::str_view str, size_t* consumed);
+	const Channel* getChannel(Snowflake id);
 
 	struct RxEvent
 	{
@@ -296,6 +297,9 @@ namespace ikura::discord
 	{
 		tsl::robin_map<Snowflake, DiscordGuild> guilds;
 		DiscordMessageLog messageLog;
+
+		uint64_t lastSequence = 0;
+		std::string lastSession;
 
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<DiscordDB> deserialise(Span& buf);

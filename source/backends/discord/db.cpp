@@ -81,6 +81,9 @@ namespace ikura::discord
 
 		wr.write(this->guilds);
 		wr.write(this->messageLog);
+
+		wr.write(this->lastSequence);
+		wr.write(this->lastSession);
 	}
 
 	std::optional<DiscordDB> DiscordDB::deserialise(Span& buf)
@@ -97,6 +100,15 @@ namespace ikura::discord
 		if(db::getVersion() >= 22)
 		{
 			if(!rd.read(&ret.messageLog))
+				return { };
+		}
+
+		if(db::getVersion() >= 24)
+		{
+			if(!rd.read(&ret.lastSequence))
+				return { };
+
+			if(!rd.read(&ret.lastSession))
 				return { };
 		}
 

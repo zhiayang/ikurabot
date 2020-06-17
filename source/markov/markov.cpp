@@ -7,6 +7,7 @@
 
 #include "db.h"
 #include "zfu.h"
+#include "timer.h"
 #include "twitch.h"
 #include "config.h"
 #include "markov.h"
@@ -53,6 +54,8 @@ namespace ikura::markov
 
 	struct WordList : Serialisable
 	{
+		WordList() { }
+
 		uint64_t totalFrequency = 0;
 		std::vector<Word> words;
 
@@ -327,6 +330,7 @@ namespace ikura::markov
 
 	static void process_one(ikura::str_view input, std::vector<ikura::relative_str> _emote_idxs)
 	{
+		input = input.trim();
 		if(input.empty())
 			return;
 
@@ -503,7 +507,17 @@ namespace ikura::markov
 					for(const auto& word : wl.words)
 					{
 						if(word.frequency > selection)
+						{
+							auto prf = zfu::listToString(prefix, [&](uint64_t w) {
+								return markov.wordList[w].word;
+							}, false);
+
+							lg::dbglog("markov", "{ %s } -> '%s'  --  (%d/%d [%.2f%])",
+								prf, markov.wordList[word.index].word, word.frequency,
+								wl.totalFrequency, 100.0 * ((double) word.frequency / (double) wl.totalFrequency));
+
 							return word.index;
+						}
 
 						selection -= word.frequency;
 					}
@@ -700,6 +714,7 @@ namespace ikura::markov
 			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
 
 		MarkovModel ret;
+
 		if(!rd.read(&ret.table))
 			return { };
 
@@ -710,7 +725,7 @@ namespace ikura::markov
 		if(ret.wordList.empty())
 			initialise_model(&ret);
 
-		*markovModel().wlock().get() = ret;
+		*markovModel().wlock().get() = std::move(ret);
 
 		// populate the wordIndices table, instead of reading from disk, because that's dumb
 		// and we end up storing each word twice.

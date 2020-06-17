@@ -22,7 +22,8 @@ namespace ikura
 {
 	namespace lg
 	{
-		constexpr bool USE_COLOURS = true;
+		constexpr bool ENABLE_DEBUG = false;
+		constexpr bool USE_COLOURS  = true;
 
 		constexpr const char* WHITE_BOLD_RED_BG = "\x1b[1m\x1b[37m\x1b[48;5;9m";
 
@@ -52,6 +53,8 @@ namespace ikura
 
 			return zpr::sprint("%s %s %s: ", timestamp, loglevel, subsystem);
 		}
+
+		bool isDebugEnabled() { return ENABLE_DEBUG; }
 	}
 
 	namespace util

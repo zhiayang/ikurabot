@@ -127,14 +127,13 @@ namespace ikura
 
 	namespace lg
 	{
-		constexpr bool ENABLE_DEBUG = false;
-
+		bool isDebugEnabled();
 		std::string getLogMessagePreambleString(int lvl, ikura::str_view sys);
 
 		template <typename... Args>
 		static inline void __generic_log(int lvl, ikura::str_view sys, const std::string& fmt, Args&&... args)
 		{
-			if(!ENABLE_DEBUG && lvl < 0)
+			if(!isDebugEnabled() && lvl < 0)
 				return;
 
 			auto out = getLogMessagePreambleString(lvl, sys);

@@ -35,12 +35,14 @@ namespace ikura::interp
 		static constexpr uint8_t T_FUNCTION = 7;
 		static constexpr uint8_t T_COMPLEX  = 8;
 		static constexpr uint8_t T_VAR_LIST = 9;
+		static constexpr uint8_t T_GENERIC  = 10;
 
 		uint8_t type_id() const { return this->_type; }
 		Ptr key_type() const { return this->_key_type; }
 		Ptr elm_type() const { return this->_elm_type; }
 		Ptr ret_type() const { return this->_elm_type; }    // not a typo -- use elm_type to store ret_type also.
 		std::vector<Ptr> arg_types() const { return this->_arg_types; }
+		std::string generic_name() const { return this->_gen_name; }
 
 		bool is_map() const;
 		bool is_void() const;
@@ -53,6 +55,8 @@ namespace ikura::interp
 		bool is_function() const;
 		bool is_complex() const;
 		bool is_variadic_list() const;
+		bool is_generic() const;        // whether the type itself is a generic type
+		bool has_generics() const;      // whether the type is generic in some way, eg. array of T.
 
 		bool is_same(Ptr other) const;
 		int get_cast_dist(Ptr to) const;
@@ -71,20 +75,26 @@ namespace ikura::interp
 		static Ptr get_map(Ptr key_type, Ptr elm_type);
 		static Ptr get_macro_function();
 		static Ptr get_function(Ptr return_type, std::vector<Ptr> arg_types);
+		static Ptr get_generic(std::string name, int group);
 
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<std::shared_ptr<const Type>> deserialise(Span& buf);
 
-		Type(uint8_t t) : _type(t) { };
-		Type(uint8_t t, Ptr elm) : _type(t), _elm_type(elm) { };
-		Type(uint8_t t, Ptr key, Ptr elm) : _type(t), _key_type(key), _elm_type(elm) { };
-		Type(uint8_t t, std::vector<Ptr> args, Ptr ret) : _type(t), _elm_type(ret), _arg_types(args) { };
+
+		Type(uint8_t t) : _type(t) { }
+		Type(uint8_t t, Ptr elm) : _type(t), _elm_type(elm) { }
+		Type(uint8_t t, Ptr key, Ptr elm) : _type(t), _key_type(key), _elm_type(elm) { }
+		Type(uint8_t t, std::vector<Ptr> args, Ptr ret) : _type(t), _elm_type(ret), _arg_types(args) { }
+		Type(uint8_t t, std::string g, uint64_t s) : _type(t), _gen_name(std::move(g)), _gen_group(s) { }
+
 
 	private:
 		uint8_t _type = T_VOID;
 		Ptr _key_type;
 		Ptr _elm_type;  // elm type for lists, value type for map, return type for functions
 		std::vector<Ptr> _arg_types;
+		std::string _gen_name;
+		uint64_t _gen_group = 0;
 	};
 
 	struct Value : Serialisable
@@ -111,8 +121,8 @@ namespace ikura::interp
 		double   get_double() const;
 		Value*   get_lvalue() const;
 		int64_t  get_integer() const;
-		Command* get_function() const;
 		ikura::complex get_complex() const;
+		std::shared_ptr<Command> get_function() const;
 
 		std::vector<Value>& get_list();
 		const std::vector<Value>& get_list() const;
@@ -141,6 +151,7 @@ namespace ikura::interp
 		static Value of_list(Type::Ptr, std::vector<Value> l);
 		static Value of_variadic_list(Type::Ptr, std::vector<Value> l);
 		static Value of_function(Command* function);
+		static Value of_function(std::shared_ptr<Command> function);
 		static Value of_map(Type::Ptr key_type, Type::Ptr value_type, std::map<Value, Value> m);
 
 		virtual void serialise(Buffer& buf) const override;
@@ -208,7 +219,8 @@ namespace ikura::interp
 			bool     v_bool      = false;
 			Value*   v_lvalue    = 0;
 			uint32_t v_char      = 0;
-			Command* v_function  = 0;
+
+			std::shared_ptr<Command> v_function;
 
 			ikura::complex v_complex = 0;
 			std::vector<Value> v_list;
@@ -227,7 +239,8 @@ namespace ikura::interp
 		uint64_t executionStart = 0;
 
 		// the arguments, split by spaces and Value::of_string-ed
-		std::vector<interp::Value> macro_args;
+		std::vector<interp::Value> arguments;
+		std::string macro_args;
 	};
 
 	struct InterpState : Serialisable
@@ -240,14 +253,14 @@ namespace ikura::interp
 
 		ikura::string_map<PermissionSet> builtinCommandPermissions;
 
-		Command* findCommand(ikura::str_view name) const;
+		std::shared_ptr<Command> findCommand(ikura::str_view name) const;
 		bool removeCommandOrAlias(ikura::str_view name);
 
 		std::pair<std::optional<interp::Value>, interp::Value*> resolveVariable(ikura::str_view name, CmdContext& cs);
 
 		Result<interp::Value> evaluateExpr(ikura::str_view expr, CmdContext& cs);
 
-		void addGlobal(ikura::str_view name, interp::Value val);
+		Result<bool> addGlobal(ikura::str_view name, interp::Value val);
 
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<InterpState> deserialise(Span& buf);
@@ -257,6 +270,9 @@ namespace ikura::interp
 	private:
 		ikura::string_map<interp::Value*> globals;
 	};
+
+	int getFunctionOverloadDistance(const std::vector<Type::Ptr>& target, const std::vector<Type::Ptr>& given);
+	Result<std::vector<Value>> coerceTypesForFunctionCall(ikura::str_view name, Type::Ptr signature, std::vector<Value> given);
 }
 
 namespace ikura

@@ -205,7 +205,7 @@ namespace ikura::serialise
 			if(!ret.has_value())
 				return false;
 
-			*out = ret.value();
+			new (out) T(std::move(ret.value()));
 			return true;
 		}
 
@@ -310,14 +310,14 @@ namespace ikura::serialise
 				auto sz = read<uint64_t>();
 				if(!sz) return { };
 
-				T ret;
+				T ret; ret.reserve(sz.value());
 				for(size_t i = 0; i < sz.value(); i++)
 				{
 					auto x = read<V>();
 					if(!x.has_value())
 						return { };
 
-					ret.push_back(x.value());
+					ret.push_back(std::move(x.value()));
 				}
 
 				return ret;
@@ -331,6 +331,10 @@ namespace ikura::serialise
 				if(!sz) return { };
 
 				T ret;
+
+				if constexpr (!is_std_map<T>::value)
+					ret.rehash(2 * sz.value());
+
 				for(size_t i = 0; i < sz.value(); i++)
 				{
 					auto k = read<K>();
@@ -339,7 +343,7 @@ namespace ikura::serialise
 					if(!k.has_value() || !v.has_value())
 						return { };
 
-					ret.emplace(k.value(), v.value());
+					ret.emplace(std::move(k.value()), std::move(v.value()));
 				}
 
 				return ret;
@@ -352,7 +356,7 @@ namespace ikura::serialise
 				auto sz = read<uint64_t>();
 				if(!sz) return { };
 
-				T ret;
+				T ret; ret.rehash(2 * sz.value());
 				for(size_t i = 0; i < sz.value(); i++)
 				{
 					auto k = read<K>();
@@ -361,7 +365,7 @@ namespace ikura::serialise
 					if(!k.has_value() || !v.has_value())
 						return { };
 
-					ret.emplace(k.value(), v.value());
+					ret.emplace(std::move(k.value()), std::move(v.value()));
 				}
 
 				return ret;
@@ -377,7 +381,7 @@ namespace ikura::serialise
 				if(!k.has_value() || !v.has_value())
 					return { };
 
-				return std::pair<K, V>(k.value(), v.value());
+				return std::pair<K, V>(std::move(k.value()), std::move(v.value()));
 			}
 			else
 			{

@@ -8,9 +8,9 @@
 
 namespace ikura::interp
 {
-	std::vector<std::string> performExpansion(ikura::str_view code)
+	std::vector<ikura::str_view> performExpansion(ikura::str_view code)
 	{
-		std::vector<std::string> ret;
+		std::vector<ikura::str_view> ret;
 
 		// split up the thing.
 		size_t end = 0;
@@ -59,7 +59,7 @@ namespace ikura::interp
 			{
 			add_piece:
 				// lg::log("cmd", "piece = '%s'", code.take(end));
-				ret.push_back(code.take(end).str());
+				ret.push_back(code.take(end));
 				code.remove_prefix(end);
 				end = 0;
 
@@ -69,7 +69,7 @@ namespace ikura::interp
 		}
 
 		if(end > 0)
-			ret.push_back(code.take(end).str());
+			ret.push_back(code.take(end));
 
 		return ret;
 	}
@@ -97,7 +97,7 @@ namespace ikura::interp
 				if(auto v = fs->evaluateExpr(a.drop(1), cs); v.has_value())
 				{
 					// dismantle the list, if it is one.
-					if(v->is_list())
+					if(v->is_list() && !v->is_string())
 					{
 						auto& l = v->get_list();
 						for(auto& x : l)
@@ -127,13 +127,18 @@ namespace ikura::interp
 
 
 	Macro::Macro(std::string name, std::vector<std::string> words)
-		: Command(std::move(name), Type::get_macro_function()), code(std::move(words))
+		: Command(std::move(name)), code(std::move(words))
 	{
 	}
 
-	Macro::Macro(std::string name, ikura::str_view code) : Command(std::move(name), Type::get_macro_function())
+	Macro::Macro(std::string name, ikura::str_view code) : Command(std::move(name))
 	{
-		this->code = performExpansion(code);
+		this->setCode(code);
+	}
+
+	void Macro::setCode(ikura::str_view code)
+	{
+		this->code = zfu::map(performExpansion(code), [](auto& sv) { return sv.str(); });
 	}
 
 	Result<interp::Value> Macro::run(InterpState* fs, CmdContext& cs) const
@@ -146,6 +151,10 @@ namespace ikura::interp
 		return this->code;
 	}
 
+	Type::Ptr Macro::getSignature() const
+	{
+		return Type::get_macro_function();
+	}
 
 
 
@@ -195,7 +204,7 @@ namespace ikura::interp
 		return ret;
 	}
 
-	Command::Command(std::string name, Type::Ptr sig) : name(std::move(name)), signature(std::move(sig)) { }
+	Command::Command(std::string name) : name(std::move(name)) { }
 
 	std::optional<Command*> Command::deserialise(Span& buf)
 	{
@@ -204,11 +213,16 @@ namespace ikura::interp
 		{
 			case serialise::TAG_MACRO: {
 				auto ret = Macro::deserialise(buf);
-				if(ret) return ret.value();     // force unwrap to cast Macro* -> Command*
+				if(ret) return ret.value();
 				else    return { };
 			}
 
-			case serialise::TAG_FUNCTION:
+			case serialise::TAG_FUNCTION: {
+				auto ret = Function::deserialise(buf);
+				if(ret) return ret.value();
+				else    return { };
+			}
+
 			default:
 				return lg::error_o("db", "type tag mismatch (unexpected '%02x')", tag);
 		}

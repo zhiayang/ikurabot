@@ -2,6 +2,7 @@
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
 
+#include "db.h"
 #include "ast.h"
 #include "zfu.h"
 #include "serialise.h"
@@ -260,8 +261,26 @@ namespace ikura::interp::ast
 		wr.tag(TYPE_TAG);
 
 		wr.write(this->list);
-		wr.write(this->start);
-		wr.write(this->end);
+
+		if(this->start)
+		{
+			wr.write(true);
+			wr.write(this->start);
+		}
+		else
+		{
+			wr.write(false);
+		}
+
+		if(this->end)
+		{
+			wr.write(true);
+			wr.write(this->end);
+		}
+		else
+		{
+			wr.write(false);
+		}
 	}
 
 	SliceOp* SliceOp::deserialise(Span& buf)
@@ -276,11 +295,29 @@ namespace ikura::interp::ast
 		Expr* list = rd.read<Expr*>().value();
 		if(!list) return nullptr;
 
-		Expr* start = rd.read<Expr*>().value();
-		if(!list) return nullptr;
+		bool have_start = false;
+		if(!rd.read(&have_start))
+			return nullptr;
 
-		Expr* end = rd.read<Expr*>().value();
-		if(!list) return nullptr;
+		Expr* start = nullptr;
+		Expr* end = nullptr;
+
+		if(have_start)
+		{
+			start = rd.read<Expr*>().value();
+			if(!start) return nullptr;
+		}
+
+
+		bool have_end = false;
+		if(!rd.read(&have_end))
+			return nullptr;
+
+		if(have_end)
+		{
+			end = rd.read<Expr*>().value();
+			if(!end) return nullptr;
+		}
 
 		return new SliceOp(list, start, end);
 	}
@@ -592,6 +629,7 @@ namespace ikura::interp::ast
 
 		wr.write(this->name);
 		this->signature->serialise(buf);
+		wr.write(this->generics);
 		wr.write(this->body);
 	}
 
@@ -611,10 +649,17 @@ namespace ikura::interp::ast
 		auto sig = Type::deserialise(buf);
 		if(!sig) return nullptr;
 
+		std::vector<std::string> generics;
+		if(db::getVersion() >= 23)
+		{
+			if(!rd.read(&generics))
+				return nullptr;
+		}
+
 		Block* body = rd.read<Block*>().value();
 		if(!body) return nullptr;
 
-		return new FunctionDefn(name, sig.value(), body);
+		return new FunctionDefn(name, sig.value(), generics, body);
 	}
 
 

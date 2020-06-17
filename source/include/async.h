@@ -9,8 +9,8 @@
 #include <functional>
 #include <type_traits>
 
+#include "types.h"
 #include "synchro.h"
-#include "function2.h"
 
 namespace ikura
 {
@@ -219,10 +219,10 @@ namespace ikura
 		struct Job
 		{
 			bool should_stop = false;
-			fu2::unique_function<void (void)> func;
+			ikura::unique_function<void (void)> func;
 
 			Job() { }
-			explicit Job(fu2::unique_function<void (void)>&& f) : func(std::move(f)) { }
+			explicit Job(ikura::unique_function<void (void)>&& f) : func(std::move(f)) { }
 
 			static inline Job stop() { Job j; j.should_stop = true; return j; }
 		};

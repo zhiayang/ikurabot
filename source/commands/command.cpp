@@ -39,6 +39,27 @@ namespace ikura::cmd
 
 
 
+
+	static std::pair<ikura::str_view, ikura::str_view> split_pipeline(ikura::str_view msg, bool* expansion)
+	{
+		auto split = interp::performExpansion(msg);
+		for(auto& sv : split)
+		{
+			if(sv == "|>" || sv == "|...>")
+			{
+				*expansion = (sv == "|...>");
+
+				return {
+					msg.take(sv.data() - msg.data()).trim(),
+					msg.drop(sv.data() - msg.data()).drop(sv.size()).trim()
+				};
+			}
+		}
+
+		*expansion = false;
+		return { msg, "" };
+	}
+
 	interp::Value message_to_value(const Message& msg)
 	{
 		using interp::Type;
@@ -65,13 +86,61 @@ namespace ikura::cmd
 			if(v.is_string())
 			{
 				auto s = v.raw_str();
-				auto sv = ikura::str_view(s);
+				auto sv = ikura::str_view(s).trim();
 
-				// syntax is :NAME for emotes
-				// but you can escape the : with \:
-				if(sv.find("\\:") == 0)     m.add(sv.drop(1));
-				else if(sv.find(':') == 0)  m.add(Emote(sv.drop(1).str()));
-				else                        m.add(sv);
+				// we actually need to handle emotes in the middle of strings.
+				size_t cur = 0;
+				bool nospace = false;
+
+				auto flush = [&]() {
+					if(cur > 0)
+					{
+						auto x = sv.take(cur).trim();
+						if(nospace) m.addNoSpace(x);
+						else        m.add(x);
+
+						nospace = false;
+						sv.remove_prefix(cur);
+					}
+
+					sv = sv.trim();
+					cur = 0;
+				};
+
+				while(cur < sv.size())
+				{
+					if(sv.size() > cur + 1 && sv[cur] == '\\' && sv[cur + 1] == ':')
+					{
+						flush();
+						sv.remove_prefix(1); // remove the '\' as well
+						nospace = true;
+					}
+					else if(sv[cur] == ':')
+					{
+						flush();
+						sv.remove_prefix(1);
+
+						// get an emote.
+						size_t k = 0;
+						while(k < sv.size() && sv[k] != ' ')
+							k++;
+
+						m.add(Emote(sv.take(k).str()));
+						sv.remove_prefix(k);
+						flush();
+					}
+					else if(sv[cur] == ' ')
+					{
+						flush();
+					}
+					else
+					{
+						cur++;
+					}
+				}
+
+				if(sv.size() > 0)
+					flush();
 			}
 			else if(v.is_list())
 			{
@@ -108,23 +177,25 @@ namespace ikura::cmd
 
 	static std::vector<interp::Value> expand_arguments(interp::InterpState* fs, interp::CmdContext& cs, ikura::str_view input)
 	{
-		auto code = interp::performExpansion(input);
-		return evaluateMacro(fs, cs, code);
+		auto code = zfu::map(interp::performExpansion(input), [](auto& sv) { return sv.str(); });
+		return evaluateMacro(fs, cs, std::move(code));
 	}
 
-	static void process_command(ikura::str_view userid, ikura::str_view username, const Channel* chan, ikura::str_view input)
-	{
-		if(input.empty())
-			return;
 
+
+
+
+	static void process_one_command(ikura::str_view userid, ikura::str_view username, const Channel* chan,
+		ikura::str_view cmd_str, ikura::str_view arg_str, bool pipelined, bool doExpand, std::string* out)
+	{
 		interp::CmdContext cs;
 		cs.executionStart = util::getMillisecondTimestamp();
 		cs.callername = username;
 		cs.callerid = userid;
 		cs.channel = chan;
 
-		auto cmd_str = input.substr(0, input.find(' ')).trim();
-		auto arg_str = input.drop(cmd_str.size()).trim();
+		cmd_str = cmd_str.trim();
+		arg_str = arg_str.trim();
 
 		auto command = interpreter().rlock()->findCommand(cmd_str);
 
@@ -138,16 +209,42 @@ namespace ikura::cmd
 			}
 
 			auto t = ikura::timer();
-			auto args = expand_arguments(interpreter().wlock().get(), cs, arg_str);
-			cs.macro_args = std::move(args);
+			if(doExpand || dynamic_cast<interp::Macro*>(command.get()) != nullptr)
+			{
+				auto args = expand_arguments(interpreter().wlock().get(), cs, arg_str);
+				cs.macro_args = util::join(zfu::map(args, [](auto& v) {
+					return v.raw_str();
+				}), " ");
+
+				cs.arguments = std::move(args);
+			}
+			else
+			{
+				cs.macro_args = arg_str;
+				cs.arguments = { interp::Value::of_string(arg_str) };
+			}
 
 			auto ret = interpreter().map_write([&](auto& fs) {
 				return command->run(&fs, cs);
 			});
 
-			lg::log("interp", "command took %.3f ms to execute", t.measure());
-			if(ret) chan->sendMessage(cmd::value_to_message(ret.unwrap()));
-			else if(chan->shouldPrintInterpErrors()) chan->sendMessage(Message(ret.error()));
+			if(pipelined)
+			{
+				lg::log("interp", "pipeline sub-command took %.3f ms to execute", t.measure());
+				*out = ret->raw_str();
+			}
+			else
+			{
+				lg::log("interp", "command took %.3f ms to execute", t.measure());
+				if(ret)
+					chan->sendMessage(cmd::value_to_message(ret.unwrap()));
+
+				else if(chan->shouldPrintInterpErrors())
+					chan->sendMessage(Message(ret.error()));
+
+				else
+					lg::error("interp", "%s", ret.error());
+			}
 		}
 		else
 		{
@@ -155,9 +252,37 @@ namespace ikura::cmd
 			if(found) return;
 
 			lg::warn("cmd", "user '%s' tried non-existent command '%s'", username, cmd_str);
+			return;
 		}
 	}
 
+	static void process_command(ikura::str_view userid, ikura::str_view username, const Channel* chan, ikura::str_view input)
+	{
+		if(input.empty())
+			return;
+
+		std::string piped_input;
+		bool do_expand = true;     // since we start as a macro invocation, always expand by default
+		while(true)
+		{
+			lg::log("cmd", "OWO");
+			auto [ first, subsequent ] = split_pipeline(input, &do_expand);
+
+			auto cmd_str = first.substr(0, first.find(' ')).trim();
+			auto arg_str = zpr::sprint("%s %s", first.drop(cmd_str.size()).trim(), piped_input);
+
+			// zpr::println("F = '%s'", first);
+			// zpr::println("S = '%s'", subsequent);
+			// zpr::println("A = '%s'", arg_str);
+
+			auto pipelined = !subsequent.empty();
+			process_one_command(userid, username, chan, cmd_str, arg_str, pipelined, do_expand, &piped_input);
+
+			input = subsequent;
+			if(!pipelined)
+				break;
+		}
+	}
 
 	ikura::string_map<PermissionSet> getDefaultBuiltinPermissions()
 	{
@@ -180,6 +305,7 @@ namespace ikura::cmd
 		ret["redef"]    = PermissionSet::fromFlags(p_admin);
 		ret["undef"]    = PermissionSet::fromFlags(p_admin);
 		ret["list"]     = PermissionSet::fromFlags(p_known);
+		ret["defun"]    = PermissionSet::fromFlags(p_admin);
 		ret["usermod"]  = PermissionSet::fromFlags(p_admin);
 		ret["showmod"]  = PermissionSet::fromFlags(p_admin);
 		ret["groupadd"] = PermissionSet::fromFlags(p_admin);

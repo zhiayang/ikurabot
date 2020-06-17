@@ -47,135 +47,220 @@ namespace ikura::console
 	// returns false if we should quit.
 	static bool process_command(Socket* sock, ikura::str_view cmd_str)
 	{
-		if(cmd_str == "exit" || cmd_str == "q")
+		if(cmd_str.find('/') == 0)
 		{
-			// only try to do socket stuff if we're a local connection.
-			if(sock != nullptr)
+			cmd_str.remove_prefix(1);
+			if(cmd_str == "exit" || cmd_str == "q")
 			{
-				// remove the fella
-				State.socketBuffers.wlock()->erase(sock);
-
-				// we can't kill the socket from here (since function will be called from
-				// socket's own thread). so, pass it on to someone else.
-				State.danglingSockets.push(sock);
-			}
-			else
-			{
-				// if you exit the local session, you kill the bot.
-				State.is_connected = false;
-			}
-
-			echo_message(sock, "\n");
-			return false;
-		}
-		else if(cmd_str == "stop" || cmd_str == "s")
-		{
-			// kill the entire bot, so disconnect the entire server.
-			State.is_connected = false;
-
-			echo_message(sock, "\n");
-			return false;
-		}
-		else
-		{
-			auto cmd  = cmd_str.take(cmd_str.find(' '));
-			auto args = util::split(cmd_str.drop(cmd.size() + 1), ' ');
-
-			if(cmd == "sync")
-			{
-				if(!args.empty())
+				// only try to do socket stuff if we're a local connection.
+				if(sock != nullptr)
 				{
-					echo_message(sock, "'sync' takes 0 arguments\n");
-					return true;
-				}
+					// remove the fella
+					State.socketBuffers.wlock()->erase(sock);
 
-				database().rlock()->sync();
-			}
-			else if(cmd == "retrain")
-			{
-				if(!args.empty())
-				{
-					echo_message(sock, "'retrain' takes 0 arguments\n");
-					return true;
-				}
-
-				markov::retrain();
-				auto thr = std::thread([]() {
-					while(true)
-					{
-						std::this_thread::sleep_for(250ms);
-
-						auto p = ikura::markov::retrainingProgress();
-						if(p == 1.0)
-							break;
-
-						ikura::lg::log("markov", "retraining progress: %.2f", 100 * p);
-					}
-				});
-
-				thr.detach();
-			}
-			else if(cmd == "join")
-			{
-				if(args.size() != 2)
-				{
-					echo_message(sock, "'join' takes 2 arguments: join <backend> <name>\n");
-					return true;
-				}
-
-				auto backend = args[0];
-				auto channel = args[1];
-
-				if(backend == "twitch")
-				{
-					if(channel.find('#') == 0)
-						channel.remove_prefix(1);
-
-					auto chan = twitch::getChannel(channel);
-					if(chan != nullptr)
-					{
-						State.currentChannel = chan;
-						echo_message(sock, zpr::sprint("joined #%s\n", channel));
-					}
-					else
-					{
-						echo_message(sock, zpr::sprint("channel '#%s' does not exist\n", channel));
-					}
+					// we can't kill the socket from here (since function will be called from
+					// socket's own thread). so, pass it on to someone else.
+					State.danglingSockets.push(sock);
 				}
 				else
 				{
-					echo_message(sock, zpr::sprint("unknown backend '%s'\n", backend));
+					// if you exit the local session, you kill the bot.
+					State.is_connected = false;
 				}
+
+				echo_message(sock, "stopping...\n");
+				return false;
 			}
-			else if(cmd == "\\")    // as if you typed the following commands in chat.
+			else if(cmd_str == "stop" || cmd_str == "s")
+			{
+				// kill the entire bot, so disconnect the entire server.
+				State.is_connected = false;
+
+				echo_message(sock, "\n");
+				return false;
+			}
+			else
+			{
+				auto cmd   = cmd_str.take(cmd_str.find(' '));
+				auto _args = util::split(cmd_str.drop(cmd.size() + 1), ' ');
+				auto args  = ikura::span(_args);
+
+				if(cmd == "sync")
+				{
+					if(!args.empty())
+					{
+						echo_message(sock, "'sync' takes 0 arguments\n");
+						return true;
+					}
+
+					database().rlock()->sync();
+				}
+				else if(cmd == "retrain")
+				{
+					if(!args.empty())
+					{
+						echo_message(sock, "'retrain' takes 0 arguments\n");
+						return true;
+					}
+
+					markov::retrain();
+					auto thr = std::thread([]() {
+						while(true)
+						{
+							std::this_thread::sleep_for(250ms);
+
+							auto p = ikura::markov::retrainingProgress();
+							if(p == 1.0)
+								break;
+
+							ikura::lg::log("markov", "retraining progress: %.2f", 100 * p);
+						}
+					});
+
+					thr.detach();
+				}
+				else if(cmd == "join")
+				{
+					if(args.size() < 2)
+					{
+						echo_message(sock, "'join' takes at least 2 arguments\n");
+						return true;
+					}
+
+					auto backend = args[0];
+
+					if(backend == "twitch")
+					{
+						auto channel = args[1];
+
+						if(channel.find('#') == 0)
+							channel.remove_prefix(1);
+
+						auto chan = twitch::getChannel(channel);
+						if(chan != nullptr)
+						{
+							State.currentChannel = chan;
+							echo_message(sock, zpr::sprint("joined #%s\n", channel));
+						}
+						else
+						{
+							echo_message(sock, zpr::sprint("channel '#%s' does not exist\n", channel));
+						}
+					}
+					else if(backend == "discord")
+					{
+						if(args.size() < 3)
+						{
+							echo_message(sock, zpr::sprint("need guild and channel\n"));
+							goto end;
+						}
+
+						size_t i = 0;
+						std::string guild_name = args[1].str();
+						for(i = 2; i < args.size(); i++)
+						{
+							if(args[i - 1].back() == '\\')
+							{
+								guild_name.pop_back();
+								guild_name += " " + args[i].str();
+							}
+							else
+							{
+								break;
+							}
+						}
+
+						if(i == args.size())
+						{
+							echo_message(sock, zpr::sprint("missing channel\n"));
+							goto end;
+						}
+
+						std::string channel_name = util::join(args.drop(i), " ");
+
+						auto guild = database().map_read([&guild_name](auto& db) -> const discord::DiscordGuild* {
+							auto& dd = db.discordData;
+							for(const auto& [ s, g ] : dd.guilds)
+								if(g.name == guild_name)
+									return &g;
+
+							return nullptr;
+						});
+
+						if(guild == nullptr)
+						{
+							echo_message(sock, zpr::sprint("guild '%s' does not exist\n", guild_name));
+							goto end;
+						}
+
+						discord::Snowflake chan_id;
+						for(const auto& [ s, c ] : guild->channels)
+							if(c.name == channel_name)
+								chan_id = c.id;
+
+						if(chan_id.empty())
+						{
+							echo_message(sock, zpr::sprint("channel '#%s' does not exist\n", channel_name));
+							goto end;
+						}
+
+						auto chan = discord::getChannel(chan_id);
+						assert(chan);
+
+						State.currentChannel = chan;
+						echo_message(sock, zpr::sprint("joined #%s\n", channel_name));
+					}
+					else
+					{
+						echo_message(sock, zpr::sprint("unknown backend '%s'\n", backend));
+					}
+				}
+				else if(!cmd.empty())
+				{
+					echo_message(sock, zpr::sprint("unknown command '%s'\n", cmd));
+				}
+
+			end:
+				print_prompt(sock);
+				return true;
+			}
+		}
+		else
+		{
+			if(!cmd_str.empty())
 			{
 				auto chan = State.currentChannel;
 				if(chan == nullptr)
 				{
 					echo_message(sock, "not in a channel\n");
-					return true;
-				}
-
-				auto arg_str = cmd_str.drop(cmd.size() + 1);
-				if(arg_str.empty())
-				{
-					echo_message(sock, "expected arguments\n");
 				}
 				else
 				{
+					std::string userid;
+					std::string username;
+
+					auto b = chan->getBackend();
+					if(b == Backend::Twitch)
+					{
+						userid = twitch::MAGIC_OWNER_USERID;
+						username = config::twitch::getOwner();
+					}
+					else if(b == Backend::Discord)
+					{
+						userid   = config::discord::getOwner().str();
+						username = config::discord::getUsername();
+					}
+					else
+					{
+						lg::fatal("console", "unsupported backend");
+					}
+
 					// massive hack but idgaf
-					auto cmded = cmd::processMessage(twitch::MAGIC_OWNER_USERID, config::twitch::getOwner(),
-						chan, arg_str, /* enablePings: */ false);
+					auto cmded = cmd::processMessage(userid, username, chan, cmd_str, /* enablePings: */ false);
 
 					if(!cmded)
-					{
-						chan->sendMessage(Message(arg_str));
-					}
+						chan->sendMessage(Message(cmd_str));
 				}
-			}
-			else if(!cmd.empty())
-			{
-				echo_message(sock, zpr::sprint("unknown command '%s'\n", cmd));
 			}
 
 			print_prompt(sock);

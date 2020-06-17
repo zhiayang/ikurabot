@@ -102,7 +102,7 @@ namespace ikura::interp
 			ikura::str_view str() const { return this->text; }
 		};
 
-		std::vector<Token> lexString(ikura::str_view src);
+		Result<std::vector<Token>> lexString(ikura::str_view src);
 	}
 
 	namespace ast
@@ -113,7 +113,9 @@ namespace ikura::interp
 			virtual ~Stmt() { }
 
 			static Stmt* deserialise(Span& buf);
+
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const = 0;
+			virtual std::string str() const = 0;
 		};
 
 		struct Expr : Stmt
@@ -129,11 +131,11 @@ namespace ikura::interp
 			virtual ~LitChar() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			uint32_t codepoint;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_LIT_CHAR;
-
 			virtual void serialise(Buffer& buf) const override;
 			static LitChar* deserialise(Span& buf);
 		};
@@ -144,11 +146,11 @@ namespace ikura::interp
 			virtual ~LitString() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			std::string value;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_LIT_STRING;
-
 			virtual void serialise(Buffer& buf) const override;
 			static LitString* deserialise(Span& buf);
 		};
@@ -159,11 +161,11 @@ namespace ikura::interp
 			virtual ~LitList() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			std::vector<Expr*> elms;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_LIT_LIST;
-
 			virtual void serialise(Buffer& buf) const override;
 			static LitList* deserialise(Span& buf);
 		};
@@ -174,12 +176,12 @@ namespace ikura::interp
 			virtual ~LitInteger() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			int64_t value;
 			bool imag;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_LIT_INTEGER;
-
 			virtual void serialise(Buffer& buf) const override;
 			static LitInteger* deserialise(Span& buf);
 		};
@@ -190,12 +192,12 @@ namespace ikura::interp
 			virtual ~LitDouble() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			double value;
 			bool imag;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_LIT_DOUBLE;
-
 			virtual void serialise(Buffer& buf) const override;
 			static LitDouble* deserialise(Span& buf);
 		};
@@ -206,11 +208,11 @@ namespace ikura::interp
 			virtual ~LitBoolean() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			bool value;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_LIT_BOOLEAN;
-
 			virtual void serialise(Buffer& buf) const override;
 			static LitBoolean* deserialise(Span& buf);
 		};
@@ -221,11 +223,11 @@ namespace ikura::interp
 			virtual ~VarRef() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			std::string name;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_VAR_REF;
-
 			virtual void serialise(Buffer& buf) const override;
 			static VarRef* deserialise(Span& buf);
 		};
@@ -236,12 +238,12 @@ namespace ikura::interp
 			virtual ~SubscriptOp() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			Expr* list;
 			Expr* index;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_OP_SUBSCRIPT;
-
 			virtual void serialise(Buffer& buf) const override;
 			static SubscriptOp* deserialise(Span& buf);
 		};
@@ -252,13 +254,13 @@ namespace ikura::interp
 			virtual ~SliceOp() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			Expr* list;
 			Expr* start;
 			Expr* end;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_OP_SLICE;
-
 			virtual void serialise(Buffer& buf) const override;
 			static SliceOp* deserialise(Span& buf);
 		};
@@ -269,11 +271,11 @@ namespace ikura::interp
 			virtual ~SplatOp() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			Expr* expr;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_OP_SPLAT;
-
 			virtual void serialise(Buffer& buf) const override;
 			static SplatOp* deserialise(Span& buf);
 		};
@@ -284,13 +286,13 @@ namespace ikura::interp
 			virtual ~UnaryOp() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			lexer::TokenType op;
 			std::string op_str;
 			Expr* expr;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_OP_UNARY;
-
 			virtual void serialise(Buffer& buf) const override;
 			static UnaryOp* deserialise(Span& buf);
 		};
@@ -301,6 +303,7 @@ namespace ikura::interp
 			virtual ~BinaryOp() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			lexer::TokenType op;
 			std::string op_str;
@@ -308,7 +311,6 @@ namespace ikura::interp
 			Expr* rhs;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_OP_BINARY;
-
 			virtual void serialise(Buffer& buf) const override;
 			static BinaryOp* deserialise(Span& buf);
 		};
@@ -318,7 +320,9 @@ namespace ikura::interp
 			TernaryOp(lexer::TokenType op, std::string s, Expr* a, Expr* b, Expr* c) : op(op), op_str(std::move(s)),
 				op1(a), op2(b), op3(c) { }
 			virtual ~TernaryOp() override;
+
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			lexer::TokenType op;
 			std::string op_str;
@@ -327,7 +331,6 @@ namespace ikura::interp
 			Expr* op3;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_OP_TERNARY;
-
 			virtual void serialise(Buffer& buf) const override;
 			static TernaryOp* deserialise(Span& buf);
 		};
@@ -341,12 +344,12 @@ namespace ikura::interp
 			void addOp(lexer::TokenType t, std::string s) { this->ops.push_back({ t, s }); }
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			std::vector<Expr*> exprs;
 			std::vector<std::pair<lexer::TokenType, std::string>> ops;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_OP_COMPARISON;
-
 			virtual void serialise(Buffer& buf) const override;
 			static ComparisonOp* deserialise(Span& buf);
 		};
@@ -357,6 +360,7 @@ namespace ikura::interp
 			virtual ~AssignOp() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			lexer::TokenType op;
 			std::string op_str;
@@ -364,7 +368,6 @@ namespace ikura::interp
 			Expr* rhs;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_OP_ASSIGN;
-
 			virtual void serialise(Buffer& buf) const override;
 			static AssignOp* deserialise(Span& buf);
 		};
@@ -375,12 +378,12 @@ namespace ikura::interp
 			virtual ~FunctionCall() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			Expr* callee;
 			std::vector<Expr*> arguments;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_FUNCTION_CALL;
-
 			virtual void serialise(Buffer& buf) const override;
 			static FunctionCall* deserialise(Span& buf);
 		};
@@ -391,39 +394,41 @@ namespace ikura::interp
 			virtual ~Block() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			std::vector<Stmt*> stmts;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_BLOCK;
-
 			virtual void serialise(Buffer& buf) const override;
 			static Block* deserialise(Span& buf);
 		};
 
 		struct FunctionDefn : Stmt
 		{
-			FunctionDefn(std::string name, Type::Ptr signature, Block* body)
-				: name(std::move(name)), signature(std::move(signature)), body(body) { }
+			FunctionDefn(std::string name, Type::Ptr signature, std::vector<std::string> generics, Block* body)
+				: name(std::move(name)), signature(std::move(signature)), generics(std::move(generics)), body(body) { }
 			virtual ~FunctionDefn() override;
 
 			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
 
 			std::string name;
 			Type::Ptr signature;
+			std::vector<std::string> generics;
 			Block* body;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_FUNCTION_DEFN;
-
 			virtual void serialise(Buffer& buf) const override;
 			static FunctionDefn* deserialise(Span& buf);
 		};
 
 		Result<Stmt*> parse(ikura::str_view src);
 		Result<Expr*> parseExpr(ikura::str_view src);
+		Result<FunctionDefn*> parseFuncDefn(ikura::str_view src);
 
 		// this returns a value, but the interesting bits are just the type. fortunately, the returned
 		// value (if present) is a default-initialised value of that type.
-		std::optional<interp::Type::Ptr> parseType(ikura::str_view str);
+		std::optional<interp::Type::Ptr> parseType(ikura::str_view str, int group = 0);
 	}
 }
 

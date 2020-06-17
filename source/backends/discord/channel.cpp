@@ -46,6 +46,9 @@ namespace ikura::discord
 		if(Snowflake(userid) == config::discord::getOwner())
 			return true;
 
+		if(userid == twitch::MAGIC_OWNER_USERID)
+			return true;
+
 		return database().map_read([&](auto& db) {
 			// mfw "const correctness", so we can't use operator[]
 			auto guild = this->getGuild();
@@ -214,11 +217,9 @@ namespace ikura::discord
 			}
 			else
 			{
-				zpr::println("** SENT");
+				lg::log("msg", "discord/%s/#%s: %s>>>%s %s", tx.guildName, tx.channelName,
+					colours::GREEN_BOLD, colours::COLOUR_RESET, message);
 			}
-
-			lg::log("msg", "discord/%s/#%s: %s>>>%s %s", tx.guildName, tx.channelName,
-				colours::GREEN_BOLD, colours::COLOUR_RESET, message);
 		}
 
 		lg::dbglog("discord", "send worker exited");

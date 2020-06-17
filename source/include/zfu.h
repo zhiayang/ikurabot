@@ -3,7 +3,7 @@
 // Licensed under the Apache License Version 2.0.
 
 // origin: ikurabot
-// updated 07/06/2020
+// updated 10/06/2020
 
 #pragma once
 #include <map>
@@ -164,6 +164,16 @@ namespace zfu
 	}
 
 	template <typename T, typename UnaryOp>
+	auto map(std::vector<T>&& input, UnaryOp fn) -> std::vector<decltype(fn(std::move(input[0])))>
+	{
+		std::vector<decltype(fn(std::move(input[0])))> ret; ret.reserve(input.size());
+		for(auto& i : input)
+			ret.push_back(fn(std::move(i)));
+
+		return ret;
+	}
+
+	template <typename T, typename UnaryOp>
 	auto flatmap(const std::vector<T>& input, UnaryOp fn) -> std::vector<decltype(fn(input[0]))>
 	{
 		std::vector<decltype(fn(input[0]))> ret; ret.reserve(input.size());
@@ -286,8 +296,8 @@ namespace zfu
 		return -1;
 	}
 
-	template <typename T, typename U>
-	bool contains(const std::vector<T>& input, const U& x)
+	template <typename Container, typename U>
+	bool contains(const Container& input, const U& x)
 	{
 		return std::find(input.begin(), input.end(), x) != input.end();
 	}
@@ -524,8 +534,8 @@ namespace zfu
 		return thing + (count == 1 ? "" : "s");
 	}
 
-	template <typename T, typename UnaryOp>
-	std::string listToString(const std::vector<T>& list, UnaryOp fn, bool braces = true, const std::string& sep = ", ")
+	template <typename Container, typename UnaryOp>
+	std::string listToString(const Container& list, UnaryOp fn, bool braces = true, const std::string& sep = ", ")
 	{
 		std::string ret;
 		for(size_t i = 0; i < list.size(); i++)

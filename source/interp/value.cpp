@@ -227,9 +227,14 @@ namespace ikura::interp
 
 	Value Value::of_function(Command* function)
 	{
+		return Value::of_function(std::shared_ptr<Command>(function, [](Command*) { }));
+	}
+
+	Value Value::of_function(std::shared_ptr<Command> function)
+	{
 		auto sig = function->getSignature();
 		auto ret = Value(Type::get_function(sig->ret_type(), sig->arg_types()));
-		ret.v_function = function;
+		ret.v_function = std::move(function);
 
 		return ret;
 	}
@@ -239,7 +244,8 @@ namespace ikura::interp
 		auto castable = (this->type()->get_cast_dist(type) != -1);
 		if(!castable) return { };
 
-		if(this->_type->is_same(type))
+		// TODO: this is a fucking cheat tbh
+		if(this->_type->is_same(type) || type->has_generics())
 			return *this;
 
 		if(this->is_integer() && type->is_double())
@@ -252,12 +258,12 @@ namespace ikura::interp
 			return Value::of_complex(this->get_double(), 0);
 
 		if((this->is_list() && type->is_list()) || (this->is_map() && type->is_map()))
-		{
-			auto t = type->elm_type();
-			return Value::of_list(t, this->v_list);
-		}
-		else
-			return { };
+			return Value::of_list(type->elm_type(), this->v_list);
+
+		if(this->is_function() && type->is_function())
+			return *this;
+
+		return { };
 	}
 
 
@@ -273,7 +279,6 @@ namespace ikura::interp
 	bool Value::is_function() const { return this->_type->is_function(); }
 	bool Value::is_complex() const  { return this->_type->is_complex(); }
 
-	Command* Value::get_function() const    { return this->is_lvalue() ? this->v_lvalue->get_function() : this->v_function; }
 	int64_t Value::get_integer() const      { return this->is_lvalue() ? this->v_lvalue->get_integer() : this->v_integer; }
 	double Value::get_double() const        { return this->is_lvalue() ? this->v_lvalue->get_double() : this->v_double; }
 	bool Value::get_bool() const            { return this->is_lvalue() ? this->v_lvalue->get_bool() : this->v_bool; }
@@ -286,6 +291,11 @@ namespace ikura::interp
 
 	const std::map<Value, Value>& Value::get_map() const{ return this->is_lvalue() ? this->v_lvalue->get_map() : this->v_map; }
 	std::map<Value, Value>& Value::get_map()            { return this->is_lvalue() ? this->v_lvalue->get_map() : this->v_map; }
+
+	std::shared_ptr<Command> Value::get_function() const
+	{
+		return this->is_lvalue() ? this->v_lvalue->get_function() : this->v_function;
+	}
 
 	void Value::serialise(Buffer& buf) const
 	{

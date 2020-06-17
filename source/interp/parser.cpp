@@ -150,7 +150,7 @@ namespace ikura::interp::ast
 
 	static bool is_postfix_op(TT op)
 	{
-		return zfu::match(op, TT::LSquare, TT::LParen, TT::DoublePlus, TT::DoubleMinus, TT::Ellipsis);
+		return zfu::match(op, TT::LSquare, TT::LParen, TT::Ellipsis);
 	}
 
 	static bool is_assignment_op(TT op)
@@ -183,6 +183,7 @@ namespace ikura::interp::ast
 
 			case TT::Plus:              return 1800;
 			case TT::Minus:             return 1800;
+			case TT::DoublePlus:        return 1800;
 
 			case TT::ShiftLeft:         return 1600;
 			case TT::ShiftRight:        return 1600;
@@ -252,11 +253,34 @@ namespace ikura::interp::ast
 			return tokens.empty();
 		}
 
+		void pushGenerics(ikura::span<std::string> g)
+		{
+			this->knownGenerics.push_back(g);
+		}
+
+		void popGenerics()
+		{
+			assert(this->knownGenerics.size() > 0);
+			this->knownGenerics.pop_back();
+		}
+
+		bool isKnownGeneric(ikura::str_view name)
+		{
+			for(size_t i = this->knownGenerics.size(); i-- > 0;)
+				if(zfu::contains(this->knownGenerics[i], name))
+					return true;
+
+			return false;
+		}
+
 		lexer::Token eof = lexer::Token(TT::EndOfFile, "");
 		ikura::span<lexer::Token> tokens;
+		std::vector<ikura::span<std::string>> knownGenerics;
 	};
+	Result<Type::Ptr> parseType(State& st, int grp = 0);
+	Result<FunctionDefn*> parseFuncDefn(ikura::str_view src);
+	static Result<FunctionDefn*> parseFuncDefn(State& st, bool requireKeyword);
 
-	Result<interp::Type::Ptr> parseType(State& st);
 
 	static Result<Expr*>  parsePostfix(State& st, Expr* lhs, TT op);
 	static Result<Expr*>  parseParenthesised(State& st);
@@ -270,14 +294,15 @@ namespace ikura::interp::ast
 	static Result<Expr*>  parseBool(State& st);
 	static Result<Expr*>  parseExpr(State& st);
 
-	static Result<Stmt*>  parseStmt(State& st);
+	static Result<Stmt*> parseStmt(State& st);
 	static Result<Block*> parseBlock(State& st);
-	static Result<Stmt*>  parseFuncDefn(State& st);
 
 	Result<Expr*> parseExpr(ikura::str_view src)
 	{
-		auto tokens = lexer::lexString(src);
-		ikura::span span = tokens;
+		auto ts = lexer::lexString(src);
+		if(!ts) return ts.error();
+
+		ikura::span span = ts.unwrap();
 
 		auto st = State(span);
 		return parseExpr(st);
@@ -285,8 +310,10 @@ namespace ikura::interp::ast
 
 	Result<Stmt*> parse(ikura::str_view src)
 	{
-		auto tokens = lexer::lexString(src);
-		ikura::span span = tokens;
+		auto ts = lexer::lexString(src);
+		if(!ts) return ts.error();
+
+		ikura::span span = ts.unwrap();
 
 		auto st = State(span);
 		return parseStmt(st);
@@ -671,19 +698,19 @@ namespace ikura::interp::ast
 	static Result<Stmt*> parseStmt(State& st)
 	{
 		if(st.peek() == TT::Function)
-			return parseFuncDefn(st);
+			return parseFuncDefn(st, /* requireKeyword: */ true);
 
 		if(st.peek() == TT::LBrace || st.peek() == TT::FatRightArrow)
 			return parseBlock(st);
 
-		return zpr::sprint("unexpected token '%s'", st.peek().str());
+		return parseExpr(st);
 	}
 
 
 	static Result<Block*> parseBlock(State& st)
 	{
 		if(st.peek() != TT::LBrace && st.peek() != TT::FatRightArrow)
-			return zpr::sprint("expected either '{' pr '=>'");
+			return zpr::sprint("expected either '{' or '=>'");
 
 		bool single = (st.peek() == TT::FatRightArrow);
 		st.pop();
@@ -713,10 +740,13 @@ namespace ikura::interp::ast
 	}
 
 
-	static Result<Stmt*> parseFuncDefn(State& st)
+	static Result<FunctionDefn*> parseFuncDefn(State& st, bool requireKeyword)
 	{
-		assert(st.peek() == TT::Function);
-		st.pop();
+		if(requireKeyword)
+		{
+			assert(st.peek() == TT::Function);
+			st.pop();
+		}
 
 		std::string name;
 		if(st.peek() != TT::Identifier)
@@ -725,13 +755,61 @@ namespace ikura::interp::ast
 		name = st.peek().str().str();
 		st.pop();
 
+		std::vector<std::string> generics;
+		if(st.peek() == TT::LAngle)
+		{
+			st.pop();
+
+			while(!st.empty() && st.peek() != TT::RAngle)
+			{
+				if(st.peek() != TT::Identifier)
+					return zpr::sprint("expected identifier in <>, found '%d'", st.peek().type);
+
+				generics.emplace_back(st.peek().str());
+				st.pop();
+
+				if(st.peek() == TT::Comma)
+					st.pop();
+
+				else if(st.peek() == TT::RAngle)
+					break;
+
+				else
+					zpr::sprint("unexpected token '%s' in <>", st.peek().str());
+			}
+
+			if(st.empty() || st.peek() != TT::RAngle)
+				return zpr::sprint("expected '>'");
+
+			st.pop();
+		}
+
+		st.pushGenerics(generics);
+
 		auto type = parseType(st);
 		if(!type) return type.error();
 
-		auto body = parseBlock(st);
-		if(!body) return body;
+		if(!type.unwrap()->is_function())
+			return zpr::sprint("'%s' is not a function type", type.unwrap()->str());
 
-		return makeAST<FunctionDefn>(name, type.unwrap(), body.unwrap());
+		auto body = parseBlock(st);
+		if(!body) return body.error();
+
+		st.popGenerics();
+
+		return makeAST<FunctionDefn>(name, type.unwrap(), generics, body.unwrap());
+	}
+
+
+	Result<FunctionDefn*> parseFuncDefn(ikura::str_view src)
+	{
+		auto ts = lexer::lexString(src);
+		if(!ts) return ts.error();
+
+		ikura::span span = ts.unwrap();
+
+		auto st = State(span);
+		return parseFuncDefn(st, /* requireKeyword: */ false);
 	}
 
 
@@ -745,10 +823,7 @@ namespace ikura::interp::ast
 
 
 
-
-
-	// dumbness.
-	Result<interp::Type::Ptr> parseType(State& st)
+	Result<interp::Type::Ptr> parseType(State& st, int group)
 	{
 		using interp::Type;
 		if(st.empty())
@@ -759,12 +834,16 @@ namespace ikura::interp::ast
 			auto s = st.peek().str();
 			st.pop();
 
-			if(s == "int")       return Type::get_integer();
-			else if(s == "dbl")  return Type::get_double();
-			else if(s == "bool") return Type::get_bool();
-			else if(s == "str")  return Type::get_string();
-			else if(s == "void") return Type::get_void();
-			else                 return zpr::sprint("unknown type '%s'", s);
+			if(s == "int")         return Type::get_integer();
+			else if(s == "double") return Type::get_double();
+			else if(s == "bool")   return Type::get_bool();
+			else if(s == "char")   return Type::get_char();
+			else if(s == "str")    return Type::get_string();
+			else if(s == "void")   return Type::get_void();
+			else if(st.isKnownGeneric(s))
+				return Type::get_generic(s.str(), group);
+
+			return zpr::sprint("unknown type '%s'", s);
 		}
 		else if(st.peek() == TT::LSquare)
 		{
@@ -823,21 +902,14 @@ namespace ikura::interp::ast
 			st.pop();
 
 			// no tuples for now
-			Type::Ptr retty;
-			if(st.peek() == TT::RightArrow)
-			{
-				st.pop();
-				auto t = parseType(st);
-				if(!t) return t;
+			if(st.peek() != TT::RightArrow)
+				return zpr::sprint("expected '->'");
 
-				retty = t.unwrap();
-			}
-			else
-			{
-				retty = Type::get_void();
-			}
+			st.pop();
+			auto t = parseType(st);
+			if(!t) return t;
 
-			return Type::get_function(retty, tup);
+			return Type::get_function(t.unwrap(), tup);
 		}
 		else
 		{
@@ -845,100 +917,17 @@ namespace ikura::interp::ast
 		}
 	}
 
-
-
-	std::optional<interp::Type::Ptr> parseType(ikura::str_view str)
+	std::optional<interp::Type::Ptr> parseType(ikura::str_view src, int group)
 	{
-		using interp::Type;
+		auto ts = lexer::lexString(src);
+		if(!ts) return { };
 
-		str = str.trim();
-		if(str.empty())
-			return { };
+		ikura::span span = ts.unwrap();
 
-		if(str == "int")        return Type::get_integer();
-		else if(str == "dbl")   return Type::get_double();
-		else if(str == "bool")  return Type::get_bool();
-		else if(str == "str")   return Type::get_string();
-		else if(str == "void")  return Type::get_void();
-		else if(str[0] == '(')
-		{
-			str.remove_prefix(1);
-			std::vector<Type::Ptr> tys;
+		auto st = State(span);
+		auto ty = parseType(st, group);
 
-			while(str.size() > 0 && str[0] != ')')
-			{
-				auto t = parseType(str);
-				if(!t) return { };
-
-				tys.push_back(t.value());
-
-				if(str.empty())
-					return { };
-
-				if(str[0] == ',')
-					str.remove_prefix(1);
-
-				else if(str[0] == ')')
-					break;
-
-				else
-					return { };
-			}
-
-			if(str.empty() || str[0] != ')')
-				return { };
-
-			str = str.drop(1).trim_front();
-			Type::Ptr rty;
-
-			if(str.find("->") == 0)
-			{
-				str.remove_prefix(2);
-				auto t = parseType(str);
-				if(!t) return { };
-
-				rty = t.value();
-			}
-			else
-			{
-				rty = Type::get_void();
-			}
-
-			return Type::get_function(rty, tys);
-		}
-		else if(str[0] == '[')
-		{
-			str.remove_prefix(1);
-			auto tmp = str.find_first_of("[]:");
-			auto k = str.take(tmp);
-			str = str.drop(tmp);
-
-			auto key = parseType(k);
-			if(!key || str.empty())
-				return { };
-
-			str = str.trim();
-			if(str[0] == ':')
-			{
-				str.remove_prefix(1);
-				auto tmp = str.find_first_of("[]:");
-				auto e = str.take(tmp).trim();
-				str = str.drop(tmp).trim();
-
-				auto elm = parseType(e);
-				str = str.trim();
-
-				if(!elm || str.empty() || str[0] != ']')
-					return { };
-
-				return Type::get_map(key.value(), elm.value());
-			}
-			else if(str[0] == ']')
-			{
-				return Type::get_list(key.value());
-			}
-		}
-
-		return { };
+		if(ty) return ty.unwrap();
+		else   return { };
 	}
 }

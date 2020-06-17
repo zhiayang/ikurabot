@@ -50,6 +50,7 @@ namespace ikura::irc
 			std::string value; value.reserve(tmp.size());
 
 			// unescape it.
+			size_t k = 0; // extra offset -- in case of escapes.
 			for(size_t i = 0; i < tmp.size(); i++)
 			{
 				if(tmp[i] == '\\')
@@ -65,7 +66,7 @@ namespace ikura::irc
 						else                value += c;
 
 						// skip the next one.
-						i += 1;
+						k += 1;
 					}
 				}
 				else
@@ -76,7 +77,7 @@ namespace ikura::irc
 
 			msg.tags[key] = value;
 
-			tags.remove_prefix(value.size());
+			tags.remove_prefix(tmp.size());
 			if(tags.empty())
 				break;
 

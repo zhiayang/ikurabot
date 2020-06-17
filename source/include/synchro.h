@@ -92,18 +92,22 @@ namespace ikura
 
 		void wait()
 		{
-			this->cv.wait_pred([this]() -> bool { return this->cv.value != 0; });
+			auto lk = std::unique_lock<std::mutex>(this->cv.mtx);
+			while(this->cv.value == 0)
+				this->cv.cv.wait(lk);
+
+			// this->cv.wait_pred([this]() -> bool { return this->cv.value != 0; });
 			this->cv.value -= 1;
 		}
 
-		bool wait(std::chrono::nanoseconds timeout)
-		{
-			if(!this->cv.wait_pred(timeout, [this]() -> bool { return this->cv.value != 0; }))
-				return false;
+		// bool wait(std::chrono::nanoseconds timeout)
+		// {
+		// 	if(!this->cv.wait_pred(timeout, [this]() -> bool { return this->cv.value != 0; }))
+		// 		return false;
 
-			this->cv.value -= 1;
-			return true;
-		}
+		// 	this->cv.value -= 1;
+		// 	return true;
+		// }
 
 	private:
 		condvar<int64_t> cv;

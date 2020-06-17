@@ -20,6 +20,33 @@ namespace ikura::interp
 	bool Type::is_complex() const       { return this->_type == T_COMPLEX; }
 	bool Type::is_variadic_list() const { return this->_type == T_VAR_LIST; }
 	bool Type::is_list() const          { return this->_type == T_LIST || this->_type == T_VAR_LIST; }
+	bool Type::is_generic() const       { return this->_type == T_GENERIC; }
+	bool Type::has_generics() const
+	{
+		if(this->_type == T_GENERIC)
+		{
+			return true;
+		}
+		else if(this->is_list())
+		{
+			return this->_elm_type->is_generic();
+		}
+		else if(this->is_map())
+		{
+			return this->_key_type->is_generic() || this->_elm_type->is_generic();
+		}
+		else if(this->is_function())
+		{
+			if(this->_elm_type->is_generic())
+				return true;
+
+			for(const auto& p : this->_arg_types)
+				if(p->is_generic())
+					return true;
+		}
+
+		return false;
+	}
 
 	int Type::get_cast_dist(Ptr other) const
 	{
@@ -41,6 +68,9 @@ namespace ikura::interp
 			// and also for empty lists.
 			if(this->elm_type()->is_void() || other->elm_type()->is_void())
 				return 2;
+
+			else if(other->elm_type()->is_generic())
+				return 10;
 		}
 		else if(this->is_map() && other->is_map())
 		{
@@ -55,6 +85,35 @@ namespace ikura::interp
 
 			else if(other->key_type()->is_void() && other->elm_type()->is_void())
 				return 3;
+
+			else if(other->key_type()->is_generic() && other->elm_type()->is_generic())
+				return 20;
+
+			else if(other->key_type()->is_generic())
+				return 10;
+
+			else if(other->elm_type()->is_generic())
+				return 10;
+		}
+		else if(this->is_function() && other->is_function())
+		{
+			if(this->arg_types().size() == other->arg_types().size())
+			{
+				int sum = 0;
+				for(size_t i = 0; i < this->arg_types().size(); i++)
+				{
+					int k = this->arg_types()[i]->get_cast_dist(other->arg_types()[i]);
+					if(k == -1) return -1;
+
+					sum += k;
+				}
+
+				return sum;
+			}
+		}
+		else if(other->is_generic())
+		{
+			return 10;
 		}
 
 		return -1;
@@ -84,6 +143,12 @@ namespace ikura::interp
 			return true;
 		}
 
+		if(this->is_generic() && other->is_generic())
+		{
+			return this->generic_name() == other->generic_name()
+				&& this->_gen_group == other->_gen_group;
+		}
+
 		return (this->_type == other->_type);
 	}
 
@@ -99,9 +164,10 @@ namespace ikura::interp
 		if(this->is_list())         return zpr::sprint("[%s]", this->elm_type()->str());
 		if(this->is_map())          return zpr::sprint("[%s: %s]", this->key_type()->str(), this->elm_type()->str());
 		if(this->is_complex())      return "complex";
+		if(this->is_generic())      return this->_gen_name;
 		if(this->is_function())
 		{
-			return zpr::sprint("fn(%s) -> %s",
+			return zpr::sprint("(%s) -> %s",
 				zfu::listToString(this->arg_types(), [](const auto& t) -> auto { return t->str(); }, /* braces: */ false),
 				this->ret_type()->str()
 			);
@@ -143,23 +209,26 @@ namespace ikura::interp
 	Type::Ptr Type::get_macro_function()
 	{
 		std::vector<Ptr> arg_list = { get_list(get_string()) };
-		auto ret = std::make_shared<const Type>(T_FUNCTION,
+		return std::make_shared<const Type>(T_FUNCTION,
 			std::move(arg_list),    // argument type for macros is also a list of strings.
 			get_list(get_string())  // return type for macros is always a list of strings
 		);
-
-		return ret;
 	}
 
 	Type::Ptr Type::get_function(Ptr return_type, std::vector<Ptr> arg_types)
 	{
-		auto ret = std::make_shared<const Type>(T_FUNCTION,
+		return std::make_shared<const Type>(T_FUNCTION,
 			std::move(arg_types),
 			std::move(return_type)
 		);
-		return ret;
 	}
 
+	Type::Ptr Type::get_generic(std::string name, int group)
+	{
+		return std::make_shared<const Type>(T_GENERIC,
+			std::move(name), group
+		);
+	}
 
 	void Type::serialise(Buffer& buf) const
 	{
@@ -179,6 +248,12 @@ namespace ikura::interp
 
 			for(auto t : this->_arg_types)
 				t->serialise(buf);
+		}
+		else if(this->is_generic())
+		{
+			auto wr = serialise::Writer(buf);
+			wr.write(this->_gen_name);
+			wr.write(this->_gen_group);
 		}
 	}
 
@@ -229,6 +304,17 @@ namespace ikura::interp
 			if(!v) return { };
 
 			return Type::get_map(k.value(), v.value());
+		}
+		else if(t == T_GENERIC)
+		{
+			std::string name;
+			uint64_t group = 0;
+
+			auto rd = serialise::Reader(buf);
+			if(!rd.read(&name))  return { };
+			if(!rd.read(&group)) return { };
+
+			return Type::get_generic(std::move(name), group);
 		}
 
 		return lg::error_o("db", "invalid type '%x'", t);

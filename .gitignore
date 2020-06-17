@@ -8,6 +8,8 @@
 *.log
 build
 
+*.gch
+*.pch
 *.sublime-workspace
 **/.vscode/ipch
 dump

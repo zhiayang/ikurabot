@@ -2,6 +2,7 @@
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
 
+#include "db.h"
 #include "zpr.h"
 #include "defs.h"
 #include "discord.h"
@@ -12,6 +13,7 @@ namespace ikura::discord
 {
 	void update_guild(DiscordState* st, pj::object json);
 	void process_message(DiscordState* st, pj::object json);
+	void update_guild_emotes(DiscordGuild& guild, pj::object json);
 
 
 	template <typename... Args>
@@ -53,6 +55,26 @@ namespace ikura::discord
 		{
 			// for now, we just treat a message edit as a new message.
 			this->processMessage(msg["d"].as_obj(), /* wasEdit: */ true);
+		}
+		else if(type == "GUILD_EMOJIS_UPDATE")
+		{
+			auto id = Snowflake(msg["d"].as_obj()["guild_id"].as_str());
+			database().perform_write([&](auto& db) {
+				auto& dd = db.discordData;
+				if(auto it = dd.guilds.find(id); it != dd.guilds.end())
+				{
+					update_guild_emotes(it.value(), msg["d"].as_obj());
+					lg::log("discord", "updated emotes for guild '%s'", it->second.name);
+				}
+				else
+				{
+					lg::error("discord", "received emote update for unknown guild '%s'", id.str());
+				}
+			});
+		}
+		else if(type == "RESUMED")
+		{
+			lg::log("discord", "resume replay finished");
 		}
 		else if(type == "READY")
 		{

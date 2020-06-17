@@ -22,6 +22,11 @@ namespace ikura::interp
 		constexpr uint8_t TIMEOUT_GLOBAL        = 3;
 	};
 
+	namespace ast
+	{
+		struct FunctionDefn;
+	}
+
 	struct Command : Serialisable
 	{
 		virtual ~Command() { }
@@ -31,18 +36,16 @@ namespace ikura::interp
 		PermissionSet& perms() { return this->permissions; }
 		const PermissionSet& perms() const { return this->permissions; }
 
-		Type::Ptr getSignature() const { return this->signature; }
-
 		virtual Result<interp::Value> run(InterpState* fs, CmdContext& cs) const = 0;
+		virtual Type::Ptr getSignature() const = 0;
 
 		// because this is static, it needs to exist in the abstract base class too
 		static std::optional<Command*> deserialise(Span& buf);
 
 	protected:
-		Command(std::string name, Type::Ptr signature);
+		Command(std::string name);
 
 		std::string name;
-		Type::Ptr signature;
 		PermissionSet permissions;
 	};
 
@@ -52,10 +55,13 @@ namespace ikura::interp
 
 		virtual Result<interp::Value> run(InterpState* fs, CmdContext& cs) const override;
 
+		virtual Type::Ptr getSignature() const override;
+		const std::vector<std::string>& getCode() const;
+		void setCode(ikura::str_view raw_code);
+
+
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<Macro*> deserialise(Span& buf);
-
-		const std::vector<std::string>& getCode() const;
 
 		static constexpr uint8_t TYPE_TAG = serialise::TAG_MACRO;
 
@@ -66,33 +72,56 @@ namespace ikura::interp
 		std::vector<std::string> code;
 	};
 
+	struct Function : Command
+	{
+		~Function();
+		Function(ast::FunctionDefn* defn);
+
+		virtual Result<interp::Value> run(InterpState* fs, CmdContext& cs) const override;
+		virtual Type::Ptr getSignature() const override;
+		const ast::FunctionDefn* getDefinition() const { return this->defn; }
+
+		virtual void serialise(Buffer& buf) const override;
+		static std::optional<Function*> deserialise(Span& buf);
+
+		static constexpr uint8_t TYPE_TAG = serialise::TAG_FUNCTION;
+
+	private:
+		ast::FunctionDefn* defn;
+	};
+
 	struct BuiltinFunction : Command
 	{
 		BuiltinFunction(std::string name, Type::Ptr type, Result<interp::Value> (*action)(InterpState*, CmdContext&));
 
 		virtual Result<interp::Value> run(InterpState* fs, CmdContext& cs) const override;
+		virtual Type::Ptr getSignature() const override;
 
 		virtual void serialise(Buffer& buf) const override;
 		static void deserialise(Span& buf);
 
 	private:
+		Type::Ptr signature;
 		Result<interp::Value> (*action)(InterpState*, CmdContext&);
 	};
 
 	struct FunctionOverloadSet : Command
 	{
-		FunctionOverloadSet(std::string name, std::vector<Command*> fns);
+		~FunctionOverloadSet();
+		FunctionOverloadSet(std::string name, Type::Ptr sig, std::vector<BuiltinFunction*> fns);
 
 		virtual Result<interp::Value> run(InterpState* fs, CmdContext& cs) const override;
+		virtual Type::Ptr getSignature() const override;
 
 		virtual void serialise(Buffer& buf) const override;
 		static void deserialise(Span& buf);
 
 	private:
-		std::vector<Command*> functions;
+		Type::Ptr signature;
+		std::vector<BuiltinFunction*> functions;
 	};
 
-	std::vector<std::string> performExpansion(ikura::str_view str);
+	std::vector<ikura::str_view> performExpansion(ikura::str_view str);
 	std::vector<interp::Value> evaluateMacro(InterpState* fs, CmdContext& cs, const std::vector<std::string>& code);
 
 	Command* getBuiltinFunction(ikura::str_view name);

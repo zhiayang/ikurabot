@@ -277,6 +277,7 @@ namespace ikura
 		span drop(size_t n) const               { return (this->size() > n ? this->subspan(n) : span()); }
 		span take(size_t n) const               { return (this->size() > n ? this->subspan(0, n) : *this); }
 		span take_last(size_t n) const          { return (this->size() > n ? this->subspan(this->cnt - n) : *this); }
+		span drop_last(size_t n) const          { return (this->size() > n ? this->subspan(0, this->cnt - n) : *this); }
 
 		const T& front() const                  { assert(this->cnt > 0); return this->ptr[0]; }
 		const T& back() const                   { assert(this->cnt > 0); return this->ptr[this->cnt - 1]; }
@@ -354,6 +355,7 @@ namespace ikura
 		str_view drop(size_t n) const { return (this->size() > n ? this->substr(n) : ""); }
 		str_view take(size_t n) const { return (this->size() > n ? this->substr(0, n) : *this); }
 		str_view take_last(size_t n) const { return (this->size() > n ? this->substr(this->size() - n) : *this); }
+		str_view drop_last(size_t n) const { return (this->size() > n ? this->substr(0, this->size() - n) : *this); }
 		str_view substr(size_t pos = 0, size_t cnt = -1) const { return str_view(std::string_view::substr(pos, cnt)); }
 
 		str_view& remove_prefix(size_t n) { std::string_view::remove_prefix(n); return *this; }
@@ -406,6 +408,63 @@ namespace ikura
 		size_t _start;
 		size_t _size;
 	};
+
+	struct move_only
+	{
+		move_only() = default;
+		move_only(move_only&&) = default;
+		move_only& operator= (move_only&&) = default;
+		move_only(move_only const&) = delete;
+		move_only& operator= (move_only const&) = delete;
+		~move_only() = default;
+	};
+
+	struct move_only_fot : move_only
+	{
+		void operator() () const { std::cout << "meow!\n"; }
+	};
+
+	template <typename F>
+	class unique_function : private std::function<F>
+	{
+		template <typename Fn>
+		struct foozle
+		{
+			Fn fn;
+
+			foozle(Fn p) : fn(std::move(p)) {}
+
+			foozle(foozle&&) = default;
+			foozle& operator = (foozle&&) = default;
+
+			foozle(const foozle& x) : fn(const_cast<Fn&&>(x.fn)) { abort(); }
+			foozle& operator = (const foozle&) { abort(); }
+
+			template <typename... Args>
+			auto operator () (Args&&... args) -> decltype(fn(std::forward<Args>(args)...))
+			{
+				return fn(std::forward<Args>(args)...);
+			}
+		};
+
+	public:
+		template <typename Fn>
+		unique_function(Fn fun) : std::function<F>(foozle<Fn>(std::move(fun))) { }
+
+		using std::function<F>::operator();
+
+		unique_function() = default;
+		~unique_function() = default;
+
+		unique_function(unique_function&&) = default;
+		unique_function& operator = (unique_function&&) = default;
+
+		unique_function(const unique_function&) = delete;
+		unique_function& operator = (const unique_function&) = delete;
+	};
+
+
+
 
 	namespace discord
 	{

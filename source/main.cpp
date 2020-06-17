@@ -20,7 +20,10 @@ using namespace std::chrono_literals;
 	builtin function to reload bttv and ffz emotes
 	console command to re-emotify all logged messages (and move this functionality out of markov)
 	proper oauth flow for twitch using clientid+clientsecret
-	consolidate message sending for discord? use a dedicated worker thread instead of using the dispatcher
+
+	still having an issue where twitch messages can get lost. no idea wtf is the issue, and this time
+	we didn't even get the NOTICE about it. hard to replicate.
+
 
 	...
 
@@ -29,7 +32,16 @@ using namespace std::chrono_literals;
 
 	TODO (interpreter):
 
+	pipelining needs to be smarter. we need to split into pipeline components immediately, and apply
+	the arguments appropriately. probably should find a way to just pass the args directly instead
+	of manipulating strings.
+
+	performance is fucking trash, even when optimised.
+	!asis |> cycle literally takes ~1s on -O2, and more than 5s on O0. main culprit is probably (hopefully)
+	argument copying during all the recursion. i hope it's not Value spawn/destroy...
+
 	type finnagling for math? ideally sqrt(-1) should directly return a complex number...
+	maybe a proper generic solver one day. it works if we just hamfist it right now, so meh...
 */
 
 int main(int argc, char** argv)
@@ -69,6 +81,7 @@ int main(int argc, char** argv)
 	ikura::markov::shutdown();
 
 	ikura::database().rlock()->sync();
+	return 0;
 }
 
 

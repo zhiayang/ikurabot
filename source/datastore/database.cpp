@@ -33,7 +33,7 @@ namespace ikura::db
 
 	static_assert(sizeof(Superblock) == 24);
 
-	constexpr uint32_t DB_VERSION   = 22;
+	constexpr uint32_t DB_VERSION   = 24;
 	constexpr const char* DB_MAGIC  = "ikura_db";
 
 	// the database will only sync to disk if it was modified
@@ -190,7 +190,6 @@ namespace ikura::db
 		currentDatabaseVersion = db._version;
 		if(currentDatabaseVersion < DB_VERSION)
 			lg::log("db", "upgrading database from version %d to %d", currentDatabaseVersion, DB_VERSION);
-
 
 		if(!rd.read(&db.twitchData))
 			return error("failed to read twitch data");

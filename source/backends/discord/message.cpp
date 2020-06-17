@@ -82,13 +82,24 @@ namespace ikura::discord
 		auto ts = util::getMillisecondTimestamp();
 		this->logMessage(ts, author, chan, guild, Snowflake(json["id"].as_str()), sanitised, emote_idxs, ran_cmd, wasEdit);
 
-		lg::log("msg", "discord/%s/#%s: %s(%.2f ms) <%s> %s", guild.name, chan.name, wasEdit ? " (edit) " : "",
-			time.measure(), author.nickname, msg);
+		lg::log("msg", "discord/%s/#%s: %s(%.2f ms) <%s> %s", guild.name, chan.name, wasEdit ? "(edit) " : "",
+			time.measure(), author.nickname, sanitised);
 	}
 
 
 
+	void update_guild_emotes(DiscordGuild& guild, pj::object json)
+	{
+		for(auto& e : json["emojis"].as_arr())
+		{
+			auto j = e.as_obj();
 
+			if(!j["available"].as_bool())
+				continue;
+
+			guild.emotes[j["name"].as_str()] = { Snowflake(j["id"].as_str()), j["animated"].as_bool() };
+		}
+	}
 
 	void update_guild(DiscordState* st, pj::object json)
 	{
@@ -139,15 +150,7 @@ namespace ikura::discord
 					cfg_guild.silentInterpErrors, cfg_guild.commandPrefix);
 			}
 
-			for(auto& e : json["emojis"].as_arr())
-			{
-				auto j = e.as_obj();
-
-				if(!j["available"].as_bool())
-					continue;
-
-				guild.emotes[j["name"].as_str()] = { Snowflake(j["id"].as_str()), j["animated"].as_bool() };
-			}
+			update_guild_emotes(guild, json);
 
 			lg::log("discord", "updated guild %s", guild.name);
 		});

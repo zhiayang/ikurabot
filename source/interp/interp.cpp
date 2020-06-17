@@ -31,9 +31,9 @@ namespace ikura::interp
 			if(name.size() != 0)
 				return -1;
 
-			if(idx >= cs.macro_args.size())
+			if(idx >= cs.arguments.size())
 			{
-				lg::error("interp", "argument index out of bounds (want %zu, have %zu)", idx, cs.macro_args.size());
+				lg::error("interp", "argument index out of bounds (want %zu, have %zu)", idx, cs.arguments.size());
 				return -1;
 			}
 
@@ -45,15 +45,16 @@ namespace ikura::interp
 
 	static bool is_builtin_var(ikura::str_view name)
 	{
-		return zfu::match(name, "user", "self", "args", "channel");
+		return zfu::match(name, "user", "self", "args", "channel", "raw_args");
 	}
 
 	static std::optional<Value> get_builtin_var(ikura::str_view name, CmdContext& cs)
 	{
-		if(name == "user")      return Value::of_string(cs.callername.str());
-		if(name == "self")      return Value::of_string(cs.channel->getUsername());
-		if(name == "channel")   return Value::of_string(cs.channel->getName());
-		if(name == "args")      return Value::of_list(Type::get_string(), cs.macro_args);
+		if(name == "user")       return Value::of_string(cs.callername.str());
+		if(name == "self")       return Value::of_string(cs.channel->getUsername());
+		if(name == "channel")    return Value::of_string(cs.channel->getName());
+		if(name == "args")       return Value::of_list(Type::get_string(), cs.arguments);
+		if(name == "macro_args") return Value::of_string(cs.macro_args);
 
 		return { };
 	}
@@ -73,7 +74,7 @@ namespace ikura::interp
 			if('0' <= name[0] && name[0] <= '9')
 			{
 				if(size_t idx = parse_number_arg(name, cs); idx != (size_t) -1)
-					return { cs.macro_args[idx], nullptr };
+					return { cs.arguments[idx], nullptr };
 			}
 			else
 			{
@@ -100,16 +101,20 @@ namespace ikura::interp
 		return { std::nullopt, nullptr };
 	}
 
-	void InterpState::addGlobal(ikura::str_view name, Value val)
+	Result<bool> InterpState::addGlobal(ikura::str_view name, Value val)
 	{
 		if(is_builtin_var(name) || name.find_first_of("0123456789") == 0)
-			return lg::error("interp", "'%s' is a builtin global", name);
+			return zpr::sprint("'%s' is already a builtin global", name);
 
 		if(auto it = this->globals.find(name); it != this->globals.end())
-			return lg::error("interp", "redefinition of global '%s'", name);
+			return zpr::sprint("redefinition of global '%s'", name);
+
+		if(val.type()->has_generics())
+			return zpr::sprint("cannot create values of generic type ('%s')", val.type()->str());
 
 		this->globals[name] = new Value(std::move(val));
 		lg::log("interp", "added global '%s'", name);
+		return true;
 	}
 
 	Result<Value> InterpState::evaluateExpr(ikura::str_view expr, CmdContext& cs)
@@ -124,7 +129,7 @@ namespace ikura::interp
 	}
 
 
-	Command* InterpState::findCommand(ikura::str_view name) const
+	std::shared_ptr<Command> InterpState::findCommand(ikura::str_view name) const
 	{
 		ikura::string_set seen;
 
@@ -156,7 +161,11 @@ namespace ikura::interp
 			break;
 		}
 
-		return command;
+		// return with a no-op deleter! the only reason we return shared_ptr here
+		// is so that the interpreter has an easier time dealing with ephemeral functions
+		// (eg. lamdas, curried functions). but, the commands we return here are definitely
+		// not ephemeral, so they should *NOT* be deleted once the reference count reaches 0
+		return std::shared_ptr<Command>(command, [](Command*) { });
 	}
 
 	// undef will currently undef the entire overload set, which is probably not what we want.

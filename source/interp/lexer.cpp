@@ -38,7 +38,6 @@ namespace ikura::interp::lexer
 
 	using TT = TokenType;
 
-	static Token INVALID = Token(TT::Invalid, "");
 	static bool is_digit(char c) { return '0' <= c && c <= '9'; }
 
 	static ikura::string_map<TT> keywordMap;
@@ -61,7 +60,7 @@ namespace ikura::interp::lexer
 
 
 
-	static Token lex_one_token(ikura::str_view& src, TT prevType)
+	static Result<Token> lex_one_token(ikura::str_view& src, TT prevType)
 	{
 		// skip all whitespace.
 		size_t k = 0;
@@ -207,6 +206,12 @@ namespace ikura::interp::lexer
 			src.remove_prefix(2);
 			return ret;
 		}
+		else if(src.find("++") == 0)
+		{
+			auto ret = Token(TT::DoublePlus, src.take(2));
+			src.remove_prefix(2);
+			return ret;
+		}
 		else if('0' <= src[0] && src[0] <= '9')
 		{
 			auto tmp = src;
@@ -233,10 +238,7 @@ namespace ikura::interp::lexer
 			if(tmp.size() > 0 && (tmp[0] == 'e' || tmp[0] == 'E'))
 			{
 				if(base != 10)
-				{
-					lg::error("cmd/lex", "exponential form is supported with neither hexadecimal nor binary literals");
-					return INVALID;
-				}
+					return zpr::sprint("exponential form is supported with neither hexadecimal nor binary literals");
 
 				// find that shit
 				auto next = std::find_if_not(tmp.begin() + 1, tmp.end(), is_digit);
@@ -253,15 +255,10 @@ namespace ikura::interp::lexer
 			if(!post.empty() && post[0] == '.')
 			{
 				if(base != 10)
-				{
-					lg::error("cmd/lex", "invalid floating point literal; only valid in base 10");
-					return INVALID;
-				}
+					return zpr::sprint("invalid floating point literal; only valid in base 10");
+
 				else if(hadExp)
-				{
-					lg::error("cmd/lex", "invalid floating point literal; decimal point cannot occur after the exponent ('e' or 'E').");
-					return INVALID;
-				}
+					return zpr::sprint("invalid floating point literal; decimal point cannot occur after the exponent ('e' or 'E').");
 
 				// if the previous token was a '.' as well, then we're doing some tuple access
 				// eg. x.0.1 (we would be at '0', having a period both ahead and behind us)
@@ -294,29 +291,20 @@ namespace ikura::interp::lexer
 		else if(src[0] == '\'')
 		{
 			if(src.size() < 2)
-			{
-				lg::error("cmd/lex", "unexpected end of input");
-				return INVALID;
-			}
+				return zpr::sprint("unexpected end of input");
 
 			src.remove_prefix(1);
 
 			int32_t codepoint = 0;
 			auto bytes = utf8proc_iterate((const uint8_t*) src.data(), src.size(), &codepoint);
 			if(codepoint == -1)
-			{
-				lg::error("cmd/lex", "invalid unicode sequence");
-				return INVALID;
-			}
+				return zpr::sprint("invalid unicode sequence");
 
 			auto tmp = src.take(bytes);
 
 			src.remove_prefix(bytes);
 			if(src.size() == 0 || src[0] != '\'')
-			{
-				lg::error("cmd/lex", "expected closing '");
-				return INVALID;
-			}
+				return zpr::sprint("expected ' (too many codepoints in char literal)");
 
 			src.remove_prefix(1);
 			auto ret = Token(TT::CharLit, tmp);
@@ -326,10 +314,7 @@ namespace ikura::interp::lexer
 		else if(src[0] == '"')
 		{
 			if(src.size() < 2)
-			{
-				lg::error("cmd/lex", "unexpected end of input");
-				return INVALID;
-			}
+				return zpr::sprint("unexpected end of input");
 
 			auto tmp = src;
 
@@ -337,7 +322,7 @@ namespace ikura::interp::lexer
 			size_t count = 0;
 
 			// don't handle escapes here, because we must strictly return a string_view.
-			while(tmp[0] != '"')
+			while(tmp.size() > 0 && tmp[0] != '"')
 			{
 				size_t skip = 0;
 
@@ -353,6 +338,9 @@ namespace ikura::interp::lexer
 				count += skip;
 				tmp.remove_prefix(skip);
 			}
+
+			if(tmp.empty() || tmp[0] != '"')
+				return zpr::sprint("expected '\"'");
 
 			// tmp[0] == '"'
 			tmp.remove_prefix(1);
@@ -433,13 +421,22 @@ namespace ikura::interp::lexer
 	}
 
 
-	std::vector<Token> lexString(ikura::str_view src)
+	Result<std::vector<Token>> lexString(ikura::str_view src)
 	{
 		std::vector<Token> ret;
 		Token tok;
 
-		while((tok = lex_one_token(src, tok.type)) != TT::EndOfFile)
-			ret.push_back(std::move(tok));
+		while(true)
+		{
+			auto r = lex_one_token(src, tok.type);
+			if(!r) return r.error();
+
+			tok = std::move(r.unwrap());
+			if(tok == TT::EndOfFile)
+				break;
+
+			ret.push_back(tok);
+		}
 
 		return ret;
 	}

@@ -17,6 +17,7 @@ namespace ikura::interp::ast
 	auto make_int = Value::of_integer;
 	auto make_flt = Value::of_double;
 	auto make_bool = Value::of_bool;
+	auto make_char = Value::of_char;
 	auto make_void = Value::of_void;
 
 	Result<Value> UnaryOp::evaluate(InterpState* fs, CmdContext& cs) const
@@ -65,6 +66,8 @@ namespace ikura::interp::ast
 		{
 			if(lhs.is_integer() && rhs.is_integer())        return make_int(lhs.get_integer() + rhs.get_integer());
 			else if(lhs.is_integer() && rhs.is_double())    return make_flt(lhs.get_integer() + rhs.get_double());
+			else if(lhs.is_char() && rhs.is_integer())      return make_char(lhs.get_char() + rhs.get_integer());
+			else if(lhs.is_integer() && rhs.is_char())      return make_char(lhs.get_integer() + rhs.get_char());
 			else if(lhs.is_double() && rhs.is_integer())    return make_flt(lhs.get_double() + rhs.get_integer());
 			else if(lhs.is_double() && rhs.is_double())     return make_flt(lhs.get_double() + rhs.get_double());
 			else if(lhs.is_integer() && rhs.is_complex())   return make_cmp((double) lhs.get_integer() + rhs.get_complex());
@@ -88,6 +91,8 @@ namespace ikura::interp::ast
 					left = &lhs;
 				}
 
+				// lg::log("interp", "%s + %s", left->type()->str(), rhs.type()->str());
+
 				if(rhs.is_list() && (left->type()->elm_type()->is_same(rhs.type()->elm_type())
 					|| left->type()->elm_type()->is_void()
 					|| rhs.type()->elm_type()->is_void()))
@@ -108,36 +113,6 @@ namespace ikura::interp::ast
 						return lhs;
 					}
 				}
-				else if(left->type()->elm_type()->is_same(rhs.type()))
-				{
-					// plus equals will modify, plus will make a new temporary.
-					if(op == TT::Plus)
-					{
-						auto tmp = left->get_list(); tmp.push_back(rhs);
-						return Value::of_list(left->type()->elm_type(), tmp);
-					}
-					else
-					{
-						if(didAppend) *didAppend = true;
-
-						left->get_list().push_back(rhs);
-						return lhs;
-					}
-				}
-				else if(left->type()->elm_type()->is_void())
-				{
-					if(op == TT::Plus)
-					{
-						return Value::of_list(rhs.type(), { rhs });
-					}
-					else
-					{
-						if(didAppend) *didAppend = true;
-
-						*left = Value::of_list(rhs.type(), { rhs });
-						return lhs;
-					}
-				}
 			}
 		}
 		else if(op == TT::Minus || op == TT::MinusEquals)
@@ -151,6 +126,7 @@ namespace ikura::interp::ast
 			else if(lhs.is_complex() && rhs.is_integer())   return make_cmp(lhs.get_complex() - (double) rhs.get_integer());
 			else if(lhs.is_complex() && rhs.is_double())    return make_cmp(lhs.get_complex() - rhs.get_double());
 			else if(lhs.is_complex() && rhs.is_complex())   return make_cmp(lhs.get_complex() - rhs.get_complex());
+			else if(lhs.is_char() && rhs.is_integer())      return make_char(lhs.get_char() - rhs.get_integer());
 		}
 		else if(op == TT::Asterisk || op == TT::TimesEquals)
 		{
@@ -344,7 +320,10 @@ namespace ikura::interp::ast
 				if(lhs.is_double() && rhs.is_integer())     return foozle(op, lhs.get_double(), rhs.get_integer());
 				if(lhs.is_integer() && rhs.is_double())     return foozle(op, lhs.get_integer(), rhs.get_double());
 				if(lhs.is_double() && rhs.is_double())      return foozle(op, lhs.get_double(), rhs.get_double());
+				if(lhs.is_char() && rhs.is_integer())       return foozle(op, lhs.get_char(), rhs.get_integer());
+				if(lhs.is_integer() && rhs.is_char())       return foozle(op, lhs.get_integer(), rhs.get_char());
 				if(lhs.is_list() && rhs.is_list())          return foozle(op, lhs.get_list(), rhs.get_list());
+				if(lhs.is_char() && rhs.is_char())          return foozle(op, lhs.get_char(), rhs.get_char());
 				if(lhs.is_map() && rhs.is_map())            return foozle(op, lhs.get_map(), rhs.get_map());
 			}
 
@@ -543,7 +522,7 @@ namespace ikura::interp::ast
 		if(!out->is_list())
 			return zpr::sprint("invalid splat on type '%s'", out->type()->str());
 
-		return out;
+		return Value::of_variadic_list(out->type()->elm_type(), out->get_list());
 	}
 
 
@@ -606,7 +585,42 @@ namespace ikura::interp::ast
 	Result<Value> LitBoolean::evaluate(InterpState* fs, CmdContext& cs) const    { return make_bool(this->value); }
 
 
+	std::string LitChar::str() const        { return zpr::sprint("'%c'", codepoint); }
+	std::string LitString::str() const      { return zpr::sprint("\"%s\"", value); }
+	std::string LitInteger::str() const     { return zpr::sprint("%d%s", value, imag ? "i" : ""); }
+	std::string LitDouble::str() const      { return zpr::sprint("%.3f%s", value, imag ? "i" : ""); }
+	std::string LitBoolean::str() const     { return zpr::sprint("%s", value ? "true" : "false"); }
+	std::string LitList::str() const        { return zfu::listToString(elms, [](auto e) { return e->str(); }); }
 
+	std::string VarRef::str() const         { return name; }
+	std::string SubscriptOp::str() const    { return zpr::sprint("%s[%s]", list->str(), index->str()); }
+	std::string SliceOp::str() const        { return zpr::sprint("%s[%s:%s]", list->str(),
+														start ? start->str() : "",
+														end ? end->str() : "");
+											}
+	std::string UnaryOp::str() const        { return zpr::sprint("%s%s", op_str, expr->str()); }
+	std::string SplatOp::str() const        { return zpr::sprint("%s...", expr->str()); }
+	std::string BinaryOp::str() const       { return zpr::sprint("%s %s %s", lhs->str(), op_str, rhs->str()); }
+	std::string AssignOp::str() const       { return zpr::sprint("%s %s %s", lhs->str(), op_str, rhs->str()); }
+
+	// TODO: don't cheat here
+	std::string TernaryOp::str() const
+	{
+		if(this->op_str == "?")
+			return zpr::sprint("%s ? %s : %s", op1->str(), op2->str(), op3->str());
+
+		return "";
+	}
+
+	std::string ComparisonOp::str() const
+	{
+		std::string ret;
+		for(size_t i = 0; i < this->ops.size(); i++)
+			ret += zpr::sprint("%s %s ", this->exprs[i]->str(), this->ops[i].second);
+
+		ret += this->exprs.back()->str();
+		return ret;
+	}
 
 
 

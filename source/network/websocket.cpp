@@ -399,6 +399,9 @@ namespace ikura
 
 			this->send_raw(OP_CLOSE, /* fin: */ true, Buffer::empty());
 			this->conn.force_disconnect();
+
+			if(this->close_callback)
+				this->close_callback();
 		}
 		else if(opcode == OP_TEXT)
 		{

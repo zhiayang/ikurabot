@@ -4,6 +4,7 @@
 
 #include "picojson.h"
 
+#include "db.h"
 #include "defs.h"
 #include "rate.h"
 #include "async.h"
@@ -41,14 +42,16 @@ namespace ikura::discord
 					{
 						// no ack between the intervals -- disconnect now. discord says just send a non-1000
 						// close code, so just use 1002 -- protocol_error.
-						lg::warn("discord", "did not receive heartbeat ack, reconnecting...");
+						lg::error("discord", "did not receive heartbeat ack, reconnecting...");
 
 						dispatcher().run([&st]() {
+							auto [ seq, ses ] = std::make_tuple(st.sequence, st.session_id);
+
 							st.disconnect();
-							st.resume();
+							st.resume(seq, ses);
 						}).discard();
 
-						should_heartbeat = false;
+						// should_heartbeat = false;
 						return;
 					}
 
@@ -93,10 +96,8 @@ namespace ikura::discord
 	{
 	}
 
-	bool DiscordState::init(bool _)
+	bool DiscordState::init()
 	{
-		(void) _;
-
 		auto backoff = 500ms;
 
 		int retries = 0;
@@ -125,7 +126,7 @@ namespace ikura::discord
 			}
 			else
 			{
-				lg::warn("discord", "unhandled opcode %d", op);
+				lg::error("discord", "unhandled opcode %d", op);
 			}
 		});
 
@@ -157,12 +158,18 @@ namespace ikura::discord
 		}
 
 		this->didAckHeartbeat = true;
+
+		// massive hax
+		if(this->hb_thread.joinable())
+			this->hb_thread.detach();
+
 		this->hb_thread = std::thread(heartbeat_worker);
 		return true;
 	}
 
 	void DiscordState::send_identify()
 	{
+		lg::log("discord", "identifying...");
 		this->ws.send(pj::value(std::map<std::string, pj::value> {
 			{ "op", pj::value(opcode::IDENTIFY) },
 			{
@@ -184,15 +191,16 @@ namespace ikura::discord
 		}).serialise());
 	}
 
-	void DiscordState::send_resume()
+	void DiscordState::send_resume(int64_t seq, const std::string& ses)
 	{
+		lg::log("discord", "resuming session '%s', seq %d", ses, seq);
 		this->ws.send(pj::value(std::map<std::string, pj::value> {
 			{ "op", pj::value(opcode::RESUME) },
 			{
 				"d", pj::value(std::map<std::string, pj::value> {
 					{ "token",      pj::value(config::discord::getOAuthToken()) },
-					{ "session_id", pj::value(this->session_id) },
-					{ "seq",        pj::value(this->sequence) },
+					{ "session_id", pj::value(ses) },
+					{ "seq",        pj::value(seq) },
 				})
 			}
 		}).serialise());
@@ -207,7 +215,17 @@ namespace ikura::discord
 		bool success = false;
 		condvar<bool> cv;
 
+		int retries = 0;
+
+		this->tx_thread = std::thread(send_worker);
+		this->rx_thread = std::thread(recv_worker);
+
+
+	retry:
 		this->ws.onReceiveText([&](bool, ikura::str_view msg) {
+			if(cv.get() || success)
+				return;
+
 			pj::value json; std::string err;
 			pj::parse(json, msg.begin(), msg.end(), &err);
 
@@ -216,18 +234,34 @@ namespace ikura::discord
 
 			if(op == opcode::DISPATCH)
 			{
-				// do a quick peek.
-				bool is_ready = (obj["t"].is_str() && obj["t"].as_str() == "READY");
-
-				// we should still send this to the queue, because there is a chance that
-				// we receive subsequent messages in fast succession (eg. GUILD_CREATE).
-				mqueue().push_receive(std::move(obj));
-
-				if(is_ready)
+				if(resume)
 				{
-					lg::log("discord", "%s", resume ? "resumed" : "identified");
+					// if we received a dispatch while we're trying to resume, then we can assume that
+					// the resume has succeeded.
+					mqueue().push_receive(std::move(obj));
+
+					lg::log("discord", "resumed");
 					success = true;
 					cv.set(true);
+				}
+				else
+				{
+					// do a quick peek.
+					bool is_ready = (obj["t"].is_str() && obj["t"].as_str() == "READY");
+
+					if(!is_ready)
+						lg::warn("discord", "received dispatch before identify");
+
+					// we should still send this to the queue, because there is a chance that
+					// we receive subsequent messages in fast succession (eg. GUILD_CREATE).
+					mqueue().push_receive(std::move(obj));
+
+					if(is_ready)
+					{
+						lg::log("discord", "identified");
+						success = true;
+						cv.set(true);
+					}
 				}
 			}
 			else if(op == opcode::INVALID_SESS)
@@ -244,19 +278,13 @@ namespace ikura::discord
 			}
 		});
 
-		int retries = 0;
-
-		this->tx_thread = std::thread(send_worker);
-		this->rx_thread = std::thread(recv_worker);
-
-	retry:
 		cv.set(false);
 
-		if(resume) this->send_resume();
+		if(resume) this->send_resume(this->sequence, this->session_id);
 		else       this->send_identify();
 
 		// wait for a ready
-		if(!cv.wait(true, 1500ms) || !success)
+		if(!cv.wait(true, 3000ms) || !success)
 		{
 			if(++retries < CONNECT_RETRIES && this->ws.connected())
 			{
@@ -268,6 +296,9 @@ namespace ikura::discord
 				else
 				{
 					lg::warn("discord", "resume failed, reconnecting normally");
+					this->session_id = "";
+					this->sequence = -1;
+
 					resume = false;
 				}
 
@@ -317,8 +348,10 @@ namespace ikura::discord
 				dispatcher().run([this]() {
 
 					lg::warn("discord", "server requested reconnect...");
+					auto [ seq, ses ] = std::make_tuple(this->sequence, this->session_id);
+
 					this->disconnect();
-					this->resume();
+					this->resume(seq, ses);
 
 				}).discard();
 			}
@@ -343,17 +376,33 @@ namespace ikura::discord
 	}
 
 
-	bool DiscordState::resume()
+	bool DiscordState::resume(int64_t seq, const std::string& ses)
 	{
-		if(!this->init(/* resume: */ true))
+		this->sequence = seq;
+		this->session_id = ses;
+
+		if(!this->init())
 			return false;
 
-		return this->internal_connect(/* resume: */ true);
+		bool r = true;
+		while(!this->internal_connect(/* resume: */ r))
+		{
+			r = false;
+
+			// try again after 10s?
+			this->disconnect();
+
+			lg::warn("discord", "retry after 10s...");
+			std::this_thread::sleep_for(10s);
+			this->init();
+		}
+
+		return true;
 	}
 
 	bool DiscordState::connect()
 	{
-		if(!this->init(/* resume: */ false))
+		if(!this->init())
 			return false;
 
 		return this->internal_connect(/* resume: */ false);
@@ -366,7 +415,13 @@ namespace ikura::discord
 
 		this->ws.onReceiveText([](auto, auto) { });
 
+		database().perform_write([this](auto& db) {
+			db.discordData.lastSequence = this->sequence;
+			db.discordData.lastSession = this->session_id;
+		});
+
 		this->sequence = -1;
+
 		mqueue().push_send(TxMessage::disconnect());
 		mqueue().push_receive(RxEvent::disconnect());
 
@@ -388,6 +443,15 @@ namespace ikura::discord
 	}
 
 
+	const Channel* getChannel(Snowflake id)
+	{
+		return state().map_read([&id](auto& st) -> const Channel* {
+			if(auto it = st.channels.find(id); it != st.channels.end())
+				return &it->second;
+
+			return nullptr;
+		});
+	}
 
 
 
@@ -454,7 +518,15 @@ namespace ikura::discord
 		lg::log("discord", "connecting to %s", url);
 
 		_state = new Synchronised<DiscordState>(URL(url), 5000ms);
-		state().wlock()->connect();
+
+		int64_t seq = 0;
+		std::string ses;
+		std::tie(seq, ses) = database().map_read([](auto& db) -> auto {
+			return std::pair(db.discordData.lastSequence, db.discordData.lastSession);
+		});
+
+		// try to resume.
+		state().wlock()->resume(seq, ses);
 	}
 
 	void shutdown()
