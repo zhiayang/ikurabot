@@ -47,6 +47,45 @@ namespace ikura::console
 	// returns false if we should quit.
 	static bool process_command(Socket* sock, ikura::str_view cmd_str)
 	{
+		if(!cmd_str.empty() && sock != nullptr)
+			lg::log("console", "console command: %s", cmd_str);
+
+		auto say = [&](ikura::str_view msg) {
+
+			auto chan = State.currentChannel;
+			if(chan == nullptr)
+			{
+				echo_message(sock, "not in a channel\n");
+				return;
+			}
+
+			std::string userid;
+			std::string username;
+
+			auto b = chan->getBackend();
+			if(b == Backend::Twitch)
+			{
+				userid = twitch::MAGIC_OWNER_USERID;
+				username = config::twitch::getOwner();
+			}
+			else if(b == Backend::Discord)
+			{
+				userid   = config::discord::getOwner().str();
+				username = config::discord::getUsername();
+			}
+			else
+			{
+				lg::fatal("console", "unsupported backend");
+			}
+
+			// massive hack but idgaf
+			auto cmded = cmd::processMessage(userid, username, chan, cmd_str, /* enablePings: */ false);
+
+			if(!cmded)
+				chan->sendMessage(Message(msg));
+		};
+
+
 		if(cmd_str.find('/') == 0)
 		{
 			cmd_str.remove_prefix(1);
@@ -215,6 +254,11 @@ namespace ikura::console
 						echo_message(sock, zpr::sprint("unknown backend '%s'\n", backend));
 					}
 				}
+				else if(cmd == "say")
+				{
+					auto stuff = cmd_str.drop(cmd_str.find(' ')).trim();
+					say(stuff);
+				}
 				else if(!cmd.empty())
 				{
 					echo_message(sock, zpr::sprint("unknown command '%s'\n", cmd));
@@ -227,41 +271,9 @@ namespace ikura::console
 		}
 		else
 		{
-			if(!cmd_str.empty())
-			{
-				auto chan = State.currentChannel;
-				if(chan == nullptr)
-				{
-					echo_message(sock, "not in a channel\n");
-				}
-				else
-				{
-					std::string userid;
-					std::string username;
-
-					auto b = chan->getBackend();
-					if(b == Backend::Twitch)
-					{
-						userid = twitch::MAGIC_OWNER_USERID;
-						username = config::twitch::getOwner();
-					}
-					else if(b == Backend::Discord)
-					{
-						userid   = config::discord::getOwner().str();
-						username = config::discord::getUsername();
-					}
-					else
-					{
-						lg::fatal("console", "unsupported backend");
-					}
-
-					// massive hack but idgaf
-					auto cmded = cmd::processMessage(userid, username, chan, cmd_str, /* enablePings: */ false);
-
-					if(!cmded)
-						chan->sendMessage(Message(cmd_str));
-				}
-			}
+			// only allow non-commanded words to chat on main connection.
+			if(!cmd_str.empty() && sock == nullptr)
+				say(cmd_str);
 
 			print_prompt(sock);
 			return true;
@@ -288,6 +300,8 @@ namespace ikura::console
 			// possibly incomplete, we can't discard existing data.
 			auto sv = buf.sv();
 
+			zpr::println("%s", sv);
+
 			while(sv.size() > 0)
 			{
 				auto tmp = sv.find('\n');
@@ -297,7 +311,7 @@ namespace ikura::console
 				auto cmd = sv.take(tmp);
 				sv.remove_prefix(tmp + 1);
 
-				process_command(sock, cmd);
+				process_command(sock, cmd.trim(/* newlines: */ true));
 			}
 
 			buf.clear();
@@ -306,6 +320,8 @@ namespace ikura::console
 
 	void init()
 	{
+		signal(SIGPIPE, [](int) { });
+
 		State.is_connected = true;
 		auto local_con = std::thread([]() {
 			while(true)
@@ -329,7 +345,7 @@ namespace ikura::console
 				if(buf[len - 1] == '\n')
 					len -= 1;
 
-				auto res = process_command(nullptr, ikura::str_view(buf, len));
+				auto res = process_command(nullptr, ikura::str_view(buf, len).trim(/* newlines: */ true));
 				if(!res) break;
 			}
 		});

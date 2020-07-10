@@ -78,13 +78,13 @@ namespace ikura
 
 	struct semaphore
 	{
-		semaphore(int64_t x) : cv(x) { }
+		semaphore(uint64_t x) : value(x) { }
 
-		void post(int64_t num = 1)
+		void post(uint64_t num = 1)
 		{
 			{
-				auto lk = std::unique_lock<std::mutex>(this->cv.mtx);
-				this->cv.value += num;
+				auto lk = std::unique_lock<std::mutex>(this->mtx);
+				this->value += num;
 			}
 			if(num > 1) this->cv.notify_all();
 			else        this->cv.notify_one();
@@ -92,25 +92,17 @@ namespace ikura
 
 		void wait()
 		{
-			auto lk = std::unique_lock<std::mutex>(this->cv.mtx);
-			while(this->cv.value == 0)
-				this->cv.cv.wait(lk);
+			auto lk = std::unique_lock<std::mutex>(this->mtx);
+			while(this->value == 0)
+				this->cv.wait(lk);
 
-			// this->cv.wait_pred([this]() -> bool { return this->cv.value != 0; });
-			this->cv.value -= 1;
+			this->value -= 1;
 		}
 
-		// bool wait(std::chrono::nanoseconds timeout)
-		// {
-		// 	if(!this->cv.wait_pred(timeout, [this]() -> bool { return this->cv.value != 0; }))
-		// 		return false;
-
-		// 	this->cv.value -= 1;
-		// 	return true;
-		// }
-
 	private:
-		condvar<int64_t> cv;
+		uint64_t value = 0;
+		std::condition_variable cv;
+		std::mutex mtx;
 	};
 
 	template <typename T>

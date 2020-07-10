@@ -361,24 +361,24 @@ namespace ikura
 		str_view& remove_prefix(size_t n) { std::string_view::remove_prefix(n); return *this; }
 		str_view& remove_suffix(size_t n) { std::string_view::remove_suffix(n); return *this; }
 
-		str_view trim_front() const
+		str_view trim_front(bool newlines = false) const
 		{
 			auto ret = *this;
-			while(ret.size() > 0 && (ret[0] == ' ' || ret[0] == '\t'))
+			while(ret.size() > 0 && (ret[0] == ' ' || ret[0] == '\t' || (newlines && (ret[0] == '\r' || ret[0] == '\n'))))
 				ret.remove_prefix(1);
 			return ret;
 		}
-		str_view trim_back() const
+		str_view trim_back(bool newlines = false) const
 		{
 			auto ret = *this;
-			while(ret.size() > 0 && (ret.back() == ' ' || ret.back() == '\t'))
+			while(ret.size() > 0 && (ret.back() == ' ' || ret.back() == '\t' || (newlines && (ret.back() == '\r' || ret.back() == '\n'))))
 				ret.remove_suffix(1);
 			return ret;
 		}
 
-		str_view trim() const
+		str_view trim(bool newlines = false) const
 		{
-			return this->trim_front().trim_back();
+			return this->trim_front(newlines).trim_back(newlines);
 		}
 
 		std::string str() const { return std::string(*this); }
