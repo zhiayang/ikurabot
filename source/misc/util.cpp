@@ -329,7 +329,7 @@ namespace ikura
 		template uint32_t get<uint32_t>();  template uint32_t get<uint32_t>(uint32_t, uint32_t);
 		template uint64_t get<uint64_t>();  template uint64_t get<uint64_t>(uint64_t, uint64_t);
 
-		template size_t get<size_t>();      template size_t get<size_t>(size_t, size_t);
+		// template size_t get<size_t>();      template size_t get<size_t>(size_t, size_t);
 
 		template double get_normal<double>(double, double);
 	}

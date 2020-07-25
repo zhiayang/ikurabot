@@ -8,7 +8,7 @@ WARNINGS        = -Wno-padded -Wno-cast-align -Wno-unreachable-code -Wno-packed 
 COMMON_CFLAGS   = -Wall -O3 -g
 
 CFLAGS          = $(COMMON_CFLAGS) -std=c99 -fPIC -O3
-CXXFLAGS        = $(COMMON_CFLAGS) -Wno-old-style-cast -std=c++17 -ferror-limit=0 -fno-exceptions
+CXXFLAGS        = $(COMMON_CFLAGS) -Wno-old-style-cast -std=c++17 -fno-exceptions -pthread
 
 CXXSRC          = $(shell find source -iname "*.cpp" -print)
 CXXOBJ          = $(CXXSRC:.cpp=.cpp.o)
@@ -50,8 +50,8 @@ build/ikurabot: $(CXXOBJ) $(UTF8PROC_OBJ)
 	@$(CXX) $(CXXFLAGS) $(WARNINGS) $(INCLUDES) -x c++-header -o $@ $<
 
 clean:
-	@find source -iname "*.cpp.d" | xargs rm
-	@find source -iname "*.cpp.o" | xargs rm
+	-@find source -iname "*.cpp.d" | xargs rm
+	-@find source -iname "*.cpp.o" | xargs rm
 	-@rm $(PRECOMP_GCH)
 
 -include $(CXXDEPS)

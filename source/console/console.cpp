@@ -5,6 +5,7 @@
 #include <poll.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <signal.h>
 #include <unordered_map>
 
 #include "db.h"
