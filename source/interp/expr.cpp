@@ -25,7 +25,7 @@ namespace ikura::interp::ast
 		auto _e = this->expr->evaluate(fs, cs);
 		if(!_e) return _e;
 
-		auto e = _e.unwrap();
+		auto e = _e.unwrap().decay();
 
 		if(this->op == TT::Plus)
 		{
@@ -97,13 +97,14 @@ namespace ikura::interp::ast
 					|| left->type()->elm_type()->is_void()
 					|| rhs.type()->elm_type()->is_void()))
 				{
-					auto rl = rhs.get_list();
+					auto rl = rhs.decay().get_list();
 
 					// plus equals will modify, plus will make a new temporary.
 					if(op == TT::Plus)
 					{
-						auto tmp = left->get_list(); tmp.insert(tmp.end(), rl.begin(), rl.end());
-						return Value::of_list(left->type()->elm_type(), tmp);
+						auto tmp = left->decay().get_list();
+						tmp.insert(tmp.end(), rl.begin(), rl.end());
+						return Value::of_list(left->type()->elm_type(), std::move(tmp));
 					}
 					else
 					{
@@ -199,13 +200,42 @@ namespace ikura::interp::ast
 
 	Result<Value> BinaryOp::evaluate(InterpState* fs, CmdContext& cs) const
 	{
-		auto lhs = this->lhs->evaluate(fs, cs);
-		auto rhs = this->rhs->evaluate(fs, cs);
+		if(this->op == TT::LogicalAnd || this->op == TT::LogicalOr)
+		{
+			// do short-circuiting stuff.
+			auto lhs = this->lhs->evaluate(fs, cs);
+			if(!lhs) return lhs;
 
-		if(!lhs) return lhs;
-		if(!rhs) return rhs;
+			if(!lhs->is_bool())
+				return zpr::sprint("non-boolean type '%s' on lhs of '%s'", lhs->type()->str(), this->op_str);
 
-		return perform_binop(fs, this->op, this->op_str, lhs.unwrap(), rhs.unwrap());
+			if(lhs->get_bool() && this->op == TT::LogicalOr)
+				return Value::of_bool(true);
+
+			else if(!lhs->get_bool() && this->op == TT::LogicalAnd)
+				return Value::of_bool(false);
+
+			else
+			{
+				auto rhs = this->rhs->evaluate(fs, cs);
+				if(!rhs) return rhs;
+
+				if(!rhs->is_bool())
+					return zpr::sprint("non-boolean type '%s' on rhs of '%s'", rhs->type()->str(), this->op_str);
+
+				return Value::of_bool(rhs->get_bool());
+			}
+		}
+		else
+		{
+			auto lhs = this->lhs->evaluate(fs, cs);
+			auto rhs = this->rhs->evaluate(fs, cs);
+
+			if(!lhs) return lhs;
+			if(!rhs) return rhs;
+
+			return perform_binop(fs, this->op, this->op_str, lhs.unwrap(), rhs.unwrap());
+		}
 	}
 
 	Result<Value> TernaryOp::evaluate(InterpState* fs, CmdContext& cs) const
@@ -251,15 +281,17 @@ namespace ikura::interp::ast
 		}
 
 		// check if they're assignable.
-		if(!ltyp->is_same(rhs->type()))
+		if(auto right = rhs->cast_to(ltyp); !right)
 		{
 			return zpr::sprint("cannot assign value of type '%s' to variable of type '%s'",
 				rhs->type()->str(), ltyp->str());
 		}
-
-		// ok
-		*lhs->get_lvalue() = rhs.unwrap();
-		return lhs;
+		else
+		{
+			// ok
+			*lhs->get_lvalue() = right.value().decay();
+			return lhs;
+		}
 	}
 
 	Result<Value> ComparisonOp::evaluate(InterpState* fs, CmdContext& cs) const
@@ -489,7 +521,7 @@ namespace ikura::interp::ast
 				for(size_t i = first; i < last; i++)
 					refs.push_back(Value::of_lvalue(&list[i]));
 
-				return Value::of_list(base->type()->elm_type(), refs);
+				return Value::of_list(base->type()->elm_type(), std::move(refs));
 			}
 			else
 			{

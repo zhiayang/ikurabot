@@ -107,7 +107,7 @@ namespace ikura::interp
 			return zpr::sprint("'%s' is already a builtin global", name);
 
 		if(auto it = this->globals.find(name); it != this->globals.end())
-			return zpr::sprint("redefinition of global '%s'", name);
+			return zpr::sprint("global '%s' already defined", name);
 
 		if(val.type()->has_generics())
 			return zpr::sprint("cannot create values of generic type ('%s')", val.type()->str());
@@ -115,6 +115,22 @@ namespace ikura::interp
 		this->globals[name] = new Value(std::move(val));
 		lg::log("interp", "added global '%s'", name);
 		return true;
+	}
+
+	Result<bool> InterpState::removeGlobal(ikura::str_view name)
+	{
+		if(is_builtin_var(name) || name.find_first_of("0123456789") == 0)
+			return zpr::sprint("cannot remove builtin globals");
+
+		if(auto it = this->globals.find(name); it != this->globals.end())
+		{
+			this->globals.erase(it);
+			return true;
+		}
+		else
+		{
+			return zpr::sprint("'%s' does not exist", name);
+		}
 	}
 
 	Result<Value> InterpState::evaluateExpr(ikura::str_view expr, CmdContext& cs)
@@ -251,6 +267,9 @@ namespace ikura::interp
 		if(!rd.read(&builtinPerms))
 			return { };
 
+		// big hax: since the deserialisation of globals can potentially require the commands array, we just
+		// override it, even though this isn't supposed to touch the current interp state... bleh.
+		interpreter().wlock()->commands = interp.commands;
 
 		ikura::string_map<interp::Value> globals;
 		if(!rd.read(&globals))

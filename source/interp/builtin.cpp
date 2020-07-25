@@ -309,11 +309,16 @@ namespace ikura::interp
 		if(arg_str.find(' ') != std::string::npos || arg_str.empty())
 			return chan->sendMessage(Message("'undef' takes exactly 1 argument"));
 
+		std::string err;
 		auto done = interpreter().wlock()->removeCommandOrAlias(arg_str);
+		if(!done)
+		{
+			if(auto res = interpreter().wlock()->removeGlobal(arg_str); !res)
+				err = res.error();
+		}
 
 		chan->sendMessage(Message(
-			done ? zpr::sprint("removed '%s'", arg_str)
-				 : zpr::sprint("'%s' does not exist", arg_str)
+			err.empty() ? zpr::sprint("removed '%s'", arg_str) : err
 		));
 	}
 

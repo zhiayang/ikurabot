@@ -169,9 +169,10 @@ namespace ikura::interp::ast
 	{
 		switch(op)
 		{
-			case TT::Period:            return 8000;
+			// function calls must have higher precedence than dotop, so we parse `a.b()` as `a.{b()}` rather than `{a.b}()`
+			case TT::LParen:            return 9000;
 
-			case TT::LParen:            return 3000;
+			case TT::Period:            return 8000;
 
 			case TT::LSquare:           return 2800;
 

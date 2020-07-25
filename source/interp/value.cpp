@@ -261,13 +261,57 @@ namespace ikura::interp
 		if(this->is_double() && type->is_complex())
 			return Value::of_complex(this->get_double(), 0);
 
-		if((this->is_list() && type->is_list()) || (this->is_map() && type->is_map()))
+		if(this->is_list() && type->is_list())
 			return Value::of_list(type->elm_type(), this->v_list);
+
+		if(this->is_map() && type->is_map())
+			return Value::of_map(type->key_type(), type->elm_type(), decay(this->v_map));
 
 		if(this->is_function() && type->is_function())
 			return *this;
 
 		return { };
+	}
+
+	std::vector<Value> Value::decay(const std::vector<Value>& vs)
+	{
+		return zfu::map(vs, [](const auto& x) -> auto {
+			return x.decay();
+		});
+	}
+
+	std::map<Value, Value> Value::decay(const std::map<Value, Value>& vs)
+	{
+		std::map<Value, Value> map;
+		for(auto& [ a, b ] : vs)
+			map.insert({ a.decay(), b.decay() });
+
+		return map;
+	}
+
+	Value Value::decay(const Value& v)
+	{
+		if(v.is_lvalue())
+		{
+			return v.v_lvalue->decay();
+		}
+		else if(v.is_list())
+		{
+			return Value::of_list(v.type()->elm_type(), decay(v.v_list));
+		}
+		else if(v.is_map())
+		{
+			return Value::of_map(v.type()->key_type(), v.type()->elm_type(), decay(v.v_map));
+		}
+		else
+		{
+			return v;
+		}
+	}
+
+	Value Value::decay() const
+	{
+		return Value::decay(*this);
 	}
 
 

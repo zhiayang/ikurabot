@@ -167,6 +167,41 @@ namespace ikura::interp
 		uint8_t flags() const { return this->_flags; }
 		void set_flags(uint8_t f) { this->_flags = f; }
 
+		Value decay() const;
+
+		Value(const Value&) = default;
+
+		Value& operator = (const Value& other)
+		{
+			if(&other == this)
+				return *this;
+
+			auto copy = other;
+			return (*this = std::move(copy));
+		}
+
+		Value& operator = (Value&& rhs)
+		{
+			if(&rhs == this)
+				return *this;
+
+			if(rhs._type->is_void())            ;
+			else if(rhs._type->is_map())        this->v_map = std::move(rhs.v_map);
+			else if(rhs._type->is_bool())       this->v_bool = std::move(rhs.v_bool);
+			else if(rhs._type->is_list())       this->v_list = std::move(rhs.v_list);
+			else if(rhs._type->is_char())       this->v_char = std::move(rhs.v_char);
+			else if(rhs._type->is_double())     this->v_double = std::move(rhs.v_double);
+			else if(rhs._type->is_integer())    this->v_integer = std::move(rhs.v_integer);
+			else if(rhs._type->is_complex())    this->v_complex = std::move(rhs.v_complex);
+			else if(rhs.is_lvalue())            this->v_lvalue = std::move(rhs.v_lvalue);
+			else if(rhs.is_function())          this->v_function = rhs.v_function;
+			else                                assert(false);
+
+			this->_type = rhs._type;
+			this->_flags = rhs._flags;
+			this->v_is_lvalue = rhs.v_is_lvalue;
+			return *this;
+		}
 
 		bool operator == (const Value& other) const
 		{
@@ -227,6 +262,10 @@ namespace ikura::interp
 			std::vector<Value> v_list;
 			std::map<Value, Value> v_map;
 		};
+
+		static Value decay(const Value& v);
+		static std::vector<Value> decay(const std::vector<Value>& vs);
+		static std::map<Value, Value> decay(const std::map<Value, Value>& vs);
 	};
 
 	struct Command;
@@ -262,6 +301,7 @@ namespace ikura::interp
 		Result<interp::Value> evaluateExpr(ikura::str_view expr, CmdContext& cs);
 
 		Result<bool> addGlobal(ikura::str_view name, interp::Value val);
+		Result<bool> removeGlobal(ikura::str_view name);
 
 		virtual void serialise(Buffer& buf) const override;
 		static std::optional<InterpState> deserialise(Span& buf);

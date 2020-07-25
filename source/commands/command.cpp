@@ -17,15 +17,23 @@ namespace ikura::interp
 
 namespace ikura::cmd
 {
-	static void process_command(ikura::str_view user, ikura::str_view username, const Channel* chan, ikura::str_view cmd);
+	static void process_command(interp::CmdContext& cs, ikura::str_view user, ikura::str_view username, const Channel* chan, ikura::str_view cmd);
 	static Message generateResponse(ikura::str_view user, const Channel* chan, ikura::str_view msg);
+
+	Message value_to_message(const interp::Value& val);
 
 	bool processMessage(ikura::str_view userid, ikura::str_view username, const Channel* chan, ikura::str_view message, bool enablePings)
 	{
+		interp::CmdContext cs;
+		cs.executionStart = util::getMillisecondTimestamp();
+		cs.callername = username;
+		cs.callerid = userid;
+		cs.channel = chan;
+
 		auto pref = chan->getCommandPrefix();
 		if(!pref.empty() && message.find(pref) == 0)
 		{
-			process_command(userid, username, chan, message.drop(pref.size()));
+			process_command(cs, userid, username, chan, message.drop(pref.size()));
 			return true;
 		}
 		else if(enablePings && chan->shouldReplyMentions())
@@ -33,6 +41,35 @@ namespace ikura::cmd
 			if(message.find(chan->getUsername()) != std::string::npos)
 				chan->sendMessage(generateResponse(userid, chan, message));
 		}
+
+		// process on_message handlers
+		// TODO: move this out of the big lock
+		if(username == "zhiayang")
+		interpreter().perform_write([&cs, &message, &chan](interp::InterpState& interp) {
+			auto [ val, _ ] = interp.resolveVariable("__on_message", cs);
+			if(!val.has_value())
+				return;
+
+			auto& handlers = val.value();
+			if(!handlers.is_list() || !handlers.type()->elm_type()->is_function()
+			|| !handlers.type()->elm_type()->is_same(interp::Type::get_function(interp::Type::get_string(), { interp::Type::get_string() })))
+			{
+				lg::warn("interp", "__on_message list has wrong type (expected [(str) -> str], found %s)", handlers.type()->str());
+				return;
+			}
+
+			// TODO: pass more information to the handler (eg username, channel, etc)
+			for(auto& handler : handlers.get_list())
+			{
+				const auto& fn = handler.get_function();
+				auto copy = cs;
+				copy.arguments = { interp::Value::of_string(message.str()) };
+
+				lg::log("interp", "running message handler '%s'", handler.get_function()->getName());
+				if(auto res = fn->run(&interp, copy); res && res->type()->is_string())
+					chan->sendMessage(value_to_message(res.unwrap()));
+			}
+		});
 
 		return false;
 	}
@@ -185,15 +222,9 @@ namespace ikura::cmd
 
 
 
-	static void process_one_command(ikura::str_view userid, ikura::str_view username, const Channel* chan,
+	static void process_one_command(interp::CmdContext& cs, ikura::str_view userid, ikura::str_view username, const Channel* chan,
 		ikura::str_view cmd_str, ikura::str_view arg_str, bool pipelined, bool doExpand, std::string* out)
 	{
-		interp::CmdContext cs;
-		cs.executionStart = util::getMillisecondTimestamp();
-		cs.callername = username;
-		cs.callerid = userid;
-		cs.channel = chan;
-
 		cmd_str = cmd_str.trim();
 		arg_str = arg_str.trim();
 
@@ -256,7 +287,7 @@ namespace ikura::cmd
 		}
 	}
 
-	static void process_command(ikura::str_view userid, ikura::str_view username, const Channel* chan, ikura::str_view input)
+	static void process_command(interp::CmdContext& cs, ikura::str_view userid, ikura::str_view username, const Channel* chan, ikura::str_view input)
 	{
 		if(input.empty())
 			return;
@@ -275,7 +306,7 @@ namespace ikura::cmd
 			// zpr::println("A = '%s'", arg_str);
 
 			auto pipelined = !subsequent.empty();
-			process_one_command(userid, username, chan, cmd_str, arg_str, pipelined, do_expand, &piped_input);
+			process_one_command(cs, userid, username, chan, cmd_str, arg_str, pipelined, do_expand, &piped_input);
 
 			input = subsequent;
 			if(!pipelined)
