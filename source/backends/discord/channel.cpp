@@ -41,6 +41,11 @@ namespace ikura::discord
 		return this->respondToPings;
 	}
 
+	bool Channel::shouldRunMessageHandlers() const
+	{
+		return this->runMessageHandlers;
+	}
+
 	bool Channel::checkUserPermissions(ikura::str_view userid, const PermissionSet& required) const
 	{
 		if(Snowflake(userid) == config::discord::getOwner())

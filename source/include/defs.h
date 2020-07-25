@@ -296,6 +296,7 @@ namespace ikura
 
 		virtual bool shouldReplyMentions() const = 0;
 		virtual bool shouldPrintInterpErrors() const = 0;
+		virtual bool shouldRunMessageHandlers() const = 0;
 		virtual std::string getName() const = 0;
 		virtual std::string getUsername() const = 0;
 		virtual std::string getCommandPrefix() const = 0;

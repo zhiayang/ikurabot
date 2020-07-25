@@ -53,6 +53,11 @@ namespace ikura::twitch
 		return this->respondToPings;
 	}
 
+	bool Channel::shouldRunMessageHandlers() const
+	{
+		return this->runMessageHandlers;
+	}
+
 	void Channel::sendMessage(const Message& msg) const
 	{
 		std::string out;

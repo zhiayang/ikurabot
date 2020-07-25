@@ -54,8 +54,8 @@ namespace ikura::discord
 	struct Channel : ikura::Channel
 	{
 		Channel() : lurk(false), respondToPings(false) { }
-		Channel(DiscordState* st, DiscordGuild* g, Snowflake id, bool l, bool p, bool si, std::string cp)
-			: guild(g), channelId(id), lurk(l), respondToPings(p), silentInterpErrors(si),
+		Channel(DiscordState* st, DiscordGuild* g, Snowflake id, bool l, bool p, bool si, bool mh, std::string cp)
+			: guild(g), channelId(id), lurk(l), respondToPings(p), silentInterpErrors(si), runMessageHandlers(mh),
 			  commandPrefix(std::move(cp)), state(st) { }
 
 		virtual std::string getName() const override;
@@ -63,6 +63,7 @@ namespace ikura::discord
 		virtual std::string getCommandPrefix() const override;
 		virtual bool shouldReplyMentions() const override;
 		virtual bool shouldPrintInterpErrors() const override;
+		virtual bool shouldRunMessageHandlers() const override;
 		virtual Backend getBackend() const override { return Backend::Discord; }
 		virtual bool checkUserPermissions(ikura::str_view userid, const PermissionSet& required) const override;
 
@@ -77,6 +78,7 @@ namespace ikura::discord
 		bool lurk;
 		bool respondToPings;
 		bool silentInterpErrors = false;
+		bool runMessageHandlers = false;
 		std::string commandPrefix;
 
 		DiscordState* state = nullptr;

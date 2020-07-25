@@ -103,7 +103,7 @@ namespace ikura::twitch
 		for(const auto& cfg : config::twitch::getJoinChannels())
 		{
 			this->channels.emplace(cfg.name, Channel(this, cfg.name, cfg.lurk,
-				cfg.mod, cfg.respondToPings, cfg.silentInterpErrors, cfg.commandPrefix));
+				cfg.mod, cfg.respondToPings, cfg.silentInterpErrors, cfg.runMessageHandlers, cfg.commandPrefix));
 
 			database().wlock()->twitchData.channels[cfg.name].name = cfg.name;
 

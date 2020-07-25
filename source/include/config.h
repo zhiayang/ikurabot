@@ -22,6 +22,7 @@ namespace ikura::config
 			bool mod;
 			bool respondToPings;
 			bool silentInterpErrors;
+			bool runMessageHandlers;
 			std::string commandPrefix;
 		};
 
@@ -42,6 +43,7 @@ namespace ikura::config
 			bool lurk;
 			bool respondToPings;
 			bool silentInterpErrors;
+			bool runMessageHandlers;
 			std::string commandPrefix;
 		};
 

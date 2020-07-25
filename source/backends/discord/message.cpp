@@ -147,7 +147,7 @@ namespace ikura::discord
 				chan.name = j["name"].as_str();
 
 				st->channels[id] = Channel(st, &guild, id, cfg_guild.lurk, cfg_guild.respondToPings,
-					cfg_guild.silentInterpErrors, cfg_guild.commandPrefix);
+					cfg_guild.silentInterpErrors, cfg_guild.runMessageHandlers, cfg_guild.commandPrefix);
 			}
 
 			update_guild_emotes(guild, json);

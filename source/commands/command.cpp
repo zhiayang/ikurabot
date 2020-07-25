@@ -46,8 +46,8 @@ namespace ikura::cmd
 		// process on_message handlers
 		// TODO: move this out of the big lock
 
-		if((chan->getBackend() == Backend::Twitch && username != config::twitch::getUsername())
-		|| (chan->getBackend() == Backend::Discord && userid != config::discord::getUserId().str()))
+		if(chan->shouldRunMessageHandlers() && ((chan->getBackend() == Backend::Twitch && username != config::twitch::getUsername())
+			|| (chan->getBackend() == Backend::Discord && userid != config::discord::getUserId().str())))
 		{
 			interpreter().perform_write([&cs, &message, &chan](interp::InterpState& interp) {
 				auto [ val, _ ] = interp.resolveVariable("__on_message", cs);
@@ -69,7 +69,7 @@ namespace ikura::cmd
 					auto copy = cs;
 					copy.arguments = { interp::Value::of_string(message.str()) };
 
-					lg::log("interp", "running message handler '%s'", handler.get_function()->getName());
+					lg::dbglog("interp", "running message handler '%s'", handler.get_function()->getName());
 					if(auto res = fn->run(&interp, copy); res && res->type()->is_string())
 						chan->sendMessage(value_to_message(res.unwrap()));
 				}
@@ -157,7 +157,7 @@ namespace ikura::cmd
 						sv.remove_prefix(1); // remove the '\' as well
 						nospace = true;
 					}
-					else if(sv[cur] == ':')
+					else if((cur == 0 || sv[cur - 1] == ' ') && sv[cur] == ':')
 					{
 						flush();
 						sv.remove_prefix(1);

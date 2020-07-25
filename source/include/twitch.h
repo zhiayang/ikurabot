@@ -21,8 +21,8 @@ namespace ikura::twitch
 	struct Channel : ikura::Channel
 	{
 		Channel() : name(""), lurk(false), mod(false), respondToPings(false) { }
-		Channel(TwitchState* st, std::string n, bool l, bool m, bool p, bool si, std::string cp)
-			: name(std::move(n)), lurk(l), mod(m), respondToPings(p), silentInterpErrors(si),
+		Channel(TwitchState* st, std::string n, bool l, bool m, bool p, bool si, bool mh, std::string cp)
+			: name(std::move(n)), lurk(l), mod(m), respondToPings(p), silentInterpErrors(si), runMessageHandlers(mh),
 			  commandPrefix(std::move(cp)), state(st) { }
 
 		virtual std::string getName() const override;
@@ -30,6 +30,7 @@ namespace ikura::twitch
 		virtual std::string getCommandPrefix() const override;
 		virtual bool shouldReplyMentions() const override;
 		virtual bool shouldPrintInterpErrors() const override;
+		virtual bool shouldRunMessageHandlers() const override;
 		virtual Backend getBackend() const override { return Backend::Twitch; }
 		virtual bool checkUserPermissions(ikura::str_view userid, const PermissionSet& required) const override;
 
@@ -41,6 +42,7 @@ namespace ikura::twitch
 		bool mod;
 		bool respondToPings;
 		bool silentInterpErrors;
+		bool runMessageHandlers;
 		std::string commandPrefix;
 
 		mutable std::string lastSentMessage;

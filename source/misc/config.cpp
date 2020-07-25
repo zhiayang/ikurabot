@@ -235,6 +235,7 @@ namespace ikura::config
 					guild.respondToPings = get_bool(obj, "respond_to_pings", false);
 					guild.lurk = get_bool(obj, "lurk", false);
 					guild.commandPrefix = get_string(obj, "command_prefix", "");
+					guild.runMessageHandlers = get_bool(obj, "run_message_handlers", false);
 
 					DiscordConfig.guilds.push_back(std::move(guild));
 				}
@@ -331,6 +332,7 @@ namespace ikura::config
 					chan.lurk = get_bool(obj, "lurk", false);
 					chan.mod = get_bool(obj, "mod", false);
 					chan.commandPrefix = get_string(obj, "command_prefix", "");
+					chan.runMessageHandlers = get_bool(obj, "run_message_handlers", false);
 
 					TwitchConfig.channels.push_back(std::move(chan));
 				}
