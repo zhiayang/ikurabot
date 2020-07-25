@@ -59,6 +59,15 @@ namespace ikura
 
 	namespace util
 	{
+		void sleep_for(const std::chrono::nanoseconds& dur)
+		{
+			// sleep_for is totally broken on windows. fuckin hell.
+			std::this_thread::sleep_until(std::chrono::system_clock::now() + dur);
+		}
+
+
+
+
 		std::pair<ikura::str_view, ikura::str_view> bisect(ikura::str_view input, char delim)
 		{
 			// note that ikura::str_view has well-defined behaviour for drop and take if

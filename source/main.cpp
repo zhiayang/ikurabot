@@ -14,9 +14,13 @@
 using namespace std::chrono_literals;
 
 /*
+	TODO (general):
+
+	upgrade to released zpr
+
+
 	TODO (bot):
 
-	"join" discord channels to say stuff from console
 	builtin function to reload bttv and ffz emotes
 	console command to re-emotify all logged messages (and move this functionality out of markov)
 	proper oauth flow for twitch using clientid+clientsecret

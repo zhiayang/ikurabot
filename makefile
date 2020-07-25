@@ -7,6 +7,9 @@ WARNINGS        = -Wno-padded -Wno-cast-align -Wno-unreachable-code -Wno-packed 
 
 COMMON_CFLAGS   = -Wall -O3 -g
 
+CC              := clang
+CXX             := clang++
+
 CFLAGS          = $(COMMON_CFLAGS) -std=c99 -fPIC -O3
 CXXFLAGS        = $(COMMON_CFLAGS) -Wno-old-style-cast -std=c++17 -fno-exceptions -pthread
 

@@ -123,7 +123,7 @@ namespace ikura::db
 				auto thr = std::thread([]() {
 					while(true)
 					{
-						std::this_thread::sleep_for(SYNC_INTERVAL);
+						util::sleep_for(SYNC_INTERVAL);
 						if(databaseDirty)
 						{
 							databaseDirty = false;

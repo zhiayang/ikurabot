@@ -207,7 +207,7 @@ namespace ikura::discord
 
 					// add some buffer
 					wait += 100;
-					std::this_thread::sleep_for(std::chrono::milliseconds(wait));
+					util::sleep_for(std::chrono::milliseconds(wait));
 					goto again;
 				}
 			}

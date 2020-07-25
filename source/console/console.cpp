@@ -147,7 +147,7 @@ namespace ikura::console
 					auto thr = std::thread([]() {
 						while(true)
 						{
-							std::this_thread::sleep_for(250ms);
+							util::sleep_for(250ms);
 
 							auto p = ikura::markov::retrainingProgress();
 							if(p == 1.0)

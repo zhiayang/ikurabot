@@ -100,6 +100,7 @@ namespace ikura::interp
 	struct Value : Serialisable
 	{
 		Value(Type::Ptr t) : _type(t) { }
+		~Value() { }
 
 		Type::Ptr type() const { return this->_type; }
 

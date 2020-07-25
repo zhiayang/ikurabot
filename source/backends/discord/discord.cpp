@@ -71,7 +71,7 @@ namespace ikura::discord
 				});
 			}
 
-			std::this_thread::sleep_for(250ms);
+			util::sleep_for(250ms);
 		}
 
 		lg::dbglog("discord", "heartbeat worker exited");
@@ -137,7 +137,7 @@ namespace ikura::discord
 				break;
 
 			lg::warn("discord", "connection failed, retrying... (%d/%d)", i + 1, CONNECT_RETRIES);
-			std::this_thread::sleep_for(backoff);
+			util::sleep_for(backoff);
 			backoff *= 2;
 		}
 
@@ -291,7 +291,7 @@ namespace ikura::discord
 				if(!resume || resumable)
 				{
 					lg::warn("discord", "%s timed out, waiting a little while...", resume ? "resume" : "identify");
-					std::this_thread::sleep_for(6s);
+					util::sleep_for(6s);
 				}
 				else
 				{
@@ -365,7 +365,7 @@ namespace ikura::discord
 			lg::warn("discord", "server disconnected us, attempting resume...");
 
 			dispatcher().run([&]() {
-				std::this_thread::sleep_for(1000ms);
+				util::sleep_for(1000ms);
 
 				this->disconnect();
 				this->resume();
@@ -393,7 +393,7 @@ namespace ikura::discord
 			this->disconnect();
 
 			lg::warn("discord", "retry after 10s...");
-			std::this_thread::sleep_for(10s);
+			util::sleep_for(10s);
 			this->init();
 		}
 

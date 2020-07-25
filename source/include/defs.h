@@ -123,6 +123,8 @@ namespace ikura
 		std::pair<ikura::str_view, ikura::str_view> bisect(ikura::str_view input, char delim);
 
 		Result<picojson::value> parseJson(ikura::str_view json);
+
+		void sleep_for(const std::chrono::nanoseconds& dur);
 	}
 
 	namespace lg

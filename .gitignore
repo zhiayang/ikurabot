@@ -13,3 +13,4 @@ build
 *.sublime-workspace
 **/.vscode/ipch
 dump
+.vscode

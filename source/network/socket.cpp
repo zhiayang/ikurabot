@@ -143,7 +143,7 @@ namespace ikura
 			this->socket = nullptr;
 
 			dispatcher().run([](kissnet::socket<4>* sock) {
-				std::this_thread::sleep_for(2 * LOOP_PERIOD);
+				util::sleep_for(2 * LOOP_PERIOD);
 				sock->close();
 				delete sock;
 			}, sock);

@@ -92,7 +92,7 @@ namespace ikura::twitch
 				break;
 
 			lg::warn("twitch", "connection failed, retrying... (%d/%d)", i + 1, CONNECT_RETRIES);
-			std::this_thread::sleep_for(backoff);
+			util::sleep_for(backoff);
 			backoff *= 2;
 		}
 
@@ -208,7 +208,7 @@ namespace ikura::twitch
 		for(auto& [ name, chan ] : this->channels)
 			this->ws.send(zpr::sprint("PART #%s\r\n", chan.getName()));
 
-		std::this_thread::sleep_for(350ms);
+		util::sleep_for(350ms);
 		this->ws.disconnect();
 
 		this->connected = false;

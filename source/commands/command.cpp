@@ -265,7 +265,6 @@ namespace ikura::cmd
 		bool do_expand = true;     // since we start as a macro invocation, always expand by default
 		while(true)
 		{
-			lg::log("cmd", "OWO");
 			auto [ first, subsequent ] = split_pipeline(input, &do_expand);
 
 			auto cmd_str = first.substr(0, first.find(' ')).trim();
