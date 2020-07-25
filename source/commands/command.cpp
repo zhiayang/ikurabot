@@ -6,6 +6,7 @@
 #include "cmd.h"
 #include "ast.h"
 #include "timer.h"
+#include "config.h"
 #include "markov.h"
 #include "synchro.h"
 
@@ -44,31 +45,36 @@ namespace ikura::cmd
 
 		// process on_message handlers
 		// TODO: move this out of the big lock
-		interpreter().perform_write([&cs, &message, &chan](interp::InterpState& interp) {
-			auto [ val, _ ] = interp.resolveVariable("__on_message", cs);
-			if(!val.has_value())
-				return;
 
-			auto& handlers = val.value();
-			if(!handlers.is_list() || !handlers.type()->elm_type()->is_function()
-			|| !handlers.type()->elm_type()->is_same(interp::Type::get_function(interp::Type::get_string(), { interp::Type::get_string() })))
-			{
-				lg::warn("interp", "__on_message list has wrong type (expected [(str) -> str], found %s)", handlers.type()->str());
-				return;
-			}
+		if((chan->getBackend() == Backend::Twitch && username != config::twitch::getUsername())
+		|| (chan->getBackend() == Backend::Discord && userid != config::discord::getUserId().str()))
+		{
+			interpreter().perform_write([&cs, &message, &chan](interp::InterpState& interp) {
+				auto [ val, _ ] = interp.resolveVariable("__on_message", cs);
+				if(!val.has_value())
+					return;
 
-			// TODO: pass more information to the handler (eg username, channel, etc)
-			for(auto& handler : handlers.get_list())
-			{
-				const auto& fn = handler.get_function();
-				auto copy = cs;
-				copy.arguments = { interp::Value::of_string(message.str()) };
+				auto& handlers = val.value();
+				if(!handlers.is_list() || !handlers.type()->elm_type()->is_function()
+				|| !handlers.type()->elm_type()->is_same(interp::Type::get_function(interp::Type::get_string(), { interp::Type::get_string() })))
+				{
+					lg::warn("interp", "__on_message list has wrong type (expected [(str) -> str], found %s)", handlers.type()->str());
+					return;
+				}
 
-				lg::log("interp", "running message handler '%s'", handler.get_function()->getName());
-				if(auto res = fn->run(&interp, copy); res && res->type()->is_string())
-					chan->sendMessage(value_to_message(res.unwrap()));
-			}
-		});
+				// TODO: pass more information to the handler (eg username, channel, etc)
+				for(auto& handler : handlers.get_list())
+				{
+					const auto& fn = handler.get_function();
+					auto copy = cs;
+					copy.arguments = { interp::Value::of_string(message.str()) };
+
+					lg::log("interp", "running message handler '%s'", handler.get_function()->getName());
+					if(auto res = fn->run(&interp, copy); res && res->type()->is_string())
+						chan->sendMessage(value_to_message(res.unwrap()));
+				}
+			});
+		}
 
 		return false;
 	}

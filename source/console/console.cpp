@@ -66,12 +66,12 @@ namespace ikura::console
 			auto b = chan->getBackend();
 			if(b == Backend::Twitch)
 			{
-				userid = twitch::MAGIC_OWNER_USERID;
-				username = config::twitch::getOwner();
+				userid   = twitch::MAGIC_OWNER_USERID;
+				username = config::twitch::getUsername();
 			}
 			else if(b == Backend::Discord)
 			{
-				userid   = config::discord::getOwner().str();
+				userid   = config::discord::getUserId().str();
 				username = config::discord::getUsername();
 			}
 			else
