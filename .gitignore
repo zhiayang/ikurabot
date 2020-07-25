@@ -14,3 +14,4 @@ build
 **/.vscode/ipch
 dump
 .vscode
+run.fish
