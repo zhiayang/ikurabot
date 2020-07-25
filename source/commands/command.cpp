@@ -44,7 +44,6 @@ namespace ikura::cmd
 
 		// process on_message handlers
 		// TODO: move this out of the big lock
-		if(username == "zhiayang")
 		interpreter().perform_write([&cs, &message, &chan](interp::InterpState& interp) {
 			auto [ val, _ ] = interp.resolveVariable("__on_message", cs);
 			if(!val.has_value())

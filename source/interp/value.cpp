@@ -111,7 +111,7 @@ namespace ikura::interp
 		}
 		else if(this->_type->is_function())
 		{
-			return "<fn>";
+			return zpr::sprint("<fn: %s>", this->v_function->getName());
 		}
 		else
 		{
