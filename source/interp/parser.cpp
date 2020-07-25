@@ -204,6 +204,8 @@ namespace ikura::interp::ast
 
 			case TT::LogicalOr:         return 400;
 
+			case TT::Question:          return 201;
+
 			case TT::Equal:             return 200;
 			case TT::PlusEquals:        return 200;
 			case TT::MinusEquals:       return 200;
@@ -215,8 +217,6 @@ namespace ikura::interp::ast
 			case TT::BitwiseAndEquals:  return 200;
 			case TT::BitwiseOrEquals:   return 200;
 			case TT::ExponentEquals:    return 200;
-
-			case TT::Question:          return 10;
 
 			case TT::Pipeline:          return 1;
 
