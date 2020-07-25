@@ -66,6 +66,12 @@ namespace ikura::cmd
 				for(auto& handler : handlers.get_list())
 				{
 					const auto& fn = handler.get_function();
+					if(!fn)
+					{
+						lg::error("interp", "handler was null");
+						continue;
+					}
+
 					auto copy = cs;
 					copy.arguments = { interp::Value::of_string(message.str()) };
 

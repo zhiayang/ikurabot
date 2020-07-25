@@ -2,6 +2,9 @@
 // Copyright (c) 2019, zhiayang
 // Licensed under the Apache License Version 2.0.
 
+// origin: ikurabot
+// updated 12/07/2020
+
 #pragma once
 
 #include <math.h>
@@ -174,7 +177,11 @@ namespace zpr
 
 		inline std::string sprint(const char* &fmt)
 		{
-			return std::string(fmt);
+			if(!fmt || !*fmt)
+				return "";
+
+			auto tmp = skip(fmt, &fmt);
+			return tmp + sprint(fmt);
 		}
 
 		// we need to forward declare this.

@@ -439,7 +439,10 @@ namespace ikura::interp
 			auto name = rd.read<std::string>();
 			if(!name) return { };
 
-			return Value::of_function(interpreter().rlock()->findCommand(name.value()));
+			auto f = interpreter().rlock()->findCommand(name.value());
+			if(!f) return Value::of_void();
+
+			return Value::of_function(f);
 		}
 		else
 		{

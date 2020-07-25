@@ -333,10 +333,20 @@ namespace ikura
 			return std::normal_distribution<T>(mean, stddev)(st.mersenne);
 		}
 
-		template uint8_t  get<uint8_t>();   template uint8_t  get<uint8_t>(uint8_t, uint8_t);
-		template uint16_t get<uint16_t>();  template uint16_t get<uint16_t>(uint16_t, uint16_t);
-		template uint32_t get<uint32_t>();  template uint32_t get<uint32_t>(uint32_t, uint32_t);
-		template uint64_t get<uint64_t>();  template uint64_t get<uint64_t>(uint64_t, uint64_t);
+		template unsigned char  get<unsigned char>();
+		template unsigned char  get<unsigned char>(unsigned char, unsigned char);
+
+		template unsigned short get<unsigned short>();
+		template unsigned short get<unsigned short>(unsigned short, unsigned short);
+
+		template unsigned int get<unsigned int>();
+		template unsigned int get<unsigned int>(unsigned int, unsigned int);
+
+		template unsigned long get<unsigned long>();
+		template unsigned long get<unsigned long>(unsigned long, unsigned long);
+
+		template unsigned long long get<unsigned long long>();
+		template unsigned long long get<unsigned long long>(unsigned long long, unsigned long long);
 
 		// template size_t get<size_t>();      template size_t get<size_t>(size_t, size_t);
 

@@ -332,7 +332,7 @@ namespace ikura::interp::ast
 		auto inside = parseExpr(st);
 
 		if(!st.match(TT::RParen))
-			return zpr::sprint("expected ')'");
+			return zpr::sprint("expected ')' in parenthesised expression");
 
 		return inside;
 	}
