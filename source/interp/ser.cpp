@@ -567,6 +567,35 @@ namespace ikura::interp::ast
 	}
 
 
+	void DotOp::serialise(Buffer& buf) const
+	{
+		auto wr = serialise::Writer(buf);
+		wr.tag(TYPE_TAG);
+
+		wr.write(this->lhs);
+		wr.write(this->rhs);
+	}
+
+	DotOp* DotOp::deserialise(Span& buf)
+	{
+		auto rd = serialise::Reader(buf);
+		if(auto t = rd.tag(); t != TYPE_TAG)
+		{
+			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			return nullptr;
+		}
+
+		Expr* lhs = rd.read<Expr*>().value();
+		if(!lhs) return nullptr;
+
+		Expr* rhs = rd.read<Expr*>().value();
+		if(!rhs) return nullptr;
+
+		return new DotOp(lhs, rhs);
+	}
+
+
+
 
 
 	void FunctionCall::serialise(Buffer& buf) const
@@ -688,6 +717,7 @@ namespace ikura::interp::ast
 			case serialise::TAG_AST_OP_COMPARISON:  return ComparisonOp::deserialise(buf);
 			case serialise::TAG_AST_OP_ASSIGN:      return AssignOp::deserialise(buf);
 			case serialise::TAG_AST_FUNCTION_CALL:  return FunctionCall::deserialise(buf);
+			case serialise::TAG_AST_OP_DOT:         return DotOp::deserialise(buf);
 		}
 
 		lg::error("db", "type tag mismatch (unexpected '%02x')", tag);

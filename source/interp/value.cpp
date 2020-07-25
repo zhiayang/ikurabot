@@ -109,6 +109,10 @@ namespace ikura::interp
 				return zfu::listToString(this->v_list, [](const auto& x) -> auto { return x.str(); });
 			}
 		}
+		else if(this->_type->is_function())
+		{
+			return "<fn>";
+		}
 		else
 		{
 			return "??";

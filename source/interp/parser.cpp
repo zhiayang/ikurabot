@@ -442,6 +442,10 @@ namespace ikura::interp::ast
 					lhs = Result<Expr*>(tmp);
 				}
 			}
+			else if(oper.type == TT::Period)
+			{
+				lhs = makeAST<DotOp>(lhs, rhs);
+			}
 			else
 			{
 				lhs = makeAST<BinaryOp>(oper.type, oper.str().str(), lhs, rhs);

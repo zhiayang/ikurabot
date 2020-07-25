@@ -567,7 +567,7 @@ namespace ikura
 
 		// interp part 2
 		constexpr uint8_t TAG_AST_FUNCTION_DEFN     = 0x68;
-
+		constexpr uint8_t TAG_AST_OP_DOT            = 0x69; // nice
 
 		// if the byte has 0x80 set, then the lower 7 bits represents a truncated 64-bit number. it's a further
 		// extension of the SMALL_U64 thing, but literally only uses 1 byte for sizes between 0 - 127

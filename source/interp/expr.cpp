@@ -525,6 +525,78 @@ namespace ikura::interp::ast
 		return Value::of_variadic_list(out->type()->elm_type(), out->get_list());
 	}
 
+	Result<Value> DotOp::evaluate(InterpState* fs, CmdContext& cs) const
+	{
+		auto left = this->lhs->evaluate(fs, cs);
+		if(!left) return left;
+
+		// big hax.
+		if(left->type()->is_list())
+		{
+			// big big hax.
+			if(auto fn = dynamic_cast<FunctionCall*>(this->rhs))
+			{
+				if(auto cc = dynamic_cast<VarRef*>(fn->callee))
+				{
+					if(cc->name == "append")
+					{
+						if(!left->is_lvalue())
+							return zpr::sprint("cannot append to non-rvalue");
+
+						if(fn->arguments.empty())
+							return zpr::sprint("expected at least one argument to append()");
+
+						std::vector<Value> args;
+
+						auto elmty = left->type()->elm_type();
+						for(size_t i = 0; i < fn->arguments.size(); i++)
+						{
+							auto arg = fn->arguments[i]->evaluate(fs, cs);
+							if(auto casted = arg->cast_to(elmty); casted.has_value())
+							{
+								args.push_back(std::move(casted.value()));
+							}
+							else
+							{
+								return zpr::sprint("element type mismatch for append() (arg %d); expected '%s', found '%s'",
+									i, elmty->str(), arg->type()->str());
+							}
+						}
+
+						auto lval = left->get_lvalue();
+						assert(lval);
+
+						lval->get_list().insert(lval->get_list().end(), args.begin(), args.end());
+						return Value::of_lvalue(lval);
+					}
+					else if(cc->name == "len")
+					{
+						if(!fn->arguments.empty())
+							return zpr::sprint("expected no arguments to len()");
+
+						return Value::of_integer(left->get_list().size());
+					}
+					else
+					{
+						return zpr::sprint("list has no method '%s'", cc->name);
+					}
+				}
+				else
+				{
+					goto fail;
+				}
+			}
+			else
+			{
+			fail:
+				return zpr::sprint("invalid rhs for dotop on list");
+			}
+		}
+		else
+		{
+			return zpr::sprint("invalid dotop on lhs type '%s'", left->type()->str());
+		}
+	}
 
 
 
@@ -602,6 +674,7 @@ namespace ikura::interp::ast
 	std::string SplatOp::str() const        { return zpr::sprint("%s...", expr->str()); }
 	std::string BinaryOp::str() const       { return zpr::sprint("%s %s %s", lhs->str(), op_str, rhs->str()); }
 	std::string AssignOp::str() const       { return zpr::sprint("%s %s %s", lhs->str(), op_str, rhs->str()); }
+	std::string DotOp::str() const          { return zpr::sprint("%s.%s", lhs->str(), rhs->str()); }
 
 	// TODO: don't cheat here
 	std::string TernaryOp::str() const
@@ -644,5 +717,6 @@ namespace ikura::interp::ast
 	TernaryOp::~TernaryOp()         { delete op1; delete op2; delete op3; }
 	ComparisonOp::~ComparisonOp()   { for(auto e : exprs) delete e; }
 	AssignOp::~AssignOp()           { delete lhs; delete rhs; }
+	DotOp::~DotOp()                 { delete lhs; delete rhs; }
 
 }

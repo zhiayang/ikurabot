@@ -372,6 +372,22 @@ namespace ikura::interp
 			static AssignOp* deserialise(Span& buf);
 		};
 
+		struct DotOp : Expr
+		{
+			DotOp(Expr* l, Expr* r) : lhs(l), rhs(r) { }
+			virtual ~DotOp() override;
+
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
+
+			Expr* lhs;
+			Expr* rhs;
+
+			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_OP_DOT;
+			virtual void serialise(Buffer& buf) const override;
+			static DotOp* deserialise(Span& buf);
+		};
+
 		struct FunctionCall : Expr
 		{
 			FunctionCall(Expr* fn, std::vector<Expr*> args) : callee(fn), arguments(std::move(args)) { }

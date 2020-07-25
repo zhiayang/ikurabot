@@ -261,8 +261,6 @@ namespace ikura::interp
 	{
 		auto t = *buf.as<uint8_t>();
 		buf.remove_prefix(1);
-		if(!t) return { };
-
 
 		if(t == T_VOID)     return t_void;
 		if(t == T_BOOLEAN)  return t_bool;
