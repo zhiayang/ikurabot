@@ -381,6 +381,9 @@ namespace ikura::twitch
 		}
 		else
 		{
+			if(msg.empty() || msg[0] == '/' || msg[0] == '.')
+				return;
+
 			this->sendRawMessage(zpr::sprint("PRIVMSG #%s :%s", channel, msg), channel);
 		}
 	}

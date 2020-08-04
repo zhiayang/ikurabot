@@ -73,7 +73,7 @@ namespace ikura::discord
 			).as_str());
 		*/
 
-		if(!ran_cmd)
+		if(!ran_cmd && chan.name != "bot-shrine")
 			markov::process(sanitised, emote_idxs);
 
 		// zpr::println("the raw message:\n%s", json["content"].as_str());

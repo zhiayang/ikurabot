@@ -55,12 +55,16 @@ namespace ikura::interp
 		{ "defun",      command_defun    },
 	};
 
+	/* not sure if this is a good idea...
 	static constexpr uint64_t DEFAULT_NEW_MACRO_PERMISSIONS
 		= permissions::OWNER
 		| permissions::BROADCASTER
 		| permissions::VIP
 		| permissions::SUBSCRIBER
 		| permissions::MODERATOR;
+	*/
+
+	static constexpr uint64_t DEFAULT_NEW_MACRO_PERMISSIONS = permissions::EVERYONE;
 
 
 	bool run_builtin_command(CmdContext& cs, const Channel* chan, ikura::str_view cmd_str, ikura::str_view arg_str)
