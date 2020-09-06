@@ -41,7 +41,6 @@ namespace ikura::twitch
 
 				lg::log("twitch", "updated bttv+ffz emotes in %.2f ms", t.measure());
 
-
 				util::sleep_for(std::chrono::milliseconds(
 					config::twitch::getEmoteAutoUpdateInterval()
 				));

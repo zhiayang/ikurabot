@@ -68,12 +68,14 @@ int main(int argc, char** argv)
 		ikura::lg::fatal("db", "failed to load database '%s'", opts[1]);
 
 	if(ikura::config::haveTwitch())
+	{
 		ikura::twitch::init();
+		ikura::twitch::initEmotes();
+	}
 
 	if(ikura::config::haveDiscord())
 		ikura::discord::init();
 
-	ikura::twitch::initEmotes();
 
 	ikura::markov::init();
 

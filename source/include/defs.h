@@ -125,6 +125,8 @@ namespace ikura
 		Result<picojson::value> parseJson(ikura::str_view json);
 
 		void sleep_for(const std::chrono::nanoseconds& dur);
+
+		std::string getEnvironmentVar(const std::string& name);
 	}
 
 	namespace lg

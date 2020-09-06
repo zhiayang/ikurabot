@@ -97,13 +97,6 @@ namespace ikura::config
 		size_t getMaxMarkovRetries() { return GlobalConfig.maxMarkovRetries; }
 	}
 
-
-
-
-
-
-
-
 	static std::string get_string(const pj::object& opts, const std::string& key, const std::string& def)
 	{
 		if(auto it = opts.find(key); it != opts.end())
@@ -117,6 +110,40 @@ namespace ikura::config
 
 		return def;
 	}
+
+	// file:<path> or env:<var>
+	static std::string get_secret_string(const pj::object& opts, const std::string& key, const std::string& def)
+	{
+		auto raw = get_string(opts, key, def);
+		if(raw.find("file:") == 0)
+		{
+			auto path = raw.substr(5);
+			auto [ buf, sz ] = util::readEntireFile(path);
+
+			if(!buf || sz == 0)
+			{
+				lg::error("cfg", "could not read file '%s' for key '%s'", path, key);
+				return "";
+			}
+
+			//* for now we just take the first line.
+			// TODO: allow specifying the line? eg. file:<path>:line
+			auto ret = util::split(std::string((const char*) buf, sz), '\n')[0].str();
+			delete[] buf;
+
+			return ret;
+		}
+		else if(raw.find("env:") == 0)
+		{
+			auto name = raw.substr(4);
+			return util::getEnvironmentVar(name);
+		}
+		else
+		{
+			return raw;
+		}
+	}
+
 
 	static std::vector<pj::value> get_array(const pj::object& opts, const std::string& key)
 	{
@@ -193,7 +220,7 @@ namespace ikura::config
 		if(username.empty())
 			return lg::error_b("cfg/discord", "username cannot be empty");
 
-		auto oauthToken = get_string(discord, "oauth_token", "");
+		auto oauthToken = get_secret_string(discord, "oauth_token", "");
 		if(oauthToken.empty())
 			return lg::error_b("cfg/discord", "oauth_token cannot be empty");
 
@@ -279,7 +306,7 @@ namespace ikura::config
 		if(owner.empty())
 			return lg::error_b("cfg/twitch", "owner cannot be empty");
 
-		auto oauthToken = get_string(twitch, "oauth_token", "");
+		auto oauthToken = get_secret_string(twitch, "oauth_token", "");
 		if(oauthToken.empty())
 			return lg::error_b("cfg/twitch", "oauth_token cannot be empty");
 
