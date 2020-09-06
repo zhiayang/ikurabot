@@ -38,11 +38,11 @@ namespace ikura::twitch
 
 	private:
 		std::string name;
-		bool lurk;
-		bool mod;
-		bool respondToPings;
-		bool silentInterpErrors;
-		bool runMessageHandlers;
+		bool lurk = false;
+		bool mod = false;
+		bool respondToPings = false;
+		bool silentInterpErrors = false;
+		bool runMessageHandlers = false;
 		std::string commandPrefix;
 
 		mutable std::string lastSentMessage;

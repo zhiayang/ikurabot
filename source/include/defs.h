@@ -33,6 +33,7 @@ namespace ikura
 	{
 		Invalid,
 
+		IRC,
 		Twitch,
 		Discord,
 	};

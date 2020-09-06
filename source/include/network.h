@@ -22,6 +22,7 @@ namespace ikura
 	struct URL
 	{
 		explicit URL(ikura::str_view url);
+		URL(ikura::str_view hostname, uint16_t port);
 
 		std::string& protocol()                 { return this->_protocol; }
 		const std::string& protocol() const     { return this->_protocol; }

@@ -167,6 +167,13 @@ namespace ikura
 		}
 
 		// setup the handler.
+
+		// TODO: i think there's a pretty big problem with this
+		// if we get say 2.5 messages, (the last one is incomplete) then the first 2 will go through the
+		// pipeline, and the last one will not, and we break from the loop. problem is the first 2 messages
+		// are still in the buffer, so when we process the new data for the remaining 0.5 messages, we will
+		// re-process the first 2 messages...
+
 		this->conn.onReceive([this](Span data) {
 
 			if(this->buffer.remaining() < data.size())

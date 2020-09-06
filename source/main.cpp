@@ -7,6 +7,7 @@
 
 #include "db.h"
 #include "zfu.h"
+#include "irc.h"
 #include "defs.h"
 #include "async.h"
 #include "config.h"
@@ -76,6 +77,8 @@ int main(int argc, char** argv)
 	if(ikura::config::haveDiscord())
 		ikura::discord::init();
 
+	if(ikura::config::haveIRC())
+		ikura::irc::init();
 
 	ikura::markov::init();
 
