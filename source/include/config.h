@@ -10,6 +10,7 @@ namespace ikura::config
 {
 	bool load(ikura::str_view path);
 
+	bool haveIRC();
 	bool haveTwitch();
 	bool haveDiscord();
 
@@ -54,6 +55,43 @@ namespace ikura::config
 		ikura::discord::Snowflake getUserId();
 		std::vector<ikura::discord::Snowflake> getIgnoredUserIds();
 		bool isUserIgnored(ikura::discord::Snowflake userid);
+	}
+
+	namespace irc
+	{
+		struct Channel
+		{
+			// includes the #, because aodhneine wanted it
+			// also because it's a good idea
+			std::string name;
+
+			bool lurk;
+			bool respondToPings;
+			bool silentInterpErrors;
+			bool runMessageHandlers;
+			std::string commandPrefix;
+		};
+
+		struct Server
+		{
+			std::string name;
+			std::string hostname;
+			uint16_t port;
+			bool useSSL;
+			bool useSASL;
+
+			std::string nickname;
+			std::string username;
+			std::string password;
+			std::string owner;
+
+			std::vector<std::string> ignoredUsers;
+			std::vector<Channel> channels;
+
+			bool isUserIgnored(ikura::str_view id);
+		};
+
+		std::vector<Server> getJoinServers();
 	}
 
 	namespace global

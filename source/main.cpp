@@ -7,6 +7,7 @@
 
 #include "db.h"
 #include "zfu.h"
+#include "irc.h"
 #include "defs.h"
 #include "async.h"
 #include "config.h"
@@ -75,12 +76,16 @@ int main(int argc, char** argv)
 		ikura::lg::fatal("db", "failed to load database '%s'", opts[1]);
 
 	if(ikura::config::haveTwitch())
+	{
 		ikura::twitch::init();
+		ikura::twitch::initEmotes();
+	}
 
 	if(ikura::config::haveDiscord())
 		ikura::discord::init();
 
-	ikura::twitch::initEmotes();
+	if(ikura::config::haveIRC())
+		ikura::irc::init();
 
 	ikura::markov::init();
 
@@ -90,6 +95,7 @@ int main(int argc, char** argv)
 	ikura::discord::shutdown();
 	ikura::twitch::shutdown();
 	ikura::markov::shutdown();
+	ikura::irc::shutdown();
 
 	ikura::database().rlock()->sync();
 	return 0;

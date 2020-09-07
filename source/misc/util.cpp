@@ -65,8 +65,14 @@ namespace ikura
 			std::this_thread::sleep_until(std::chrono::system_clock::now() + dur);
 		}
 
+		std::string getEnvironmentVar(const std::string& name)
+		{
+			if(char* val = getenv(name.c_str()); val)
+				return std::string(val);
 
-
+			else
+				return "";
+		}
 
 		std::pair<ikura::str_view, ikura::str_view> bisect(ikura::str_view input, char delim)
 		{

@@ -41,7 +41,8 @@ namespace ikura::console
 
 	static void print_prompt(Socket* sock)
 	{
-		auto ch = (State.currentChannel ? zpr::sprint(" (#%s) ", State.currentChannel->getName()) : "");
+		auto ch = (State.currentChannel ? zpr::sprint(" (%s%s) ", State.currentChannel->getBackend() == Backend::Twitch ? "#" : "",
+			State.currentChannel->getName()) : "");
 		echo_message(sock, zpr::sprint("λ ikura%s$ ", ch));
 	}
 
@@ -73,6 +74,12 @@ namespace ikura::console
 			{
 				userid   = config::discord::getUserId().str();
 				username = config::discord::getUsername();
+			}
+			else if(b == Backend::IRC)
+			{
+				// uwu...
+				userid   = irc::MAGIC_OWNER_USERID;
+				username = irc::MAGIC_OWNER_USERID;
 			}
 			else
 			{
@@ -185,6 +192,28 @@ namespace ikura::console
 						else
 						{
 							echo_message(sock, zpr::sprint("channel '#%s' does not exist\n", channel));
+						}
+					}
+					else if(backend == "irc")
+					{
+						if(args.size() < 3)
+						{
+							echo_message(sock, zpr::sprint("need server and channel\n"));
+							goto end;
+						}
+
+						auto server = args[1];
+						auto channel = args[2];
+
+						auto chan = irc::getChannelFromServer(server, channel);
+						if(chan != nullptr)
+						{
+							State.currentChannel = chan;
+							echo_message(sock, zpr::sprint("joined %s\n", channel));
+						}
+						else
+						{
+							echo_message(sock, zpr::sprint("channel '%s' does not exist\n", channel));
 						}
 					}
 					else if(backend == "discord")

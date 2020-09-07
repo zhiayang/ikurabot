@@ -32,17 +32,18 @@ namespace ikura::twitch
 		virtual bool shouldPrintInterpErrors() const override;
 		virtual bool shouldRunMessageHandlers() const override;
 		virtual Backend getBackend() const override { return Backend::Twitch; }
+		virtual bool shouldLurk() const override;
 		virtual bool checkUserPermissions(ikura::str_view userid, const PermissionSet& required) const override;
 
 		virtual void sendMessage(const Message& msg) const override;
 
 	private:
 		std::string name;
-		bool lurk;
-		bool mod;
-		bool respondToPings;
-		bool silentInterpErrors;
-		bool runMessageHandlers;
+		bool lurk = false;
+		bool mod = false;
+		bool respondToPings = false;
+		bool silentInterpErrors = false;
+		bool runMessageHandlers = false;
 		std::string commandPrefix;
 
 		mutable std::string lastSentMessage;

@@ -50,6 +50,8 @@ namespace ikura::config
 		size_t maxMarkovRetries = 0;
 	} GlobalConfig;
 
+	static std::vector<irc::Server> IrcServerConfigs;
+
 	namespace twitch
 	{
 		std::string getOwner()          { return TwitchConfig.owner; }
@@ -88,6 +90,22 @@ namespace ikura::config
 		}
 	}
 
+	namespace irc
+	{
+		bool Server::isUserIgnored(ikura::str_view name)
+		{
+			return std::find(this->ignoredUsers.begin(), this->ignoredUsers.end(), name) != this->ignoredUsers.end();
+		}
+
+		std::vector<Server> getJoinServers()
+		{
+			return IrcServerConfigs;
+		}
+	}
+
+
+
+
 	namespace global
 	{
 		int getConsolePort() { return GlobalConfig.consolePort; }
@@ -96,13 +114,6 @@ namespace ikura::config
 		size_t getMinMarkovLength() { return GlobalConfig.minMarkovLength; }
 		size_t getMaxMarkovRetries() { return GlobalConfig.maxMarkovRetries; }
 	}
-
-
-
-
-
-
-
 
 	static std::string get_string(const pj::object& opts, const std::string& key, const std::string& def)
 	{
@@ -117,6 +128,40 @@ namespace ikura::config
 
 		return def;
 	}
+
+	// file:<path> or env:<var>
+	static std::string get_secret_string(const pj::object& opts, const std::string& key, const std::string& def)
+	{
+		auto raw = get_string(opts, key, def);
+		if(raw.find("file:") == 0)
+		{
+			auto path = raw.substr(5);
+			auto [ buf, sz ] = util::readEntireFile(path);
+
+			if(!buf || sz == 0)
+			{
+				lg::error("cfg", "could not read file '%s' for key '%s'", path, key);
+				return "";
+			}
+
+			//* for now we just take the first line.
+			// TODO: allow specifying the line? eg. file:<path>:line
+			auto ret = util::split(std::string((const char*) buf, sz), '\n')[0].str();
+			delete[] buf;
+
+			return ret;
+		}
+		else if(raw.find("env:") == 0)
+		{
+			auto name = raw.substr(4);
+			return util::getEnvironmentVar(name);
+		}
+		else
+		{
+			return raw;
+		}
+	}
+
 
 	static std::vector<pj::value> get_array(const pj::object& opts, const std::string& key)
 	{
@@ -193,7 +238,7 @@ namespace ikura::config
 		if(username.empty())
 			return lg::error_b("cfg/discord", "username cannot be empty");
 
-		auto oauthToken = get_string(discord, "oauth_token", "");
+		auto oauthToken = get_secret_string(discord, "oauth_token", "");
 		if(oauthToken.empty())
 			return lg::error_b("cfg/discord", "oauth_token cannot be empty");
 
@@ -263,12 +308,6 @@ namespace ikura::config
 	}
 
 
-
-
-
-
-
-
 	static bool loadTwitchConfig(const pj::object& twitch)
 	{
 		auto username = get_string(twitch, "username", "");
@@ -279,7 +318,7 @@ namespace ikura::config
 		if(owner.empty())
 			return lg::error_b("cfg/twitch", "owner cannot be empty");
 
-		auto oauthToken = get_string(twitch, "oauth_token", "");
+		auto oauthToken = get_secret_string(twitch, "oauth_token", "");
 		if(oauthToken.empty())
 			return lg::error_b("cfg/twitch", "oauth_token cannot be empty");
 
@@ -343,6 +382,123 @@ namespace ikura::config
 		return true;
 	}
 
+
+	static bool loadIRCConfig(const pj::object& irc)
+	{
+		auto servers = get_array(irc, "servers");
+		if(!servers.empty())
+		{
+			for(const auto& srv : servers)
+			{
+				if(!srv.is_obj())
+				{
+					lg::error("cfg/irc", "server should be a json object");
+					continue;
+				}
+
+				auto obj = srv.as_obj();
+
+				irc::Server server;
+				server.hostname = get_string(obj, "hostname", "");
+				if(server.hostname.empty())
+				{
+					lg::error("cfg/irc", "server hostname cannot be empty");
+					continue;
+				}
+
+				server.name     = get_string(obj, "name", "");
+				server.useSSL   = get_bool(obj, "ssl", true);
+				server.useSASL  = get_bool(obj, "sasl", false);
+				server.port     = get_integer(obj, "port", server.useSSL ? 6697 : 6667);
+
+				server.username = get_string(obj, "username", "");
+				server.nickname = get_string(obj, "nickname", server.username);
+
+				if(server.username.empty() && server.nickname.empty())
+				{
+					lg::error("cfg/irc", "username cannot be empty");
+					continue;
+				}
+				else if(server.nickname.empty())
+				{
+					server.nickname = server.username;
+				}
+				else if(server.username.empty())
+				{
+					server.username = server.nickname;
+				}
+
+				// i guess password can be empty if you didn't bother to identify with services...
+				server.password = get_secret_string(obj, "password", "");
+
+				server.owner = get_string(obj, "owner", "");
+				auto ignored = get_array(obj, "ignored_users");
+				if(!ignored.empty())
+				{
+					for(const auto& ign : ignored)
+					{
+						if(!ign.is_str())
+						{
+							lg::error("cfg/irc", "ignored_users should contain strings");
+							continue;
+						}
+
+						auto str = ign.as_str();
+						server.ignoredUsers.push_back(std::move(str));
+					}
+				}
+
+				auto channels = get_array(obj, "channels");
+				if(!channels.empty())
+				{
+					for(const auto& ch : channels)
+					{
+						if(!ch.is_obj())
+						{
+							lg::error("cfg/irc", "channel should be a json object");
+							continue;
+						}
+
+						auto obj = ch.as_obj();
+
+						irc::Channel chan;
+						chan.name = get_string(obj, "name", "");
+						if(chan.name.empty())
+						{
+							lg::error("cfg/irc", "channel name cannot be empty");
+						}
+						else
+						{
+							chan.silentInterpErrors = get_bool(obj, "silent_interp_errors", false);
+							chan.respondToPings = get_bool(obj, "respond_to_pings", false);
+							chan.lurk = get_bool(obj, "lurk", false);
+							chan.commandPrefix = get_string(obj, "command_prefix", "");
+							chan.runMessageHandlers = get_bool(obj, "run_message_handlers", false);
+
+							server.channels.push_back(std::move(chan));
+						}
+					}
+				}
+
+				IrcServerConfigs.push_back(std::move(server));
+			}
+		}
+
+		return true;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
 	bool haveTwitch()
 	{
 		return TwitchConfig.present;
@@ -352,6 +508,15 @@ namespace ikura::config
 	{
 		return DiscordConfig.present;
 	}
+
+	bool haveIRC()
+	{
+		return !IrcServerConfigs.empty();
+	}
+
+
+
+
 
 	bool load(ikura::str_view path)
 	{
@@ -386,6 +551,11 @@ namespace ikura::config
 		if(auto discord = config.get("discord"); !discord.is_null() && discord.is_obj())
 		{
 			loadDiscordConfig(discord.as_obj());
+		}
+
+		if(auto irc = config.get("irc"); !irc.is_null() && irc.is_obj())
+		{
+			loadIRCConfig(irc.as_obj());
 		}
 
 		delete[] buf;

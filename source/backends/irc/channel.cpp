@@ -1,14 +1,11 @@
 // channel.cpp
-// Copyright (c) 2020, zhiayang
-// Licensed under the Apache License Version 2.0.
+// Copyright (c) 2020, zhiayang, Apache License 2.0.
 
 #include "db.h"
-#include "cmd.h"
-#include "defs.h"
-#include "config.h"
-#include "twitch.h"
+#include "irc.h"
+#include "perms.h"
 
-namespace ikura::twitch
+namespace ikura::irc
 {
 	std::string Channel::getCommandPrefix() const
 	{
@@ -17,7 +14,7 @@ namespace ikura::twitch
 
 	std::string Channel::getUsername() const
 	{
-		return config::twitch::getUsername();
+		return this->nickname;
 	}
 
 	std::string Channel::getName() const
@@ -25,22 +22,26 @@ namespace ikura::twitch
 		return this->name;
 	}
 
-	bool Channel::checkUserPermissions(ikura::str_view userid, const PermissionSet& required) const
+	bool Channel::checkUserPermissions(ikura::str_view username, const PermissionSet& required) const
 	{
 		// massive hack but idgaf
-		if(userid == MAGIC_OWNER_USERID)
+		if(username == irc::MAGIC_OWNER_USERID || username == this->server->owner)
 			return true;
 
 		return database().map_read([&](auto& db) {
-			// mfw "const correctness", so we can't use operator[]
-			auto chan = db.twitchData.getChannel(this->name);
+			auto srv = db.ircData.getServer(this->server->name);
+			if(!srv) return false;
+
+			auto chan = srv->getChannel(this->name);
 			if(!chan) return false;
 
-			auto user = chan->getUser(userid);
+			auto user = chan->getUser(username);
 			if(!user) return false;
 
 			return required.check(user->permissions, user->groups, { });
 		});
+
+		return true;
 	}
 
 	bool Channel::shouldPrintInterpErrors() const
@@ -77,21 +78,13 @@ namespace ikura::twitch
 				out += ' ';
 		}
 
-		constexpr const char* MAGIC_MESSAGE_SUFFIX = u8" \U000E0000";
-
 		ikura::str_view str = out;
 		str = str.trim();
 
 		if(!str.empty())
 		{
-			// OMEGALUL -- https://github.com/Chatterino/chatterino2/tree/master/src/providers/twitch/TwitchChannel.cpp#L37
-			if(out == this->lastSentMessage)
-				out += MAGIC_MESSAGE_SUFFIX;
-
-			this->state->sendMessage(this->name, out);
-			this->lastSentMessage = out;
-
-			lg::log("msg", "twitch/#%s: %s>>>%s %s", this->getName(),
+			this->server->sendMessage(this->getName(), out);
+			lg::log("msg", "irc/%s: %s>>>%s %s", this->getName(),
 				colours::GREEN_BOLD, colours::COLOUR_RESET, str);
 		}
 

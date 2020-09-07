@@ -98,6 +98,10 @@ namespace ikura::discord
 
 	}
 
+	bool Channel::shouldLurk() const
+	{
+		return this->lurk;
+	}
 
 	void Channel::sendMessage(const Message& msg) const
 	{

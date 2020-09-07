@@ -564,6 +564,12 @@ namespace ikura
 		constexpr uint8_t TAG_CACHED_EMOTE_DB       = 0x5B;
 		constexpr uint8_t TAG_DISCORD_LOG           = 0x5C;
 		constexpr uint8_t TAG_DISCORD_LOG_MSG       = 0x5D;
+		constexpr uint8_t TAG_IRC_LOG               = 0x5E;
+		constexpr uint8_t TAG_IRC_LOG_MSG           = 0x5F;
+		constexpr uint8_t TAG_IRC_USER              = 0x60;
+		constexpr uint8_t TAG_IRC_SERVER            = 0x61;
+		constexpr uint8_t TAG_IRC_CHANNEL           = 0x62;
+		constexpr uint8_t TAG_IRC_DB                = 0x63;
 
 		// interp part 2
 		constexpr uint8_t TAG_AST_FUNCTION_DEFN     = 0x68;

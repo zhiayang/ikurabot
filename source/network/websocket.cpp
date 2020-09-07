@@ -166,7 +166,10 @@ namespace ikura
 			return false;
 		}
 
-		// setup the handler.
+		// setup the handler. note the use of `offset`. if there are multiple frames in a tcp packet, but the last frame
+		// is incomplete (eg. 2.5 frames), then we will have issues, because it is not possible to remove the first 2 packets
+		// from the beginning of the buffer so that they do not get re-processed when we receive the remaining 0.5 frames for
+		// the last fella. the offset is used here to fix that problem.
 		this->conn.onReceive([this](Span data) {
 
 			if(this->buffer.remaining() < data.size())
@@ -175,7 +178,7 @@ namespace ikura
 			this->buffer.write(data);
 
 			// zpr::println("rx:\n%s", data.sv().drop(2));
-			auto the_buffer = this->buffer.span();
+			auto the_buffer = this->buffer.span().drop(this->offset);
 
 			// note that we must do 'return' here, because breaking out of the loop normally will
 			// clear the buffer; if we detect incomplete data, we must leave it in the buffer until
@@ -192,6 +195,7 @@ namespace ikura
 				if(frame->mask || frame->opcode >= 0x0B)
 				{
 					this->buffer.clear();
+					this->offset = 0;
 					return;
 				}
 
@@ -236,6 +240,7 @@ namespace ikura
 				// ok, we have the entire packet. get it (limiting the length), then remove it from the tmp buffer
 				auto msg = the_buffer.drop(totalLen - payloadLen).take(payloadLen);
 				the_buffer.remove_prefix(totalLen);
+				offset += totalLen;
 
 				// run the callback
 				this->handle_frame(frame->opcode, frame->fin, msg);
@@ -243,6 +248,7 @@ namespace ikura
 
 			// discard the frame now.
 			this->buffer.clear();
+			this->offset = 0;
 		});
 
 		this->conn.onDisconnect([this]() {
