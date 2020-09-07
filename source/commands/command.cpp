@@ -345,7 +345,7 @@ namespace ikura::cmd
 		ret["def"]      = PermissionSet::fromFlags(p_admin);
 		ret["redef"]    = PermissionSet::fromFlags(p_admin);
 		ret["undef"]    = PermissionSet::fromFlags(p_admin);
-		ret["list"]     = PermissionSet::fromFlags(p_known);
+		ret["listcmds"] = PermissionSet::fromFlags(p_admin);
 		ret["defun"]    = PermissionSet::fromFlags(p_admin);
 		ret["usermod"]  = PermissionSet::fromFlags(p_admin);
 		ret["showmod"]  = PermissionSet::fromFlags(p_admin);

@@ -17,9 +17,16 @@ using namespace std::chrono_literals;
 	TODO (general):
 
 	upgrade to released zpr
+	markov state browser/editor
+	irc support
 
 
 	TODO (bot):
+
+	add blacklist for discord channels to not train markov
+	possibly add blacklist for other stuff (eg. commands)
+
+	add blacklist for bttv/ffz emotes.
 
 	builtin function to reload bttv and ffz emotes
 	console command to re-emotify all logged messages (and move this functionality out of markov)

@@ -30,13 +30,14 @@ namespace ikura::interp
 	static void command_global(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_usermod(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_showmod(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
+	static void command_listcmds(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_groupadd(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_groupdel(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 
 	bool is_builtin_command(ikura::str_view x)
 	{
 		return zfu::match(x, "def", "eval", "show", "redef", "undef", "chmod", "global",
-			"usermod", "groupadd", "groupdel", "showmod", "defun");
+			"usermod", "groupadd", "groupdel", "showmod", "defun", "listcmds");
 	}
 
 	// tsl::robin_map doesn't let us do this for some reason, so just fall back to std::unordered_map.
@@ -53,6 +54,7 @@ namespace ikura::interp
 		{ "groupdel",   command_groupdel },
 		{ "showmod",    command_showmod  },
 		{ "defun",      command_defun    },
+		{ "listcmds",   command_listcmds },
 	};
 
 	/* not sure if this is a good idea...
@@ -161,7 +163,7 @@ namespace ikura::interp
 
 	static void command_showmod(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
 	{
-		// syntax: show <command>
+		// syntax: showmod <command>
 		auto cmd = arg_str.substr(0, arg_str.find(' ')).trim();
 
 		if(cmd.empty())
@@ -379,6 +381,20 @@ namespace ikura::interp
 		auto func = new Function(def);
 		if(!internal_def(chan, name, func))
 			delete func;
+	}
+
+
+	static void command_listcmds(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
+	{
+		// syntax: listcmds
+		auto list = interpreter().map_read([&](auto& interp) {
+			std::vector<std::string> cmds;
+			for(const auto& [ name, cmd ] : interp.commands)
+				cmds.push_back(cmd->getName());
+
+			return zfu::listToString(cmds, zfu::identity(), /* braces: */ false);
+		});
+		chan->sendMessage(Message(list));
 	}
 }
 
