@@ -30,5 +30,18 @@ namespace ikura::irc
 
 		for(const auto& srv : config::irc::getJoinServers())
 			servers.emplace_back(srv, 5000ms);
+
+		for(auto& srv : servers)
+			srv.wlock()->connect();
+	}
+
+
+	void shutdown()
+	{
+		if(!config::haveIRC())
+			return;
+
+		for(auto& srv : servers)
+			srv.wlock()->disconnect();
 	}
 }

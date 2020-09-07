@@ -28,21 +28,11 @@ namespace ikura::irc
 				if(x == std::string::npos)
 					return;
 
-				zpr::println("rx = %s", sv.take(x));
-				auto _msg = irc::parseMessage(sv.take(x));
+				fn(sv.take(x));
+				auto len = x + strlen("\r\n");
 
-				if(_msg.has_value())
-				{
-					fn(_msg.value());
-					auto len = x + strlen("\r\n");
-
-					sv.remove_prefix(len);
-					offset += len;
-				}
-				else
-				{
-					lg::warn("irc", "received invalid irc message");
-				}
+				sv.remove_prefix(len);
+				offset += len;
 			}
 
 			// if we got here, we cleared all the messages, so clear the buffer.
@@ -67,7 +57,7 @@ namespace ikura::irc
 		auto sys = zpr::sprint("irc/%s", server.name);
 
 		// try to connect.
-		lg::log(sys, "connecting...");
+		lg::log(sys, "connecting to %s:%d", server.hostname, server.port);
 
 		auto backoff = 500ms;
 		for(int i = 0; i < CONNECT_RETRIES; i++)
@@ -82,46 +72,20 @@ namespace ikura::irc
 
 		// TODO: we don't support server passwords
 
-		// if we use SASL, we should CAP REQ it.
+		// if we use SASL, we should CAP REQ it. the thing is, because of the weird "ident reponse" thing,
+		// we'll probably not get a reply from the server with the CAP ACK till like 5-10 seconds later.
+		// so, just fire off the request and check for the ACK after sending USER and NICK.
 		if(use_sasl)
 		{
-			// wait for the server to respond with the ack.
 			this->sendRawMessage("CAP REQ :sasl");
-
-			condvar<bool> cv;
-
-			size_t offset = 0;
-			auto buf = Buffer(1024);
-			readMessagesFromSocket(this->socket, buf, offset, [&](const IRCMessage& msg) {
-
-				// we shouldn't even get cap ack at this point.
-				if(msg.command == "CAP")
-				{
-					// we should get one of these:
-					// :orwell.freenode.net CAP * ACK :sasl
-					// :orwell.freenode.net CAP * NAK :sasl
-
-					if(msg.params.size() != 3 || msg.params[1] == "NAK")
-						use_sasl = false;
-
-					cv.set(true);
-				}
-
-				zpr::println("msg: %s", msg.command);
-			});
-
-			cv.wait(true, 500ms);
-			if(!use_sasl)
-				lg::warn(sys, "failed to negotiate SASL, falling back on NickServ");
-
-			// need to reset the callback on the socket
-			this->socket.onReceive([](auto) { });
 		}
 
 		// send the nickname and the username.
 		// (for username the hostname and servername are ignored so just send *)
 		this->sendRawMessage(zpr::sprint("NICK %s", server.nickname));
 		this->sendRawMessage(zpr::sprint("USER %s * * :%s", server.username, server.username));
+
+		bool nicknameUsed = false;
 
 		if(use_sasl)
 		{
@@ -132,7 +96,16 @@ namespace ikura::irc
 
 			size_t offset = 0;
 			auto buf = Buffer(1024);
-			readMessagesFromSocket(this->socket, buf, offset, [&](const IRCMessage& msg) {
+			readMessagesFromSocket(this->socket, buf, offset, [&](ikura::str_view sv) {
+
+				auto res = parseMessage(sv);
+				if(!res.has_value())
+				{
+					lg::warn(sys, "invalid irc message");
+					return;
+				}
+
+				auto& msg = res.value();
 
 				if(msg.command == "AUTHENTICATE")
 				{
@@ -141,9 +114,31 @@ namespace ikura::irc
 
 					cv.set(true);
 				}
+				else if(msg.command == "CAP")
+				{
+					// we should get one of these:
+					// :orwell.freenode.net CAP * ACK :sasl
+					// :orwell.freenode.net CAP * NAK :sasl
+
+					if(msg.params.size() != 3 || msg.params[1] == "NAK")
+					{
+						use_sasl = false;
+						cv.set(true);
+					}
+					else if(msg.params.size() == 3 && msg.params[1] == "ACK" && msg.params[2] == "sasl")
+					{
+						// just log it; don't wake up, because we need to actually see the AUTHENTICATE
+						// response as well.
+						lg::log(sys, "server supports SASL");
+					}
+				}
+				else if(msg.command == "433")
+				{
+					nicknameUsed = true;
+				}
 			});
 
-			auto res = cv.wait(true, 10000ms);
+			auto res = cv.wait(true, 20s);
 
 			// need to reset the callback on the socket
 			this->socket.onReceive([](auto) { });
@@ -185,7 +180,16 @@ namespace ikura::irc
 
 			buf.clear();
 			offset = 0;
-			readMessagesFromSocket(this->socket, buf, offset, [&](const IRCMessage& msg) {
+			readMessagesFromSocket(this->socket, buf, offset, [&](ikura::str_view sv) {
+				auto res = parseMessage(sv);
+				if(!res.has_value())
+				{
+					lg::warn(sys, "invalid irc message");
+					return;
+				}
+				auto& msg = res.value();
+
+
 				if(msg.command == "903")
 					cv.set(true);
 
@@ -204,6 +208,9 @@ namespace ikura::irc
 			}
 
 			this->sendRawMessage("CAP END");
+			this->socket.onReceive([](auto) { });
+
+			lg::log(sys, "SASL authentication successful");
 		}
 		else if(!server.password.empty())
 		{
@@ -214,7 +221,67 @@ namespace ikura::irc
 			goto failure;
 		}
 
+		this->name      = server.name;
+		this->owner     = server.owner;
+		this->nickname  = server.nickname;
+		this->username  = server.username;
 		this->is_connected = true;
+
+		if(nicknameUsed)
+		{
+			lg::warn(sys, "nickname '%s' is already in use", this->nickname);
+
+			auto nick = this->nickname;
+			for(int i = 0; i < 5 && nicknameUsed; i++)
+			{
+				nick += "_";
+
+				size_t offset = 0;
+				auto buf = Buffer(256);
+
+				lg::log(sys, "trying '%s'...", nick);
+
+				condvar<bool> cv;
+
+				this->sendRawMessage(zpr::sprint("NICK %s", nick));
+				readMessagesFromSocket(this->socket, buf, offset, [&](ikura::str_view sv) {
+					auto res = parseMessage(sv);
+					if(!res.has_value())
+					{
+						lg::warn(sys, "invalid irc message");
+						return;
+					}
+					auto& msg = res.value();
+
+					if(msg.command == "NICK" && msg.params.size() > 0 && msg.params[0] == nick)
+						nicknameUsed = false, cv.set(true);
+
+					else if(msg.command == "MODE" && msg.params.size() > 1 && msg.params[0] == nick)
+						nicknameUsed = false, cv.set(true);
+
+					else if(msg.command == "433")
+						cv.set(true);
+				});
+
+				cv.wait(true, 2000ms);
+
+				if(!nicknameUsed)
+					break;
+			}
+
+			this->socket.onReceive([](auto) { });
+		}
+
+		this->rx_thread = std::thread(&IRCServer::recv_worker, this);
+		this->tx_thread = std::thread(&IRCServer::send_worker, this);
+
+		for(const auto& ch : server.channels)
+		{
+			this->channels[ch.name] = Channel(this, ch.name, server.nickname, ch.lurk, ch.respondToPings, ch.silentInterpErrors,
+				ch.runMessageHandlers, ch.commandPrefix);
+		}
+
+		lg::log(sys, "connected");
 		return;
 
 	failure:
@@ -222,12 +289,87 @@ namespace ikura::irc
 		this->is_connected = false;
 	}
 
+	IRCServer::~IRCServer()
+	{
+		this->mqueue.push_send(QueuedMsg::disconnect());
+		this->mqueue.push_receive(QueuedMsg::disconnect());
+
+		this->rx_thread.join();
+		this->tx_thread.join();
+
+		if(this->is_connected)
+			this->disconnect();
+	}
+
+	void IRCServer::connect()
+	{
+		// join the channels.
+		for(const auto& [ name, chan ] : this->channels)
+			this->sendRawMessage(zpr::sprint("JOIN %s", name));
+	}
+
+	void IRCServer::disconnect()
+	{
+		this->is_connected = false;
+
+		this->sendRawMessage("QUIT");
+		this->socket.disconnect();
+
+		// just quit, then close the socket.
+		lg::log(zpr::sprint("irc/%s", this->name), "disconnected");
+	}
+
 	void IRCServer::sendRawMessage(ikura::str_view msg)
 	{
 		// imagine making copies in $YEAR
 		auto s = zpr::sprint("%s\r\n", msg);
 		this->socket.send(ikura::Span((const uint8_t*) s.data(), s.size()));
+	}
 
-		// zpr::println(">> %s", s);
+	void IRCServer::sendMessage(ikura::str_view channel, ikura::str_view msg)
+	{
+		auto s = zpr::sprint("PRIVMSG %s :%s\r\n", channel, msg);
+		this->socket.send(ikura::Span((const uint8_t*) s.data(), s.size()));
+	}
+
+
+
+
+
+
+
+	void IRCServer::recv_worker()
+	{
+		size_t offset = 0;
+		auto buf = Buffer(512);
+
+		// setup the socket handler
+		readMessagesFromSocket(this->socket, buf, offset, [&](ikura::str_view sv) {
+			this->mqueue.push_receive(sv.str());
+		});
+
+		while(true)
+		{
+			auto msg = this->mqueue.pop_receive();
+			if(msg.disconnected)
+				break;
+
+			this->processMessage(msg.msg);
+		}
+
+		lg::dbglog(zpr::sprint("irc/%s", this->name), "receive worker exited");
+		this->socket.onReceive([](auto) { });
+	}
+
+	void IRCServer::send_worker()
+	{
+		while(true)
+		{
+			auto msg = this->mqueue.pop_send();
+			if(msg.disconnected)
+				break;
+		}
+
+		lg::dbglog(zpr::sprint("irc/%s", this->name), "send worker exited");
 	}
 }

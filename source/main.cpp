@@ -88,6 +88,7 @@ int main(int argc, char** argv)
 	ikura::discord::shutdown();
 	ikura::twitch::shutdown();
 	ikura::markov::shutdown();
+	ikura::irc::shutdown();
 
 	ikura::database().rlock()->sync();
 	return 0;

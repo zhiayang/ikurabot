@@ -230,7 +230,7 @@ namespace ikura
 					auto userid = twch.usernameMapping[user];
 					if(userid.empty())
 					{
-						fail:
+					fail:
 						chan->sendMessage(Message(zpr::sprint("unknown user '%s'", user)));
 						return false;
 					}

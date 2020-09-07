@@ -32,6 +32,7 @@ namespace ikura::twitch
 		virtual bool shouldPrintInterpErrors() const override;
 		virtual bool shouldRunMessageHandlers() const override;
 		virtual Backend getBackend() const override { return Backend::Twitch; }
+		virtual bool shouldLurk() const override;
 		virtual bool checkUserPermissions(ikura::str_view userid, const PermissionSet& required) const override;
 
 		virtual void sendMessage(const Message& msg) const override;

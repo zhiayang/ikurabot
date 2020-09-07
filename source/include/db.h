@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "irc.h"
 #include "markov.h"
 #include "twitch.h"
 #include "discord.h"
@@ -13,6 +14,7 @@ namespace ikura
 	namespace twitch  { struct TwitchDB; }
 	namespace markov  { struct MarkovDB; }
 	namespace discord { struct DiscordDB; }
+	namespace irc::db { struct IrcDB; }
 
 	namespace db
 	{
@@ -93,6 +95,7 @@ namespace ikura
 			twitch::TwitchDB twitchData;
 			markov::MarkovDB markovData;
 			discord::DiscordDB discordData;
+			irc::db::IrcDB ircData;
 			SharedDB sharedData;
 			MessageDB messageData;
 

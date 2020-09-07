@@ -39,7 +39,7 @@ namespace ikura::twitch
 
 		if(msg.command == "PING")
 		{
-			log("ping-pong");
+			lg::dbglog("twitch", "ping-pong");
 			return this->sendRawMessage(zpr::sprint("PONG %s", msg.params.size() > 0 ? msg.params[0] : ""));
 		}
 		else if(msg.command == "CAP")
@@ -54,7 +54,7 @@ namespace ikura::twitch
 		{
 			// :user!user@user.tmi.twitch.tv JOIN #channel
 			if(msg.params.size() != 1)
-				return error("malformed JOIN (%zu): %s", input);
+				return error("malformed JOIN: %s", input);
 
 			log("joined %s", msg.params[0]);
 		}
@@ -78,6 +78,10 @@ namespace ikura::twitch
 			if(msg.params.size() < 2)
 				return error("malformed: less than 2 params for PRIVMSG");
 
+			// ignore other ctcp commands like VERSION or whatever.
+			if(msg.isCTCP && msg.ctcpCommand != "ACTION")
+				return;
+
 			auto username = msg.user;
 
 			// check for self
@@ -87,7 +91,6 @@ namespace ikura::twitch
 			// check for ignored users
 			if(config::twitch::isUserIgnored(username))
 				return;
-
 
 			auto channel = msg.params[0];
 			if(channel[0] != '#')
@@ -117,9 +120,9 @@ namespace ikura::twitch
 			);
 
 
-			// only process commands if we're not lurking
+			// only process commands if we're not lurking and it's not a ctcp.
 			bool ran_cmd = false;
-			if(!this->channels[channel].lurk)
+			if(!this->channels[channel].lurk && !msg.isCTCP)
 				ran_cmd = cmd::processMessage(userid, username, &this->channels[channel], message_u8, /* enablePings: */ true);
 
 			auto tmp = util::stou(msg.tags["tmi-sent-ts"]);

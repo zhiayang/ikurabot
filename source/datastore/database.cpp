@@ -33,7 +33,7 @@ namespace ikura::db
 
 	static_assert(sizeof(Superblock) == 24);
 
-	constexpr uint32_t DB_VERSION   = 24;
+	constexpr uint32_t DB_VERSION   = 25;
 	constexpr const char* DB_MAGIC  = "ikura_db";
 
 	// the database will only sync to disk if it was modified
@@ -162,6 +162,7 @@ namespace ikura::db
 		wr.write(this->markovData);
 		wr.write(this->sharedData);
 		wr.write(this->discordData);
+		wr.write(this->ircData);
 		wr.write(this->messageData);
 	}
 
@@ -205,6 +206,9 @@ namespace ikura::db
 
 		if(!rd.read(&db.discordData))
 			return error("failed to read discord data");
+
+		if(currentDatabaseVersion >= 25 && !rd.read(&db.ircData))
+			return error("failed to read irc data");
 
 		if(!rd.read(&db.messageData))
 			return error("failed to read message logs");

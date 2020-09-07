@@ -143,6 +143,7 @@ namespace ikura
 
 		Socket conn;
 		Buffer buffer;
+		size_t offset = 0;
 
 		URL url;
 

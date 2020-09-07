@@ -300,7 +300,7 @@ namespace kissnet
 #include <netinet/in.h>
 #include <netdb.h>
 #include <unistd.h>
-#include <errno.h>
+// #include <errno.h>
 #include <fcntl.h>
 
 using ioctl_setting = int;
