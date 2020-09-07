@@ -14,13 +14,26 @@ namespace ikura::irc
 	static std::list<Synchronised<IRCServer>> servers;
 
 
+	const Channel* getChannelFromServer(ikura::str_view server, ikura::str_view channel)
+	{
+		for(const auto& s : servers)
+		{
+			auto ret = s.map_read([&](auto& srv) -> const Channel* {
+				if(srv.name != server)
+					return nullptr;
 
+				if(auto it = srv.channels.find(channel); it != srv.channels.end())
+					return &it->second;
 
+				return nullptr;
+			});
 
+			if(ret)
+				return ret;
+		}
 
-
-
-
+		return nullptr;
+	}
 
 
 	void init()

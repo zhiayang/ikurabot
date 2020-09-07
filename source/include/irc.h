@@ -126,7 +126,7 @@ namespace ikura::irc
 	void init();
 	void shutdown();
 
-
+	const Channel* getChannelFromServer(ikura::str_view server, ikura::str_view channel);
 
 	// db stuff
 	namespace db

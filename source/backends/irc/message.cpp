@@ -32,7 +32,8 @@ namespace ikura::irc
 			if(msg.params.size() != 1)
 				return lg::error(sys, "malformed JOIN: %s", sv);
 
-			lg::log(sys, "joined %s", msg.params[0]);
+			if(msg.nick == this->nickname)
+				lg::log(sys, "joined %s", msg.params[0]);
 		}
 		else if(msg.command == "NOTICE")
 		{
@@ -41,12 +42,14 @@ namespace ikura::irc
 
 			lg::log(sys, "notice in %s: %s", channel, message);
 		}
+		else if(msg.command == "NICK")
+		{
+			lg::log(sys, "nickname change: %s -> %s", msg.nick, msg.params[0]);
+		}
 		else if(msg.command == "PRIVMSG")
 		{
 			if(msg.params.size() < 2)
 				return lg::error(sys, "malformed: less than 2 params for PRIVMSG");
-
-			// zpr::println("<< %s (%s) u:%s n:%s h:%s", sv, msg.isCTCP, msg.user, msg.nick, msg.host);
 
 			// special-case ACTION.
 			if(msg.isCTCP && msg.ctcpCommand != "ACTION")
@@ -55,20 +58,11 @@ namespace ikura::irc
 			else
 				return handle_msg(this, msg);
 		}
-		else if(msg.command == "PART")
+		else if(msg.command == "PART" || msg.command == "MODE" || msg.command == "QUIT")
 		{
 			// meh.
 		}
-		else if(msg.command == "MODE")
-		{
-			// meh.
-		}
-		else if(msg.command == "353" || msg.command == "366")
-		{
-			// NAMES -- ignore these.
-		}
-		else if(zfu::match(msg.command, "001", "002", "003", "004", "005", "250", "251", "252", "253", "254", "255", "265", "266",
-			"332", "333", "372", "375", "376"))
+		else if(zfu::match(msg.command[0], '0', '1', '2', '3'))
 		{
 			// stupid startup messages.
 		}
