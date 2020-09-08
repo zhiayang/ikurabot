@@ -71,7 +71,7 @@ namespace ikura::twitch
 			auto channel = msg.params[0];
 			auto message = msg.params[1];
 
-			lg::log("twitch", "notice in #%s: %s", channel, message);
+			lg::log("twitch", "notice in %s: %s", channel, message);
 		}
 		else if(msg.command == "PRIVMSG")
 		{

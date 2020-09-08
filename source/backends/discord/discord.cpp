@@ -157,6 +157,7 @@ namespace ikura::discord
 			goto retry;
 		}
 
+		this->ws.onReceiveText([](auto...) { });
 		this->didAckHeartbeat = true;
 
 		// massive hax
