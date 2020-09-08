@@ -21,9 +21,9 @@ namespace ikura::twitch
 	struct Channel : ikura::Channel
 	{
 		Channel() : name(""), lurk(false), mod(false), respondToPings(false) { }
-		Channel(TwitchState* st, std::string n, bool l, bool m, bool p, bool si, bool mh, std::string cp)
+		Channel(TwitchState* st, std::string n, bool l, bool m, bool p, bool si, bool mh, std::string cp, bool ffz, bool bttv)
 			: name(std::move(n)), lurk(l), mod(m), respondToPings(p), silentInterpErrors(si), runMessageHandlers(mh),
-			  commandPrefix(std::move(cp)), state(st) { }
+			  commandPrefix(std::move(cp)), state(st), ffzEmotes(ffz), bttvEmotes(bttv) { }
 
 		virtual std::string getName() const override;
 		virtual std::string getUsername() const override;
@@ -37,6 +37,9 @@ namespace ikura::twitch
 
 		virtual void sendMessage(const Message& msg) const override;
 
+		bool haveFFZEmotes() const { return this->ffzEmotes; }
+		bool haveBTTVEmotes() const { return this->bttvEmotes; }
+
 	private:
 		std::string name;
 		bool lurk = false;
@@ -49,6 +52,9 @@ namespace ikura::twitch
 		mutable std::string lastSentMessage;
 
 		TwitchState* state = nullptr;
+
+		bool ffzEmotes = false;
+		bool bttvEmotes = false;
 
 		friend struct TwitchState;
 	};

@@ -276,11 +276,11 @@ namespace ikura::config
 				}
 				else
 				{
-					guild.silentInterpErrors = get_bool(obj, "silent_interp_errors", false);
-					guild.respondToPings = get_bool(obj, "respond_to_pings", false);
-					guild.lurk = get_bool(obj, "lurk", false);
-					guild.commandPrefix = get_string(obj, "command_prefix", "");
-					guild.runMessageHandlers = get_bool(obj, "run_message_handlers", false);
+					guild.lurk                  = get_bool(obj, "lurk", false);
+					guild.silentInterpErrors    = get_bool(obj, "silent_interp_errors", false);
+					guild.respondToPings        = get_bool(obj, "respond_to_pings", false);
+					guild.runMessageHandlers    = get_bool(obj, "run_message_handlers", false);
+					guild.commandPrefix         = get_string(obj, "command_prefix", "");
 
 					DiscordConfig.guilds.push_back(std::move(guild));
 				}
@@ -367,11 +367,13 @@ namespace ikura::config
 				else
 				{
 					chan.silentInterpErrors = get_bool(obj, "silent_interp_errors", false);
-					chan.respondToPings = get_bool(obj, "respond_to_pings", false);
-					chan.lurk = get_bool(obj, "lurk", false);
-					chan.mod = get_bool(obj, "mod", false);
-					chan.commandPrefix = get_string(obj, "command_prefix", "");
+					chan.respondToPings     = get_bool(obj, "respond_to_pings", false);
+					chan.lurk               = get_bool(obj, "lurk", false);
+					chan.mod                = get_bool(obj, "mod", false);
 					chan.runMessageHandlers = get_bool(obj, "run_message_handlers", false);
+					chan.haveFFZEmotes      = get_bool(obj, "ffz_emotes", false);
+					chan.haveBTTVEmotes     = get_bool(obj, "bttv_emotes", false);
+					chan.commandPrefix      = get_string(obj, "command_prefix", "");
 
 					TwitchConfig.channels.push_back(std::move(chan));
 				}

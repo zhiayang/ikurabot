@@ -19,8 +19,6 @@ using namespace std::chrono_literals;
 
 	upgrade to released zpr
 	markov state browser/editor
-	irc support
-
 
 	TODO (bot):
 

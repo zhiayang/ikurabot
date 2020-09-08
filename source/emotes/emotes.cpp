@@ -33,8 +33,14 @@ namespace ikura::twitch
 
 				for(const auto& [ id, name ] : channels)
 				{
-					futs.push_back(ffz::updateChannelEmotes(id, name, /* force: */ false));
-					futs.push_back(bttv::updateChannelEmotes(id, name, /* force: */ false));
+					auto chan = getChannel(name);
+					if(!chan) continue;
+
+					if(chan->haveFFZEmotes())
+						futs.push_back(ffz::updateChannelEmotes(id, name, /* force: */ false));
+
+					if(chan->haveBTTVEmotes())
+						futs.push_back(bttv::updateChannelEmotes(id, name, /* force: */ false));
 				}
 
 				futures::wait(futs);

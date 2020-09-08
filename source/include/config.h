@@ -25,6 +25,9 @@ namespace ikura::config
 			bool silentInterpErrors;
 			bool runMessageHandlers;
 			std::string commandPrefix;
+
+			bool haveBTTVEmotes;
+			bool haveFFZEmotes;
 		};
 
 		std::string getOwner();
