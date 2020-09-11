@@ -329,21 +329,6 @@ namespace ikura::irc
 		lg::log(zpr::sprint("irc/%s", this->name), "disconnected");
 	}
 
-	void IRCServer::sendRawMessage(ikura::str_view msg)
-	{
-		// imagine making copies in $YEAR
-		auto s = zpr::sprint("%s\r\n", msg);
-		this->socket.send(ikura::Span((const uint8_t*) s.data(), s.size()));
-	}
-
-	void IRCServer::sendMessage(ikura::str_view channel, ikura::str_view msg)
-	{
-		auto s = zpr::sprint("PRIVMSG %s :%s\r\n", channel, msg);
-		this->socket.send(ikura::Span((const uint8_t*) s.data(), s.size()));
-	}
-
-
-
 
 
 

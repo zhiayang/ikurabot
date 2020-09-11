@@ -344,7 +344,8 @@ namespace ikura::twitch
 		if(!chan.empty() && this->channels[chan].mod)
 			is_moderator = true;
 
-		// log("queued msg at %d", std::chrono::system_clock::now().time_since_epoch().count());
+		// cut off any \r or \n
+		msg = msg.take(msg.find_first_of("\r\n"));
 
 		twitch::mqueue().emplace_send(
 			zpr::sprint("%s\r\n", msg),
@@ -384,10 +385,14 @@ namespace ikura::twitch
 		}
 		else
 		{
-			if(msg.empty() || msg[0] == '/' || msg[0] == '.')
+			if(msg.empty())
 				return;
 
-			this->sendRawMessage(zpr::sprint("PRIVMSG #%s :%s", channel, msg), channel);
+			else if(msg[0] == '/' || msg[0] == '.')
+				this->sendMessage("Jebaited", channel);
+
+			else
+				this->sendRawMessage(zpr::sprint("PRIVMSG #%s :%s", channel, msg), channel);
 		}
 	}
 }
