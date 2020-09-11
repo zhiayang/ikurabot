@@ -202,7 +202,7 @@ namespace ikura::interp
 		});
 
 		auto list = zfu::listToString(grps, [](const db::Group* grp) -> auto {
-			return zpr::sprint("(%s, %d)", grp->name, grp->id);
+			return zpr::sprint("(%s, id: %d, cnt: %d)", grp->name, grp->id, grp->members.size());
 		}, /* braces: */ false);
 
 		chan->sendMessage(Message(list));
