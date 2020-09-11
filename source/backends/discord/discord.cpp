@@ -224,8 +224,8 @@ namespace ikura::discord
 
 	retry:
 		this->ws.onReceiveText([&](bool, ikura::str_view msg) {
-			if(cv.get() || success)
-				return;
+			// if(cv.get() || success)
+			//	return;
 
 			pj::value json; std::string err;
 			pj::parse(json, msg.begin(), msg.end(), &err);
@@ -281,8 +281,11 @@ namespace ikura::discord
 
 		cv.set(false);
 
-		if(resume) this->send_resume(this->sequence, this->session_id);
-		else       this->send_identify();
+		if(resume && !this->session_id.empty())
+			this->send_resume(this->sequence, this->session_id);
+
+		else
+			this->send_identify();
 
 		// wait for a ready
 		if(!cv.wait(true, 3000ms) || !success)

@@ -268,6 +268,9 @@ namespace ikura
 		if(!this->conn.connected())
 			return;
 
+		if(this->text_callback)     this->text_callback = [](auto...) { };
+		if(this->binary_callback)   this->binary_callback = [](auto...) { };
+
 		auto cv = condvar<bool>();
 
 		auto buf = Buffer(256);
@@ -411,6 +414,7 @@ namespace ikura
 		}
 		else if(opcode == OP_TEXT)
 		{
+			// zpr::println("recv:\n%s", data.sv());
 			if(this->text_callback)
 				this->text_callback(fin, data.sv());
 
@@ -504,11 +508,11 @@ namespace ikura
 
 	void WebSocket::onReceiveText(std::function<RxTextCallbackFn>&& fn)
 	{
-		this->text_callback = fn;
+		this->text_callback = std::move(fn);
 	}
 
 	void WebSocket::onReceiveBinary(std::function<RxBinaryCallbackFn>&& fn)
 	{
-		this->binary_callback = fn;
+		this->binary_callback = std::move(fn);
 	}
 }
