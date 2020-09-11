@@ -1,6 +1,7 @@
 // server.cpp
 // Copyright (c) 2020, zhiayang, Apache License 2.0.
 
+#include "db.h"
 #include "irc.h"
 #include "config.h"
 #include "synchro.h"
@@ -49,15 +50,15 @@ namespace ikura::irc
 
 
 
-	IRCServer::IRCServer(const config::irc::Server& server, std::chrono::nanoseconds timeout)
-		: socket(server.hostname, server.port, server.useSSL, timeout)
+	IRCServer::IRCServer(const config::irc::Server& config, std::chrono::nanoseconds timeout)
+		: socket(config.hostname, config.port, config.useSSL, timeout)
 	{
-		bool use_sasl = server.useSASL;
+		bool use_sasl = config.useSASL;
 
-		auto sys = zpr::sprint("irc/%s", server.name);
+		auto sys = zpr::sprint("irc/%s", config.name);
 
 		// try to connect.
-		lg::log(sys, "connecting to %s:%d", server.hostname, server.port);
+		lg::log(sys, "connecting to %s:%d", config.hostname, config.port);
 
 		auto backoff = 500ms;
 		for(int i = 0; i < CONNECT_RETRIES; i++)
@@ -82,8 +83,8 @@ namespace ikura::irc
 
 		// send the nickname and the username.
 		// (for username the hostname and servername are ignored so just send *)
-		this->sendRawMessage(zpr::sprint("NICK %s", server.nickname));
-		this->sendRawMessage(zpr::sprint("USER %s * * :%s", server.username, server.username));
+		this->sendRawMessage(zpr::sprint("NICK %s", config.nickname));
+		this->sendRawMessage(zpr::sprint("USER %s * * :%s", config.username, config.username));
 
 		bool nicknameUsed = false;
 
@@ -159,11 +160,11 @@ namespace ikura::irc
 				};
 
 				auto buf = Buffer(400);
-				buf.write(str_to_span(server.username));
+				buf.write(str_to_span(config.username));
 				buf.write("\0", 1);
-				buf.write(str_to_span(server.username));
+				buf.write(str_to_span(config.username));
 				buf.write("\0", 1);
-				buf.write(str_to_span(server.password));
+				buf.write(str_to_span(config.password));
 
 				auto auth_str = base64::encode((const uint8_t*) buf.data(), buf.size());
 
@@ -212,7 +213,7 @@ namespace ikura::irc
 
 			lg::log(sys, "SASL authentication successful");
 		}
-		else if(!server.password.empty())
+		else if(!config.password.empty())
 		{
 		no_sasl:
 			// message nickserv, i guess.
@@ -221,10 +222,10 @@ namespace ikura::irc
 			goto failure;
 		}
 
-		this->name      = server.name;
-		this->owner     = server.owner;
-		this->nickname  = server.nickname;
-		this->username  = server.username;
+		this->name      = config.name;
+		this->owner     = config.owner;
+		this->nickname  = config.nickname;
+		this->username  = config.username;
 		this->is_connected = true;
 
 		if(nicknameUsed)
@@ -275,11 +276,20 @@ namespace ikura::irc
 		this->rx_thread = std::thread(&IRCServer::recv_worker, this);
 		this->tx_thread = std::thread(&IRCServer::send_worker, this);
 
-		for(const auto& ch : server.channels)
-		{
-			this->channels[ch.name] = Channel(this, ch.name, server.nickname, ch.lurk, ch.respondToPings, ch.silentInterpErrors,
-				ch.runMessageHandlers, ch.commandPrefix);
-		}
+		database().perform_write([&](auto& db) {
+			auto& srv = db.ircData.servers[this->name];
+
+			srv.name        = this->name;
+			srv.hostname    = config.hostname;
+
+			for(const auto& ch : config.channels)
+			{
+				this->channels[ch.name] = Channel(this, ch.name, config.nickname, ch.lurk, ch.respondToPings, ch.silentInterpErrors,
+					ch.runMessageHandlers, ch.commandPrefix);
+
+				srv.channels[ch.name].name = ch.name;
+			}
+		});
 
 		lg::log(sys, "connected");
 		return;

@@ -85,7 +85,7 @@ namespace ikura::irc
 				auto serv = db.ircData.getServer(srv->name);
 				if(!serv)
 				{
-					lg::error(sys, "could not find server in database (?!)", serv);
+					lg::error(sys, "could not find server in database (?!)");
 					return;
 				}
 
