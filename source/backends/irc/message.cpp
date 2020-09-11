@@ -1,6 +1,7 @@
 // message.cpp
 // Copyright (c) 2020, zhiayang, Apache License 2.0.
 
+#include "db.h"
 #include "irc.h"
 #include "cmd.h"
 #include "timer.h"
@@ -72,6 +73,44 @@ namespace ikura::irc
 		}
 	}
 
+	static void update_user_creds(IRCServer* srv, ikura::str_view channel, ikura::str_view username, ikura::str_view nickname)
+	{
+		auto sys = zpr::sprint("irc/%s", srv->name);
+
+		uint64_t perms = permissions::EVERYONE;
+		database().perform_write([&](auto& db) {
+
+			// no need to check for existence; just use operator[] and create things as we go along.
+			{
+				auto serv = db.ircData.getServer(srv->name);
+				if(!serv)
+				{
+					lg::error(sys, "could not find server in database (?!)", serv);
+					return;
+				}
+
+				auto chan = serv->getChannel(channel);
+				if(!chan)
+				{
+					lg::error(sys, "could not find channel '%s' in server", channel);
+					return;
+				}
+
+				auto& user = chan->knownUsers[username];
+				user.username = username;
+
+				if(!user.nickname.empty() && user.nickname != nickname)
+					lg::warn(sys, "user '%s' changed nick from '%s' to '%s'", username, user.nickname, nickname);
+
+				user.nickname = nickname;
+
+				// update the credentials:
+				user.permissions = perms;
+				chan->nicknameMapping[user.nickname] = user.username;
+			}
+		});
+	}
+
 
 	static void handle_msg(IRCServer* srv, const IRCMessage& msg)
 	{
@@ -97,6 +136,8 @@ namespace ikura::irc
 		{
 			auto channel = msg.params[0];
 			auto message = msg.params[1];
+
+			update_user_creds(srv, channel, username, msg.nick);
 
 			bool ran_cmd = false;
 			if(!srv->channels[channel].shouldLurk() && !msg.isCTCP)

@@ -32,19 +32,22 @@ namespace ikura::irc::db
 		return nullptr;
 	}
 
-	// const TwitchUser* TwitchChannel::getUser(ikura::str_view id)const
-	// {
-	// 	return const_cast<TwitchChannel*>(this)->getUser(id);
-	// }
 
-	// const TwitchChannel* TwitchDB::getChannel(ikura::str_view name) const
-	// {
-	// 	if(auto it = this->channels.find(name); it != this->channels.end())
-	// 		return &it.value();
 
-	// 	return nullptr;
-	// }
+	IRCServer* IrcDB::getServer(ikura::str_view name)
+	{
+		return const_cast<IRCServer*>(static_cast<const IrcDB*>(this)->getServer(name));
+	}
 
+	IRCChannel* IRCServer::getChannel(ikura::str_view name)
+	{
+		return const_cast<IRCChannel*>(static_cast<const IRCServer*>(this)->getChannel(name));
+	}
+
+	IRCUser* IRCChannel::getUser(ikura::str_view name)
+	{
+		return const_cast<IRCUser*>(static_cast<const IRCChannel*>(this)->getUser(name));
+	}
 
 
 
@@ -115,7 +118,7 @@ namespace ikura::irc::db
 
 		wr.write(this->name);
 		wr.write(this->knownUsers);
-		wr.write(this->usernameMapping);
+		wr.write(this->nicknameMapping);
 	}
 
 	std::optional<IRCChannel> IRCChannel::deserialise(Span& buf)
@@ -132,7 +135,7 @@ namespace ikura::irc::db
 		if(!rd.read(&ret.knownUsers))
 			return { };
 
-		if(!rd.read(&ret.usernameMapping))
+		if(!rd.read(&ret.nicknameMapping))
 			return { };
 
 		return ret;

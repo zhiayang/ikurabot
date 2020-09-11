@@ -75,6 +75,8 @@ namespace ikura
 			Group* getGroup(uint64_t id);
 			const Group* getGroup(uint64_t id) const;
 
+			const ikura::string_map<Group>& getGroups() const;
+
 			// returns true on success
 			bool addGroup(ikura::str_view name);
 			bool removeGroup(ikura::str_view name);

@@ -41,6 +41,7 @@ namespace ikura
 		Result<PermissionSet> parse(const Channel* chan, ikura::str_view sv, PermissionSet orig);
 
 		bool updateUserPermissions(const Channel* chan, ikura::str_view user, ikura::str_view perm_str);
+		std::optional<std::string> printUserGroups(const Channel* chan, ikura::str_view user);
 
 		std::string print(const Channel* chan, const PermissionSet& perms);
 	}

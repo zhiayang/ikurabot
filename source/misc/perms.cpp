@@ -108,7 +108,7 @@ namespace ikura
 			return perms;
 		}
 
-		// +3a+group+group+@discord role-@blacklist role+group with \+ plus
+		// +3a+group+group+%discord
 		Result<PermissionSet> parse(const Channel* chan, ikura::str_view sv, PermissionSet orig)
 		{
 			uint64_t flag = 0;
@@ -181,6 +181,203 @@ namespace ikura
 		}
 
 
+		using TUsr_t = twitch::TwitchUser;
+		using IUsr_t = irc::db::IRCUser;
+		using DUsr_t = discord::DiscordUser;
+
+		template <typename T>
+		static std::pair<std::string, T*> get_user_from_db(const Channel* chan, ikura::str_view user);
+
+		template <>
+		std::pair<std::string, TUsr_t*> get_user_from_db<TUsr_t>(const Channel* chan, ikura::str_view user)
+		{
+			using Ret_T = std::pair<std::string, TUsr_t*>;
+
+			return database().map_write([&](auto& db) -> Ret_T {
+				auto& twch = db.twitchData.channels[chan->getName()];
+				auto userid = twch.usernameMapping[user];
+				if(userid.empty())
+				{
+				fail:
+					chan->sendMessage(Message(zpr::sprint("unknown user '%s'", user)));
+					return { "", nullptr };
+				}
+
+				auto twusr = twch.getUser(userid);
+				if(twusr == nullptr) goto fail;
+
+				return { twusr->id, twusr };
+			});
+		}
+
+		template <>
+		std::pair<std::string, IUsr_t*> get_user_from_db<IUsr_t>(const Channel* chan, ikura::str_view user)
+		{
+			using Ret_T = std::pair<std::string, IUsr_t*>;
+
+			return database().map_write([&](auto& db) -> Ret_T {
+
+				auto srv = db.ircData.getServer(dynamic_cast<const irc::Channel*>(chan)->getServer()->name);
+				if(!srv) return { "", nullptr };
+
+				auto chn = srv->getChannel(chan->getName());
+				if(!chn) return { "", nullptr };
+
+				auto usr = chn->getUser(user);
+				if(!usr) return { "", nullptr };
+
+				return { usr->username, usr };
+			});
+		}
+
+
+
+		template <>
+		std::pair<std::string, DUsr_t*> get_user_from_db<DUsr_t>(const Channel* chan, ikura::str_view user)
+		{
+			using Ret_T = std::pair<std::string, DUsr_t*>;
+
+			auto dchan = dynamic_cast<const discord::Channel*>(chan);
+			assert(dchan);
+
+			auto guild = dchan->getGuild();
+			assert(guild);
+
+			discord::Snowflake userid;
+			if(auto tmp = discord::parseMention(user, nullptr); tmp.has_value())
+			{
+				userid = tmp.value();
+			}
+			else
+			{
+				if(auto it = guild->usernameMap.find(user); it != guild->usernameMap.end())
+					userid = it->second;
+
+				else if(auto it = guild->nicknameMap.find(user); it != guild->nicknameMap.end())
+					userid = it->second;
+			}
+
+			auto no_user = [&]() -> auto {
+				chan->sendMessage(Message(zpr::sprint("unknown user '%s'", user)));
+				return Ret_T("", nullptr);
+			};
+
+			if(userid.empty())
+			{
+				return no_user();
+			}
+			else if(userid == config::discord::getUserId())
+			{
+				chan->sendMessage(Message(zpr::sprint("cannot usermod the bot")));
+				return { "", nullptr };
+			}
+
+			return database().map_write([&](auto& db) -> Ret_T {
+				auto g = const_cast<discord::DiscordGuild*>(guild);
+				auto usr = g->getUser(userid);
+				if(!usr) return no_user();
+
+				return { usr->id.str(), usr };
+			});
+		}
+
+
+
+	#if 0
+		{
+			using Ret_T = std::pair<std::string, T*>;
+
+			auto bogus_user = []() -> auto {
+				return Ret_T("", nullptr);
+			};
+
+			// handle for twitch and discord separately -- but we need to somehow update in both.
+			// TODO: figure out a way to update both twitch and discord here?
+			if(chan->getBackend() == Backend::Twitch)
+			{
+			}
+			else if(chan->getBackend() == Backend::IRC)
+			{
+			}
+			else if(chan->getBackend() == Backend::Discord)
+			{
+			}
+			else
+			{
+				return bogus_user();
+			}
+		}
+	#endif
+
+		template <typename T>
+		const std::vector<uint64_t>* get_user_groups(const Channel* chan, ikura::str_view user)
+		{
+			auto user_and_name = get_user_from_db<T>(chan, user);
+			if(user_and_name.first.empty() || user_and_name.second == nullptr)
+				return nullptr;
+
+			return &user_and_name.second->groups;
+		}
+
+		std::optional<std::string> printUserGroups(const Channel* chan, ikura::str_view user)
+		{
+			const std::vector<uint64_t>* groups = nullptr;
+
+			if(chan->getBackend() == Backend::Twitch)
+				groups = get_user_groups<TUsr_t>(chan, user);
+
+			else if(chan->getBackend() == Backend::IRC)
+				groups = get_user_groups<IUsr_t>(chan, user);
+
+			else if(chan->getBackend() == Backend::Discord)
+				groups = get_user_groups<DUsr_t>(chan, user);
+
+			if(groups == nullptr)
+				return { };
+
+			return database().map_read([&groups](auto& db) -> std::string {
+				return zfu::listToString(*groups, [&db](uint64_t gid) -> auto {
+					if(auto grp = db.sharedData.getGroup(gid); grp != nullptr)
+						return zpr::sprint("(%s, id: %d)", grp->name, grp->id);
+
+					return zpr::sprint("(id: %d)", gid);
+				});
+			});
+		}
+
+
+		template <typename T>
+		static bool update_user_groups(const PermissionSet& ps, const Channel* chan, ikura::str_view user,
+			Backend backend)
+		{
+			auto user_and_name = get_user_from_db<T>(chan, user);
+			if(user_and_name.first.empty() || user_and_name.second == nullptr)
+				return false;
+
+			database().perform_write([&](auto& db) {
+				for(auto x : ps.whitelist)
+				{
+					add_to_list(user_and_name.second->groups, x);
+
+					auto g = db.sharedData.getGroup(x);
+					assert(g);
+
+					g->addUser(user_and_name.first, backend);
+				}
+
+				for(auto x : ps.blacklist)
+				{
+					remove_from_list(user_and_name.second->groups, x);
+
+					auto g = db.sharedData.getGroup(x);
+					assert(g);
+
+					g->removeUser(user_and_name.first, backend);
+				}
+			});
+
+			return true;
+		}
 
 		bool updateUserPermissions(const Channel* chan, ikura::str_view user, ikura::str_view perm_str)
 		{
@@ -199,99 +396,17 @@ namespace ikura
 				return false;
 			}
 
-			auto update_groups = [](auto& db, const PermissionSet& ps, const auto& userid, auto& usergroups, Backend backend) {
-				for(auto x : ps.whitelist)
-				{
-					add_to_list(usergroups, x);
-
-					auto g = db.sharedData.getGroup(x);
-					assert(g);
-
-					g->addUser(userid, backend);
-				}
-
-				for(auto x : ps.blacklist)
-				{
-					remove_from_list(usergroups, x);
-
-					auto g = db.sharedData.getGroup(x);
-					assert(g);
-
-					g->removeUser(userid, backend);
-				}
-			};
-
-			// handle for twitch and discord separately -- but we need to somehow update in both.
-			// TODO: figure out a way to update both twitch and discord here?
 			if(chan->getBackend() == Backend::Twitch)
-			{
-				return database().map_write([&](auto& db) -> bool {
-					auto& twch = db.twitchData.channels[chan->getName()];
-					auto userid = twch.usernameMapping[user];
-					if(userid.empty())
-					{
-					fail:
-						chan->sendMessage(Message(zpr::sprint("unknown user '%s'", user)));
-						return false;
-					}
+				return update_user_groups<TUsr_t>(res.unwrap(), chan, user, Backend::Twitch);
 
-					auto twusr = twch.getUser(userid);
-					if(twusr == nullptr) goto fail;
+			else if(chan->getBackend() == Backend::IRC)
+				return update_user_groups<IUsr_t>(res.unwrap(), chan, user, Backend::IRC);
 
-					update_groups(db, res.unwrap(), twusr->id, twusr->groups, Backend::Twitch);
-					return true;
-				});
-			}
 			else if(chan->getBackend() == Backend::Discord)
-			{
-				auto dchan = dynamic_cast<const discord::Channel*>(chan);
-				assert(dchan);
+				return update_user_groups<DUsr_t>(res.unwrap(), chan, user, Backend::Discord);
 
-				auto guild = dchan->getGuild();
-				assert(guild);
-
-				discord::Snowflake userid;
-				if(auto tmp = discord::parseMention(user, nullptr); tmp.has_value())
-				{
-					userid = tmp.value();
-				}
-				else
-				{
-					if(auto it = guild->usernameMap.find(user); it != guild->usernameMap.end())
-						userid = it->second;
-
-					else if(auto it = guild->nicknameMap.find(user); it != guild->nicknameMap.end())
-						userid = it->second;
-				}
-
-				auto no_user = [&]() -> bool {
-					chan->sendMessage(Message(zpr::sprint("unknown user '%s'", user)));
-					return false;
-				};
-
-				if(userid.empty())
-				{
-					return no_user();
-				}
-				else if(userid == config::discord::getUserId())
-				{
-					chan->sendMessage(Message(zpr::sprint("cannot usermod the bot")));
-					return false;
-				}
-
-				return database().map_write([&](auto& db) {
-					auto g = const_cast<discord::DiscordGuild*>(guild);
-					auto usr = g->getUser(userid);
-					if(!usr) return no_user();
-
-					update_groups(db, res.unwrap(), usr->id.str(), usr->groups, Backend::Discord);
-					return true;
-				});
-			}
 			else
-			{
 				return false;
-			}
 		}
 	}
 

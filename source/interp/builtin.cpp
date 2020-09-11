@@ -33,28 +33,30 @@ namespace ikura::interp
 	static void command_listcmds(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_groupadd(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_groupdel(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
+	static void command_listgroups(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 
 	bool is_builtin_command(ikura::str_view x)
 	{
 		return zfu::match(x, "def", "eval", "show", "redef", "undef", "chmod", "global",
-			"usermod", "groupadd", "groupdel", "showmod", "defun", "listcmds");
+			"usermod", "groupadd", "groupdel", "groups", "showmod", "defun", "listcmds");
 	}
 
 	// tsl::robin_map doesn't let us do this for some reason, so just fall back to std::unordered_map.
 	static std::unordered_map<std::string, void (*)(CmdContext&, const Channel*, ikura::str_view)> builtin_cmds = {
-		{ "chmod",      command_chmod    },
-		{ "eval",       command_eval     },
-		{ "global",     command_global   },
-		{ "def",        command_def      },
-		{ "redef",      command_redef    },
-		{ "undef",      command_undef    },
-		{ "show",       command_show     },
-		{ "usermod",    command_usermod  },
-		{ "groupadd",   command_groupadd },
-		{ "groupdel",   command_groupdel },
-		{ "showmod",    command_showmod  },
-		{ "defun",      command_defun    },
-		{ "listcmds",   command_listcmds },
+		{ "chmod",      command_chmod      },
+		{ "eval",       command_eval       },
+		{ "global",     command_global     },
+		{ "def",        command_def        },
+		{ "redef",      command_redef      },
+		{ "undef",      command_undef      },
+		{ "show",       command_show       },
+		{ "usermod",    command_usermod    },
+		{ "groupadd",   command_groupadd   },
+		{ "groupdel",   command_groupdel   },
+		{ "groups",     command_listgroups },
+		{ "showmod",    command_showmod    },
+		{ "defun",      command_defun      },
+		{ "listcmds",   command_listcmds   },
 	};
 
 	/* not sure if this is a good idea...
@@ -186,6 +188,26 @@ namespace ikura::interp
 		chan->sendMessage(Message(perms::print(chan, perms)));
 	}
 
+	static void command_listgroups(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
+	{
+		// syntax: groups
+		auto grps = database().map_read([](auto& db) -> auto {
+			auto& grps = db.sharedData.getGroups();
+
+			std::vector<const db::Group*> groups;
+			for(const auto& [ n, grp ] : grps)
+				groups.push_back(&grp);
+
+			return groups;
+		});
+
+		auto list = zfu::listToString(grps, [](const db::Group* grp) -> auto {
+			return zpr::sprint("(%s, %d)", grp->name, grp->id);
+		}, /* braces: */ false);
+
+		chan->sendMessage(Message(list));
+	}
+
 	static void command_groupadd(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
 	{
 		// syntax: groupadd <group>
@@ -230,11 +252,21 @@ namespace ikura::interp
 		auto user = arg_str.take(arg_str.find_first_of("+-")).trim();
 		auto perm_str = arg_str.drop(user.size()).trim();
 
-		if(user.empty() || perm_str.empty())
-			return chan->sendMessage(Message("not enough arguments to usermod"));
+		if(user.empty())
+		{
+			return chan->sendMessage(Message("missing user"));
+		}
+		else if(perm_str.empty())
+		{
+			auto str = perms::printUserGroups(chan, user);
+			if(!str.has_value())
+				return chan->sendMessage(Message("error"));
+
+			return chan->sendMessage(Message(zpr::sprint("member of: %s", str.value())));
+		}
 
 		if(perms::updateUserPermissions(chan, user, perm_str))
-			chan->sendMessage(Message(zpr::sprint("updated groups for user '%s'", user)));
+			chan->sendMessage(Message(zpr::sprint("updated groups")));
 	}
 
 

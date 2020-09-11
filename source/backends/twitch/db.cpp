@@ -10,15 +10,15 @@ namespace ikura::twitch
 {
 	TwitchUser* TwitchChannel::getUser(ikura::str_view id)
 	{
-		if(auto it = this->knownUsers.find(id); it != this->knownUsers.end())
-			return &it.value();
-
-		return nullptr;
+		return const_cast<TwitchUser*>(static_cast<const TwitchChannel*>(this)->getUser(id));
 	}
 
 	const TwitchUser* TwitchChannel::getUser(ikura::str_view id)const
 	{
-		return const_cast<TwitchChannel*>(this)->getUser(id);
+		if(auto it = this->knownUsers.find(id); it != this->knownUsers.end())
+			return &it.value();
+
+		return nullptr;
 	}
 
 	const TwitchChannel* TwitchDB::getChannel(ikura::str_view name) const

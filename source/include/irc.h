@@ -59,6 +59,8 @@ namespace ikura::irc
 
 		virtual void sendMessage(const Message& msg) const override;
 
+		const IRCServer* getServer() const { return this->server; }
+
 	private:
 		std::string name;
 		std::string nickname;
@@ -185,8 +187,9 @@ namespace ikura::irc
 			ikura::string_map<IRCUser> knownUsers;
 
 			// map from nickname to username
-			ikura::string_map<std::string> usernameMapping;
+			ikura::string_map<std::string> nicknameMapping;
 
+			IRCUser* getUser(ikura::str_view username);
 			const IRCUser* getUser(ikura::str_view username) const;
 
 			virtual void serialise(Buffer& buf) const override;
@@ -203,6 +206,7 @@ namespace ikura::irc
 			// map from username to user.
 			ikura::string_map<IRCChannel> channels;
 
+			IRCChannel* getChannel(ikura::str_view name);
 			const IRCChannel* getChannel(ikura::str_view name) const;
 
 			virtual void serialise(Buffer& buf) const override;
@@ -217,6 +221,7 @@ namespace ikura::irc
 
 			IRCMessageLog messageLog;
 
+			IRCServer* getServer(ikura::str_view name);
 			const IRCServer* getServer(ikura::str_view name) const;
 
 			virtual void serialise(Buffer& buf) const override;

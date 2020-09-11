@@ -43,21 +43,16 @@ namespace ikura::discord
 	}
 
 
-	DiscordRole* DiscordGuild::getRole(ikura::str_view name)
+	const DiscordRole* DiscordGuild::getRole(ikura::str_view name) const
 	{
 		if(auto it = this->roleNames.find(name); it != this->roleNames.end())
-			return &this->roles[it->second];
+			return &this->roles.at(it->second);
 
 		return nullptr;
 	}
 
-	const DiscordRole* DiscordGuild::getRole(ikura::str_view name) const
-	{
-		return const_cast<DiscordGuild*>(this)->getRole(name);
-	}
 
-
-	DiscordUser* DiscordGuild::getUser(Snowflake id)
+	const DiscordUser* DiscordGuild::getUser(Snowflake id) const
 	{
 		if(auto it = this->knownUsers.find(id); it != this->knownUsers.end())
 			return &it.value();
@@ -65,9 +60,15 @@ namespace ikura::discord
 		return nullptr;
 	}
 
-	const DiscordUser* DiscordGuild::getUser(Snowflake id) const
+
+	DiscordRole* DiscordGuild::getRole(ikura::str_view name)
 	{
-		return const_cast<DiscordGuild*>(this)->getUser(id);
+		return const_cast<DiscordRole*>(static_cast<const DiscordGuild*>(this)->getRole(name));
+	}
+
+	DiscordUser* DiscordGuild::getUser(Snowflake id)
+	{
+		return const_cast<DiscordUser*>(static_cast<const DiscordGuild*>(this)->getUser(id));
 	}
 
 

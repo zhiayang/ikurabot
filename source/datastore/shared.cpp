@@ -32,7 +32,7 @@ namespace ikura::db
 		return ret;
 	}
 
-	Group* SharedDB::getGroup(ikura::str_view name)
+	const Group* SharedDB::getGroup(ikura::str_view name) const
 	{
 		if(auto it = this->groups.find(name); it != this->groups.end())
 			return &it.value();
@@ -40,23 +40,32 @@ namespace ikura::db
 		return nullptr;
 	}
 
-	const Group* SharedDB::getGroup(ikura::str_view name) const
-	{
-		return const_cast<SharedDB*>(this)->getGroup(name);
-	}
-
-	Group* SharedDB::getGroup(uint64_t id)
+	const Group* SharedDB::getGroup(uint64_t id) const
 	{
 		if(auto it = this->groupIds.find(id); it != this->groupIds.end())
-			return &this->groups[it->second];
+			return &this->groups.at(it->second);
 
 		return nullptr;
 	}
 
-	const Group* SharedDB::getGroup(uint64_t id) const
+
+	Group* SharedDB::getGroup(ikura::str_view name)
 	{
-		return const_cast<SharedDB*>(this)->getGroup(id);
+		return const_cast<Group*>(static_cast<const SharedDB*>(this)->getGroup(name));
 	}
+
+	Group* SharedDB::getGroup(uint64_t id)
+	{
+		return const_cast<Group*>(static_cast<const SharedDB*>(this)->getGroup(id));
+	}
+
+
+	const ikura::string_map<Group>& SharedDB::getGroups() const
+	{
+		return this->groups;
+	}
+
+
 
 	bool SharedDB::addGroup(ikura::str_view name)
 	{
