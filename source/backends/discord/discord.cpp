@@ -372,6 +372,8 @@ namespace ikura::discord
 				util::sleep_for(1000ms);
 
 				this->disconnect();
+				util::sleep_for(1000ms);
+
 				this->resume();
 			}).discard();
 		});
@@ -414,9 +416,6 @@ namespace ikura::discord
 
 	void DiscordState::disconnect(uint16_t code)
 	{
-		if(!this->ws.connected())
-			return;
-
 		this->ws.onReceiveText([](auto, auto) { });
 
 		database().perform_write([this](auto& db) {
@@ -442,7 +441,10 @@ namespace ikura::discord
 
 		// this prevents us from reconnecting when we wanted to disconnect, lmao
 		this->ws.onDisconnect([]() { });
-		this->ws.disconnect(code);
+
+		if(this->ws.connected())
+			this->ws.disconnect(code);
+
 		lg::log("discord", "disconnected");
 	}
 
