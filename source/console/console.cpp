@@ -26,7 +26,7 @@ namespace ikura::console
 
 		bool is_connected = false;
 		ikura::wait_queue<Socket*> danglingSockets;
-		Synchronised<std::unordered_map<Socket*, Buffer>> socketBuffers;
+		Synchronised<std::unordered_map<Socket*, Buffer*>> socketBuffers;
 
 		// todo: not thread safe
 		const Channel* currentChannel = nullptr;
@@ -49,7 +49,10 @@ namespace ikura::console
 	static void kill_socket(Socket* sock)
 	{
 		// remove the fella
-		State.socketBuffers.wlock()->erase(sock);
+		State.socketBuffers.perform_write([&](auto& sb) {
+			delete sb[sock];
+			sb.erase(sock);
+		});
 
 		// we can't kill the socket from here (since function will be called from
 		// socket's own thread). so, pass it on to someone else.
@@ -416,14 +419,21 @@ namespace ikura::console
 		print_prompt(sock);
 
 		sock->onReceive([sock](Span input) {
-			auto& buf = State.socketBuffers.wlock()->at(sock);
-			buf.write(input);
+			Buffer* buf = State.socketBuffers.map_read([sock](auto& sb) {
+				if(auto it = sb.find(sock); it != sb.end())
+					return it->second;
+
+				return (Buffer*) nullptr;
+			});
+
+			if(!buf)
+				return;
+
+			buf->write(input);
 
 			// similar thing as the websocket; if we have more than one message in the buffer
 			// possibly incomplete, we can't discard existing data.
-			auto sv = buf.sv();
-
-			// zpr::println("%s", sv);
+			auto sv = buf->sv();
 
 			while(sv.size() > 0)
 			{
@@ -438,7 +448,7 @@ namespace ikura::console
 					return;
 			}
 
-			buf.clear();
+			buf->clear();
 		});
 	}
 
@@ -507,7 +517,7 @@ namespace ikura::console
 					if(auto sock = srv->accept(200ms); sock != nullptr)
 					{
 						lg::log("console", "authenticating session (ip: %s)", sock->getAddress());
-						State.socketBuffers.wlock()->emplace(sock, Buffer(512));
+						State.socketBuffers.wlock()->emplace(sock, new Buffer(512));
 						setup_receiver(sock);
 					}
 				}
@@ -515,7 +525,10 @@ namespace ikura::console
 				// kill everything.
 				State.socketBuffers.perform_write([](auto& sb) {
 					for(auto& [ s, b ] : sb)
+					{
 						s->disconnect();
+						delete b;
+					}
 				});
 
 				State.danglingSockets.push(nullptr);
