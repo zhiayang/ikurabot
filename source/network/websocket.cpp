@@ -501,17 +501,17 @@ namespace ikura
 	}
 
 
-	void WebSocket::onDisconnect(std::function<void (void)>&& fn)
+	void WebSocket::onDisconnect(std::function<void (void)> fn)
 	{
 		this->close_callback = std::move(fn);
 	}
 
-	void WebSocket::onReceiveText(std::function<RxTextCallbackFn>&& fn)
+	void WebSocket::onReceiveText(std::function<RxTextCallbackFn> fn)
 	{
 		this->text_callback = std::move(fn);
 	}
 
-	void WebSocket::onReceiveBinary(std::function<RxBinaryCallbackFn>&& fn)
+	void WebSocket::onReceiveBinary(std::function<RxBinaryCallbackFn> fn)
 	{
 		this->binary_callback = std::move(fn);
 	}

@@ -223,7 +223,7 @@ namespace ikura::discord
 
 
 	retry:
-		this->ws.onReceiveText([&](bool, ikura::str_view msg) {
+		this->ws.onReceiveText([&cv, &success, &resume, &resumable](bool, ikura::str_view msg) {
 			// if(cv.get() || success)
 			//	return;
 
@@ -279,7 +279,7 @@ namespace ikura::discord
 			}
 		});
 
-		cv.set(false);
+		cv.set_quiet(false);
 
 		if(resume && !this->session_id.empty())
 			this->send_resume(this->sequence, this->session_id);

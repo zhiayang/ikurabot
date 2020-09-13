@@ -348,7 +348,7 @@ namespace ikura::console
 		bool success = false;
 
 		auto buf = Buffer(256);
-		sock->onReceive([&](Span input) {
+		sock->onReceive([&buf, &csrf, &success, &cv](Span input) {
 
 			buf.write(input);
 			if(buf.sv().find("\n") == std::string::npos)
@@ -367,14 +367,10 @@ namespace ikura::console
 		echo("\n");
 		echo("pass? ");
 
-		cv.set(false);
-		success = false;
-		buf.clear();
-
 		auto cfg = config::console::getConfig();
 		assert(cfg.password.algo == "sha256");
 
-		sock->onReceive([&](Span input) {
+		sock->onReceive([&buf, &cfg, &success, &cv](Span input) {
 
 			buf.write(input);
 			if(buf.sv().find("\n") == std::string::npos)
@@ -389,6 +385,10 @@ namespace ikura::console
 			success = (memcmp(hash, cfg.password.hash.data(), 32) == 0);
 			cv.set(true);
 		});
+
+		cv.set_quiet(false);
+		success = false;
+		buf.clear();
 
 		if(!cv.wait(true, AUTH_TIMEOUT) || !success)
 			return false;

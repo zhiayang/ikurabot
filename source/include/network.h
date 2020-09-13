@@ -67,8 +67,8 @@ namespace ikura
 		bool connected();
 
 		void send(Span data);
-		void onReceive(std::function<RxCallbackFn>&& fn);
-		void onDisconnect(std::function<void (void)>&& fn);
+		void onReceive(std::function<RxCallbackFn> fn);
+		void onDisconnect(std::function<void (void)> fn);
 
 		const std::string& host() const { return this->_host; }
 		uint16_t port() const { return this->_port; }
@@ -130,9 +130,9 @@ namespace ikura
 		void sendFragment(Span data, bool last);
 		void sendFragment(ikura::str_view sv, bool last);
 
-		void onDisconnect(std::function<void (void)>&& fn);
-		void onReceiveText(std::function<RxTextCallbackFn>&& fn);
-		void onReceiveBinary(std::function<RxBinaryCallbackFn>&& fn);
+		void onDisconnect(std::function<void (void)> fn);
+		void onReceiveText(std::function<RxTextCallbackFn> fn);
+		void onReceiveBinary(std::function<RxBinaryCallbackFn> fn);
 
 	private:
 		void send_raw(uint8_t opcode, bool fin, Buffer&& buf);

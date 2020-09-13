@@ -188,14 +188,14 @@ namespace ikura
 		this->socket->send(sv.data(), sv.size());
 	}
 
-	void Socket::onReceive(std::function<RxCallbackFn>&& fn)
+	void Socket::onReceive(std::function<RxCallbackFn> fn)
 	{
-		this->rx_callback = fn;
+		this->rx_callback = std::move(fn);
 	}
 
-	void Socket::onDisconnect(std::function<void (void)>&& fn)
+	void Socket::onDisconnect(std::function<void (void)> fn)
 	{
-		this->close_callback = fn;
+		this->close_callback = std::move(fn);
 	}
 
 	bool Socket::listen()
