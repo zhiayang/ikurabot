@@ -223,7 +223,7 @@ namespace ikura::discord
 
 
 	retry:
-		this->ws.onReceiveText([&cv, &success, &resume, &resumable](bool, ikura::str_view msg) {
+		this->ws.onReceiveText([resume, &cv, &success, &resumable](bool, ikura::str_view msg) {
 			// if(cv.get() || success)
 			//	return;
 
@@ -318,7 +318,7 @@ namespace ikura::discord
 
 
 		// setup the real handler
-		this->ws.onReceiveText([&](bool, ikura::str_view msg) {
+		this->ws.onReceiveText([this](bool, ikura::str_view msg) {
 			pj::value json; std::string err;
 			pj::parse(json, msg.begin(), msg.end(), &err);
 
@@ -365,10 +365,10 @@ namespace ikura::discord
 			}
 		});
 
-		this->ws.onDisconnect([&]() {
+		this->ws.onDisconnect([this]() {
 			lg::warn("discord", "server disconnected us, attempting resume...");
 
-			dispatcher().run([&]() {
+			dispatcher().run([this]() {
 				util::sleep_for(1000ms);
 
 				this->disconnect();

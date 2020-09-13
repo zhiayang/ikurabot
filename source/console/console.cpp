@@ -434,7 +434,8 @@ namespace ikura::console
 				auto cmd = sv.take(tmp);
 				sv.remove_prefix(tmp + 1);
 
-				process_command(sock, cmd.trim(/* newlines: */ true));
+				if(!process_command(sock, cmd.trim(/* newlines: */ true)))
+					return;
 			}
 
 			buf.clear();
