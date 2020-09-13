@@ -137,7 +137,8 @@ namespace ikura::twitch
 
 			this->logMessage(ts, userid, &this->channels[channel], message_u8, rel_emotes, ran_cmd);
 
-			lg::log("msg", "twitch/#%s: (%.2f ms) <%s> %s", channel, time.measure(), username, message_u8);
+			// lg::log("msg", "twitch/#%s: (%.2f ms) <%s> %s", channel, time.measure(), username, message_u8);
+			console::logMessage(Backend::Twitch, "", channel, time.measure(), username, message_u8);
 		}
 		else if(zfu::match(msg.command, "353", "366"))
 		{

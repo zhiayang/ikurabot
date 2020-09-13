@@ -6,11 +6,13 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
-#include <unordered_map>
+
+#include <map>
 
 #include "db.h"
 #include "cmd.h"
 #include "defs.h"
+#include "types.h"
 #include "config.h"
 #include "interp.h"
 #include "twitch.h"
@@ -22,11 +24,29 @@ using namespace std::chrono_literals;
 
 namespace ikura::console
 {
+	constexpr uint8_t FF_NONE        = 0x0;
+	constexpr uint8_t FF_IRC_ALL     = 0x1;
+	constexpr uint8_t FF_TWITCH_ALL  = 0x2;
+	constexpr uint8_t FF_DISCORD_ALL = 0x4;
+
+	struct LogFilter
+	{
+		ikura::string_set ircServers;
+		ikura::string_set twitchChannels;
+		ikura::string_set discordServers;
+
+		ikura::string_map<ikura::string_set> ircChannels;
+		ikura::string_map<ikura::string_set> discordChannels;
+
+		uint8_t flags = FF_NONE;
+	};
+
 	static struct {
 
 		bool is_connected = false;
 		ikura::wait_queue<Socket*> danglingSockets;
-		Synchronised<std::unordered_map<Socket*, Buffer*>> socketBuffers;
+		std::map<Socket*, LogFilter> filterSettings;
+		Synchronised<std::map<Socket*, Buffer*>> socketBuffers;
 
 		// todo: not thread safe
 		const Channel* currentChannel = nullptr;
@@ -59,6 +79,8 @@ namespace ikura::console
 		State.danglingSockets.push(sock);
 
 		sock->onReceive([](auto) { });
+
+		lg::log("console", "disconnected session (ip: %s)", sock->getAddress());
 	}
 
 	// returns false if we should quit.
@@ -108,6 +130,131 @@ namespace ikura::console
 				chan->sendMessage(Message(msg));
 		};
 
+		auto parse_stuff = [](ikura::str_view argstr) -> std::tuple<Backend, std::string, std::string> {
+
+			std::tuple<Backend, std::string, std::string> ret;
+			std::get<0>(ret) = Backend::Invalid;
+
+			auto _args = util::split(argstr, ' ');
+			auto args = ikura::span(_args);
+			auto backend = args[0];
+
+			if(backend == "twitch")
+			{
+				std::get<0>(ret) = Backend::Twitch;
+
+				if(args.size() > 1)
+				{
+					auto channel = args[1];
+					if(channel.find('#') == 0)
+						channel.remove_prefix(1);
+
+					std::get<1>(ret) = "";
+					std::get<2>(ret) = channel.str();
+				}
+
+				return ret;
+			}
+			else if(backend == "irc")
+			{
+				std::get<0>(ret) = Backend::IRC;
+
+				if(args.size() > 1)
+					std::get<1>(ret) = args[1];
+
+				if(args.size() > 2)
+					std::get<2>(ret) = args[2];
+
+				return ret;
+			}
+			else if(backend == "discord")
+			{
+				std::get<0>(ret) = Backend::Discord;
+
+				if(args.size() > 1)
+				{
+					size_t i = 0;
+					auto guild_name = args[1].str();
+					for(i = 2; i < args.size(); i++)
+					{
+						if(args[i - 1].back() == '\\')
+						{
+							guild_name.pop_back();
+							guild_name += " " + args[i].str();
+						}
+						else
+						{
+							break;
+						}
+					}
+
+					std::get<1>(ret) = guild_name;
+
+					if(i < args.size())
+					{
+						auto channel_name = util::join(args.drop(i), " ");
+						std::get<2>(ret) = channel_name;
+					}
+				}
+
+				return ret;
+			}
+
+			return { };
+		};
+
+		auto parse_join_args = [parse_stuff, sock](ikura::str_view argstr)
+			-> std::optional<std::tuple<Backend, std::string, std::string>> {
+
+			auto ret = parse_stuff(argstr);
+			auto backend = std::get<0>(ret);
+
+			if(backend == Backend::Twitch)
+			{
+				if(std::get<2>(ret).empty())
+				{
+					echo_message(sock, "missing channel\n");
+					return { };
+				}
+
+				return ret;
+			}
+			else if(backend == Backend::IRC)
+			{
+				if(std::get<1>(ret).empty() || std::get<2>(ret).empty())
+				{
+					echo_message(sock, "need server and channel\n");
+					return { };
+				}
+
+				return ret;
+			}
+			else if(backend == Backend::Discord)
+			{
+				if(std::get<1>(ret).empty() || std::get<2>(ret).empty())
+				{
+					echo_message(sock, zpr::sprint("need guild and channel\n"));
+					return { };
+				}
+
+				return ret;
+			}
+			else
+			{
+				echo_message(sock, zpr::sprint("unknown backend\n"));
+				return { };
+			}
+		};
+
+		auto backend_to_flags = [](Backend b) -> uint8_t {
+			if(b == Backend::IRC)       return FF_IRC_ALL;
+			if(b == Backend::Twitch)    return FF_TWITCH_ALL;
+			if(b == Backend::Discord)   return FF_DISCORD_ALL;
+
+			return 0;
+		};
+
+
 
 		if(cmd_str.find('/') == 0)
 		{
@@ -139,9 +286,10 @@ namespace ikura::console
 			}
 			else
 			{
-				auto cmd   = cmd_str.take(cmd_str.find(' '));
-				auto _args = util::split(cmd_str.drop(cmd.size() + 1), ' ');
-				auto args  = ikura::span(_args);
+				auto cmd    = cmd_str.take(cmd_str.find(' '));
+				auto argstr = cmd_str.drop(cmd.size() + 1);
+				auto _args  = util::split(argstr, ' ');
+				auto args   = ikura::span(_args);
 
 				if(cmd == "sync")
 				{
@@ -185,15 +333,18 @@ namespace ikura::console
 						return true;
 					}
 
-					auto backend = args[0];
+					Backend backend;
+					std::string server;
+					std::string channel;
 
-					if(backend == "twitch")
+					if(auto res = parse_join_args(argstr); res.has_value())
+						std::tie(backend, server, channel) = res.value();
+
+					else
+						goto end;
+
+					if(backend == Backend::Twitch)
 					{
-						auto channel = args[1];
-
-						if(channel.find('#') == 0)
-							channel.remove_prefix(1);
-
 						auto chan = twitch::getChannel(channel);
 						if(chan != nullptr)
 						{
@@ -205,17 +356,8 @@ namespace ikura::console
 							echo_message(sock, zpr::sprint("channel '#%s' does not exist\n", channel));
 						}
 					}
-					else if(backend == "irc")
+					else if(backend == Backend::IRC)
 					{
-						if(args.size() < 3)
-						{
-							echo_message(sock, zpr::sprint("need server and channel\n"));
-							goto end;
-						}
-
-						auto server = args[1];
-						auto channel = args[2];
-
 						auto chan = irc::getChannelFromServer(server, channel);
 						if(chan != nullptr)
 						{
@@ -227,7 +369,7 @@ namespace ikura::console
 							echo_message(sock, zpr::sprint("channel '%s' does not exist\n", channel));
 						}
 					}
-					else if(backend == "discord")
+					else if(backend == Backend::Discord)
 					{
 						if(args.size() < 3)
 						{
@@ -235,28 +377,8 @@ namespace ikura::console
 							goto end;
 						}
 
-						size_t i = 0;
-						std::string guild_name = args[1].str();
-						for(i = 2; i < args.size(); i++)
-						{
-							if(args[i - 1].back() == '\\')
-							{
-								guild_name.pop_back();
-								guild_name += " " + args[i].str();
-							}
-							else
-							{
-								break;
-							}
-						}
-
-						if(i == args.size())
-						{
-							echo_message(sock, zpr::sprint("missing channel\n"));
-							goto end;
-						}
-
-						std::string channel_name = util::join(args.drop(i), " ");
+						auto& guild_name = server;
+						auto& channel_name = channel;
 
 						auto guild = database().map_read([&guild_name](auto& db) -> const discord::DiscordGuild* {
 							auto& dd = db.discordData;
@@ -290,15 +412,72 @@ namespace ikura::console
 						State.currentChannel = chan;
 						echo_message(sock, zpr::sprint("joined #%s\n", channel_name));
 					}
-					else
-					{
-						echo_message(sock, zpr::sprint("unknown backend '%s'\n", backend));
-					}
 				}
 				else if(cmd == "say")
 				{
 					auto stuff = cmd_str.drop(cmd_str.find(' ')).trim();
 					say(stuff);
+				}
+				else if(cmd == "show")
+				{
+					auto& filt = State.filterSettings[sock];
+					if(argstr == "all")
+					{
+						filt.flags |= (FF_IRC_ALL | FF_DISCORD_ALL | FF_TWITCH_ALL);
+					}
+					else
+					{
+						auto [ backend, server, channel ] = parse_stuff(argstr);
+						if(server.empty() && channel.empty())
+						{
+							filt.flags |= backend_to_flags(backend);
+						}
+						else if(backend == Backend::Twitch)
+						{
+							filt.twitchChannels.insert(channel);
+						}
+						else if(backend == Backend::IRC)
+						{
+							if(channel.empty()) filt.ircServers.insert(server);
+							else                filt.ircChannels[server].insert(channel);
+						}
+						else if(backend == Backend::Discord)
+						{
+							if(channel.empty()) filt.discordServers.insert(server);
+							else                filt.discordChannels[server].insert(channel);
+						}
+					}
+				}
+				else if(cmd == "hide")
+				{
+					auto& filt = State.filterSettings[sock];
+					if(argstr == "all")
+					{
+						filt.flags = FF_NONE;
+					}
+					else
+					{
+						auto [ backend, server, channel ] = parse_stuff(argstr);
+						if(backend == Backend::Twitch)
+						{
+							filt.twitchChannels.erase(channel);
+
+							if(channel.empty())
+								filt.twitchChannels.clear();
+						}
+						else if(backend == Backend::IRC)
+						{
+							if(server.empty())          filt.ircServers.clear();
+							else if(channel.empty())    filt.ircServers.erase(server);
+							else                        filt.ircChannels[server].erase(channel);
+						}
+						else if(backend == Backend::Discord)
+						{
+							if(server.empty())          filt.discordServers.clear();
+							else if(channel.empty())    filt.discordServers.erase(server);
+							else                        filt.discordChannels[server].erase(channel);
+						}
+					}
 				}
 				else if(!cmd.empty())
 				{
@@ -541,5 +720,62 @@ namespace ikura::console
 		}
 
 		local_con.join();
+	}
+
+
+	void logMessage(Backend backend, ikura::str_view server, ikura::str_view channel,
+		double time, ikura::str_view user, ikura::str_view message)
+	{
+		std::string origin;
+		if(backend == Backend::Twitch)
+			origin = zpr::sprint("twitch/#%s", channel);
+
+		else if(backend == Backend::IRC)
+			origin = zpr::sprint("irc/%s/%s", server, channel);
+
+		else if(backend == Backend::Discord)
+			origin = zpr::sprint("discord/%s/#%s", server, channel);
+
+		auto out = zpr::sprint("%s: (%.2f ms) <%s> %s", origin, time, user, message);
+		lg::log("msg", "%s", out);
+
+		// broadcast to all sockets.
+		State.socketBuffers.perform_read([&](auto& sb) {
+
+			for(auto& [ sock, _ ] : sb)
+			{
+				auto& filts = State.filterSettings[sock];
+
+				bool pass = false;
+				if(backend == Backend::IRC)
+				{
+					auto tmp = filts.ircChannels.find(server);
+
+					pass = (filts.flags & FF_IRC_ALL)
+						|| (filts.ircServers.contains(server))
+						|| (tmp != filts.ircChannels.end() && tmp->second.contains(channel));
+				}
+				else if(backend == Backend::Discord)
+				{
+					auto tmp = filts.discordChannels.find(server);
+
+					pass = (filts.flags & FF_DISCORD_ALL)
+						|| (filts.discordServers.contains(server))
+						|| (tmp != filts.discordChannels.end() && tmp->second.contains(channel));
+				}
+				else if(backend == Backend::Twitch)
+				{
+					pass = (filts.flags & FF_TWITCH_ALL)
+						|| (filts.twitchChannels.contains(channel));
+				}
+
+				if(pass)
+				{
+					echo_message(sock, zpr::sprint("\n%s %s|%s %smsg%s: %s",
+						util::getCurrentTimeString(), colours::WHITE_BOLD, colours::COLOUR_RESET,
+						colours::BLUE_BOLD, colours::COLOUR_RESET, out));
+				}
+			}
+		});
 	}
 }

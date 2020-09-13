@@ -52,6 +52,8 @@ namespace ikura
 	namespace console
 	{
 		void init();
+		void logMessage(Backend backend, ikura::str_view server, ikura::str_view channel,
+			double time, ikura::str_view user, ikura::str_view message);
 	}
 
 	namespace unicode

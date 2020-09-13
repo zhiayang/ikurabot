@@ -180,7 +180,8 @@ namespace ikura::irc
 
 			srv->logMessage(util::getMillisecondTimestamp(), username, msg.nick, &srv->channels[channel], message, ran_cmd);
 
-			lg::log("msg", "irc/%s: (%.2f ms) <%s> %s", channel, time.measure(), msg.nick, message);
+			console::logMessage(Backend::IRC, srv->name, channel, time.measure(), msg.nick, message);
+			// lg::log("msg", "irc/%s: (%.2f ms) <%s> %s", channel, time.measure(), msg.nick, message);
 		}
 		else
 		{

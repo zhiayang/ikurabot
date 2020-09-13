@@ -82,8 +82,11 @@ namespace ikura::discord
 		auto ts = util::getMillisecondTimestamp();
 		this->logMessage(ts, author, chan, guild, Snowflake(json["id"].as_str()), sanitised, emote_idxs, ran_cmd, wasEdit);
 
-		lg::log("msg", "discord/%s/#%s: %s(%.2f ms) <%s> %s", guild.name, chan.name, wasEdit ? "(edit) " : "",
-			time.measure(), author.nickname, sanitised);
+		console::logMessage(Backend::Discord, guild.name, chan.name, time.measure(), author.nickname,
+			(wasEdit ? "(edit) " : "") + sanitised);
+
+		// lg::log("msg", "discord/%s/#%s: %s(%.2f ms) <%s> %s", guild.name, chan.name, wasEdit ? "(edit) " : "",
+		// 	time.measure(), author.nickname, sanitised);
 	}
 
 
