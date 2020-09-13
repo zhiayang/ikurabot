@@ -54,6 +54,8 @@ namespace ikura::console
 		// we can't kill the socket from here (since function will be called from
 		// socket's own thread). so, pass it on to someone else.
 		State.danglingSockets.push(sock);
+
+		sock->onReceive([](auto) { });
 	}
 
 	// returns false if we should quit.
@@ -120,7 +122,7 @@ namespace ikura::console
 					State.is_connected = false;
 				}
 
-				echo_message(sock, "stopping...\n");
+				echo_message(sock, "exiting...\n");
 				return false;
 			}
 			else if(cmd_str == "stop" || cmd_str == "s")
@@ -129,6 +131,7 @@ namespace ikura::console
 				State.is_connected = false;
 
 				echo_message(sock, "\n");
+				echo_message(sock, "stopping...\n");
 				return false;
 			}
 			else
