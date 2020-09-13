@@ -228,6 +228,7 @@ namespace ikura::config
 				goto fail;
 			}
 
+			auto& algo = console::config.password.algo;
 			auto hash = get_string(obj, "hash", "");
 			if(hash.empty())
 			{
@@ -235,9 +236,9 @@ namespace ikura::config
 				goto fail;
 			}
 
-			if(hash.size() % 2 != 0)
+			if(algo == "sha256" && hash.size() != 32)
 			{
-				lg::error("cfg/console", "password hash has invalid length (%d not a multiple of 2)", hash.size());
+				lg::error("cfg/console", "password hash has invalid length for '%s'", hash.size(), algo);
 				goto fail;
 			}
 
