@@ -236,7 +236,8 @@ namespace ikura::config
 				goto fail;
 			}
 
-			if(algo == "sha256" && hash.size() != 32)
+
+			if(algo == "sha256" && hash.size() != 2 * 32)
 			{
 				lg::error("cfg/console", "password hash has invalid length (%d) for '%s'", hash.size(), algo);
 				goto fail;
@@ -275,9 +276,8 @@ namespace ikura::config
 		}
 		else
 		{
-			lg::warn("cfg/console", "no password set, remote console will be disabled");
-
 		fail:
+			lg::warn("cfg/console", "no (or invalid) password config, remote console will be disabled");
 			console::config.enabled = false;
 		}
 	}
