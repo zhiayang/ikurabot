@@ -535,9 +535,9 @@ namespace ikura::markov
 	Message generateMessage(const std::vector<std::string>& seed)
 	{
 		size_t max_length = 50;
-		size_t min_length = config::global::getMinMarkovLength();
-		size_t retries = config::global::getMaxMarkovRetries();
-		size_t _retries = retries;
+		size_t min_length = config::markov::getConfig().minLength;
+		size_t retries    = config::markov::getConfig().maxRetries;
+		size_t _retries   = retries;
 
 		std::vector<uint64_t> output;
 
@@ -591,7 +591,7 @@ namespace ikura::markov
 					continue;
 
 				// TODO: keep this? idk.
-				else if(config::global::stripMentionsFromMarkov() && word.find('@') == 0)
+				else if(config::markov::getConfig().stripPings && word.find('@') == 0)
 					word = word.substr(1);
 
 				if(em & WORD_FLAG_EMOTE)

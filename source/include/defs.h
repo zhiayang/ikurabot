@@ -212,6 +212,10 @@ namespace ikura
 		std::string decode(ikura::str_view src);
 	}
 
+	namespace hash
+	{
+		void sha256(uint8_t out[32], const void* input, size_t length);
+	}
 
 	struct Emote
 	{

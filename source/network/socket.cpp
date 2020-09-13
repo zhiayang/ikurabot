@@ -259,4 +259,12 @@ namespace ikura
 			return nullptr;
 		}
 	}
+
+	std::string Socket::getAddress()
+	{
+		if(!this->is_connected)
+			return "";
+
+		return this->socket->get_bind_loc().address;
+	}
 }

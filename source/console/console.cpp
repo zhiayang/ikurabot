@@ -46,6 +46,16 @@ namespace ikura::console
 		echo_message(sock, zpr::sprint("λ ikura%s$ ", ch));
 	}
 
+	static void kill_socket(Socket* sock)
+	{
+		// remove the fella
+		State.socketBuffers.wlock()->erase(sock);
+
+		// we can't kill the socket from here (since function will be called from
+		// socket's own thread). so, pass it on to someone else.
+		State.danglingSockets.push(sock);
+	}
+
 	// returns false if we should quit.
 	static bool process_command(Socket* sock, ikura::str_view cmd_str)
 	{
@@ -102,12 +112,7 @@ namespace ikura::console
 				// only try to do socket stuff if we're a local connection.
 				if(sock != nullptr)
 				{
-					// remove the fella
-					State.socketBuffers.wlock()->erase(sock);
-
-					// we can't kill the socket from here (since function will be called from
-					// socket's own thread). so, pass it on to someone else.
-					State.danglingSockets.push(sock);
+					kill_socket(sock);
 				}
 				else
 				{
@@ -301,8 +306,7 @@ namespace ikura::console
 		}
 		else
 		{
-			// only allow non-commanded words to chat on main connection.
-			if(!cmd_str.empty() && sock == nullptr)
+			if(!cmd_str.empty() /* && sock == nullptr*/ )
 				say(cmd_str);
 
 			print_prompt(sock);
@@ -317,11 +321,97 @@ namespace ikura::console
 
 
 
+	static constexpr auto AUTH_TIMEOUT = 10000ms;
 
+	// inspired by tsoding's kgbotka (https://github.com/tsoding/kgbotka)
+	static bool authenticate_conn(Socket* sock)
+	{
+		auto echo = [&sock](const auto& fmt, auto&&... xs) {
+			echo_message(sock, zpr::sprint(fmt, xs...));
+		};
 
+		std::string csrf;
+		{
+			static constexpr size_t CSRF_BYTES = 24;
+
+			uint8_t bytes[CSRF_BYTES];
+			for(size_t i = 0; i < CSRF_BYTES; i++)
+				bytes[i] = random::get<uint8_t>();
+
+			csrf = base64::encode(bytes, CSRF_BYTES);
+		}
+
+		echo("csrf: %s\n", csrf);
+		echo("csrf? ");
+
+		condvar<bool> cv;
+		bool success = false;
+
+		auto buf = Buffer(256);
+		sock->onReceive([&](Span input) {
+
+			buf.write(input);
+			if(buf.sv().find("\n") == std::string::npos)
+				return;
+
+			auto user_csrf = buf.sv().take(buf.sv().find("\n")).trim(/* newlines: */ true);
+			success = (user_csrf == csrf);
+
+			cv.set(true);
+		});
+
+		if(!cv.wait(true, AUTH_TIMEOUT) || !success)
+			return false;
+
+		// now for the password.
+		echo("\n");
+		echo("pass? ");
+
+		cv.set(false);
+		success = false;
+		buf.clear();
+
+		auto cfg = config::console::getConfig();
+		assert(cfg.password.algo == "sha256");
+
+		sock->onReceive([&](Span input) {
+
+			buf.write(input);
+			if(buf.sv().find("\n") == std::string::npos)
+				return;
+
+			auto pass = buf.sv().take(buf.sv().find("\n")).trim(/* newlines: */ true);
+			auto foo = zpr::sprint("%s+%s", pass, cfg.password.salt);
+
+			uint8_t hash[32];
+			hash::sha256(hash, foo.data(), foo.size());
+
+			success = (memcmp(hash, cfg.password.hash.data(), 32) == 0);
+			cv.set(true);
+		});
+
+		if(!cv.wait(true, AUTH_TIMEOUT) || !success)
+			return false;
+
+		echo("ok\n");
+		return true;
+	}
 
 	static void setup_receiver(Socket* sock)
 	{
+		// this blocks but it's fine.
+		if(!authenticate_conn(sock))
+		{
+			lg::warn("console", "authentication failed!");
+			sock->disconnect();
+			kill_socket(sock);
+			return;
+		}
+
+		lg::log("console", "session authenticated (ip: %s)", sock->getAddress());
+
+		print_prompt(sock);
+
 		sock->onReceive([sock](Span input) {
 			auto& buf = State.socketBuffers.wlock()->at(sock);
 			buf.write(input);
@@ -330,7 +420,7 @@ namespace ikura::console
 			// possibly incomplete, we can't discard existing data.
 			auto sv = buf.sv();
 
-			zpr::println("%s", sv);
+			// zpr::println("%s", sv);
 
 			while(sv.size() > 0)
 			{
@@ -380,15 +470,18 @@ namespace ikura::console
 			}
 		});
 
+		auto consoleConfig = config::console::getConfig();
+		auto port = consoleConfig.port;
 
-		auto port = config::global::getConsolePort();
-		if(0 < port && port < 65536)
+
+		if(consoleConfig.enabled && port > 0 && !consoleConfig.host.empty())
 		{
-			auto srv = new Socket("localhost", port, /* ssl: */ false);
+			auto srv = new Socket(consoleConfig.host, port, /* ssl: */ false);
 			State.is_connected = true;
+
 			if(srv->listen())
 			{
-				lg::log("console", "starting console on port %d", port);
+				lg::log("console", "starting console on port %d (bind: %s)", port, srv->getAddress());
 
 				auto reaper = std::thread([]() {
 					while(true)
@@ -409,11 +502,9 @@ namespace ikura::console
 
 					if(auto sock = srv->accept(200ms); sock != nullptr)
 					{
-						lg::log("console", "started session");
+						lg::log("console", "authenticating session (ip: %s)", sock->getAddress());
 						State.socketBuffers.wlock()->emplace(sock, Buffer(512));
 						setup_receiver(sock);
-
-						print_prompt(sock);
 					}
 				}
 

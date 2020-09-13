@@ -76,6 +76,7 @@ namespace ikura
 		// server stuff
 		bool listen();
 		Socket* accept(std::chrono::nanoseconds timeout);
+		std::string getAddress();
 
 	private:
 		Socket();

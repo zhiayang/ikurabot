@@ -43,13 +43,6 @@ namespace ikura::config
 
 	} DiscordConfig;
 
-	static struct {
-		int consolePort = 0;
-		bool stripMentionsFromMarkov = false;
-		size_t minMarkovLength = 0;
-		size_t maxMarkovRetries = 0;
-	} GlobalConfig;
-
 	static std::vector<irc::Server> IrcServerConfigs;
 
 	namespace twitch
@@ -103,17 +96,26 @@ namespace ikura::config
 		}
 	}
 
-
-
-
-	namespace global
+	namespace markov
 	{
-		int getConsolePort() { return GlobalConfig.consolePort; }
-		bool stripMentionsFromMarkov() { return GlobalConfig.stripMentionsFromMarkov; }
-
-		size_t getMinMarkovLength() { return GlobalConfig.minMarkovLength; }
-		size_t getMaxMarkovRetries() { return GlobalConfig.maxMarkovRetries; }
+		static markov::MarkovConfig config;
+		MarkovConfig getConfig()
+		{
+			return config;
+		}
 	}
+
+	namespace console
+	{
+		static console::ConsoleConfig config;
+		ConsoleConfig getConfig()
+		{
+			return config;
+		}
+	}
+
+
+
 
 	static std::string get_string(const pj::object& opts, const std::string& key, const std::string& def)
 	{
@@ -205,32 +207,99 @@ namespace ikura::config
 		return def;
 	}
 
-
-	static bool loadGlobalConfig(const pj::object& global)
+	static void loadConsoleConfig(const pj::object& obj)
 	{
-		GlobalConfig.consolePort = get_integer(global, "console_port", 0);
-		GlobalConfig.stripMentionsFromMarkov = get_bool(global, "strip_markov_pings", false);
+		console::config.port    = get_integer(obj, "port", 0);
+		console::config.host    = get_string(obj, "hostname", "");
+		console::config.enabled = get_bool(obj, "enabled", false);
+
+		if(auto pwobj = obj.find("password"); pwobj->second.is_obj())
+		{
+			auto& obj = pwobj->second.as_obj();
+
+			console::config.password.salt = get_string(obj, "salt", "");
+			console::config.password.algo = get_string(obj, "algo", "");
+
+			if(console::config.password.algo != "sha256")
+			{
+				lg::error("cfg/console", "unsupported hash algo '%s', password disabled",
+					console::config.password.algo);
+
+				goto fail;
+			}
+
+			auto hash = get_string(obj, "hash", "");
+			if(hash.size() % 2 != 0)
+			{
+				lg::error("cfg/console", "password hash has invalid length (%d not a multiple of 2)", hash.size());
+				goto fail;
+			}
+
+			console::config.password.hash.reserve(hash.size() / 2);
+			for(size_t i = 0; i < hash.size() / 2; i++)
+			{
+				char a = hash[i * 2 + 0];
+				char b = hash[i * 2 + 1];
+
+				auto is_valid_char = [](char x) -> bool {
+					return ('0' <= x && x <= '9')
+						|| ('a' <= x && x <= 'f')
+						|| ('A' <= x && x <= 'F');
+				};
+
+				auto get_value = [](char x) -> uint8_t {
+					if('0' <= x && x <= '9') return x - '0';
+					if('a' <= x && x <= 'f') return 10 + x - 'a';
+					if('A' <= x && x <= 'F') return 10 + x - 'A';
+
+					return 0;
+				};
+
+				if(!is_valid_char(a) || !is_valid_char(b))
+				{
+					lg::error("cfg/console", "invalid char '%c' or '%c' in hash", a, b);
+					goto fail;
+				}
+
+				uint8_t x = (get_value(a) << 4) | get_value(b);
+				console::config.password.hash.push_back(x);
+			}
+		}
+		else
+		{
+			lg::warn("cfg/console", "no password set, remote console will be disabled");
+
+		fail:
+			console::config.enabled = false;
+		}
+	}
+
+
+	static void loadMarkovConfig(const pj::object& obj)
+	{
+		markov::config.stripPings = get_bool(obj, "strip_pings", false);
 
 		// defaults to 1 and 0 -- min length of 1, 0 retries.
-		auto minLen = get_integer(global, "min_markov_length", 1);
-		auto maxRetry = get_integer(global, "max_markov_retries", 0);
+		auto minLen = get_integer(obj, "min_length", 1);
+		auto maxRetry = get_integer(obj, "max_retries", 0);
 
 		if(minLen < 1)
 		{
-			lg::warn("cfg/global", "invalid value '%ld' for min_markov_length", minLen);
+			lg::warn("cfg/markov", "invalid value '%ld' for min_length", minLen);
 			minLen = 1;
 		}
+
 		if(maxRetry < 1)
 		{
-			lg::warn("cfg/global", "invalid value '%ld' for max_markov_retries", maxRetry);
+			lg::warn("cfg/markov", "invalid value '%ld' for max_retries", maxRetry);
 			maxRetry = 0;
 		}
 
-		GlobalConfig.minMarkovLength = minLen;
-		GlobalConfig.maxMarkovRetries = maxRetry;
-
-		return true;
+		markov::config.minLength = minLen;
+		markov::config.maxRetries = maxRetry;
 	}
+
+
 
 	static bool loadDiscordConfig(const pj::object& discord)
 	{
@@ -540,25 +609,20 @@ namespace ikura::config
 		if(!err.empty())
 			return lg::error_b("cfg", "json error: %s", err);
 
-		if(auto global = config.get("global"); !global.is_null() && global.is_obj())
-		{
-			loadGlobalConfig(global.as_obj());
-		}
+		if(auto markov = config.get("markov"); markov.is_obj())
+			loadMarkovConfig(markov.as_obj());
 
-		if(auto twitch = config.get("twitch"); !twitch.is_null() && twitch.is_obj())
-		{
+		if(auto console = config.get("console"); console.is_obj())
+			loadConsoleConfig(console.as_obj());
+
+		if(auto twitch = config.get("twitch"); twitch.is_obj())
 			loadTwitchConfig(twitch.as_obj());
-		}
 
-		if(auto discord = config.get("discord"); !discord.is_null() && discord.is_obj())
-		{
+		if(auto discord = config.get("discord"); discord.is_obj())
 			loadDiscordConfig(discord.as_obj());
-		}
 
-		if(auto irc = config.get("irc"); !irc.is_null() && irc.is_obj())
-		{
+		if(auto irc = config.get("irc"); irc.is_obj())
 			loadIRCConfig(irc.as_obj());
-		}
 
 		delete[] buf;
 		return true;

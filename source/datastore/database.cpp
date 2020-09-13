@@ -180,6 +180,9 @@ namespace ikura::db
 		if(sb->version > DB_VERSION)
 			return error("invalid version %lu (expected <= %lu)", sb->version, DB_VERSION);
 
+		auto t = timer();
+		double times[7] = { };
+
 		Database db;
 		memcpy(db._magic, sb->magic, 8);
 		db._flags = sb->flags;
@@ -195,27 +198,38 @@ namespace ikura::db
 		if(!rd.read(&db.twitchData))
 			return error("failed to read twitch data");
 
+		times[0] = t.reset();
 		if(!rd.read(&db.interpState))
 			return error("failed to read command interpreter state");
 
+		times[1] = t.reset();
 		if(!rd.read(&db.markovData))
 			return error("failed to read markov data");
 
+		times[2] = t.reset();
 		if(!rd.read(&db.sharedData))
 			return error("failed to read shared data");
 
+		times[3] = t.reset();
 		if(!rd.read(&db.discordData))
 			return error("failed to read discord data");
 
+		times[4] = t.reset();
 		if(currentDatabaseVersion >= 25 && !rd.read(&db.ircData))
 			return error("failed to read irc data");
 
+		times[5] = t.reset();
 		if(!rd.read(&db.messageData))
 			return error("failed to read message logs");
+
+		times[6] = t.reset();
 
 		// once we are done reading the database from disk, the in-memory state is considered gospel.
 		// thus, we can "upgrade" the version.
 		db._version = DB_VERSION;
+
+		lg::log("db", "db loads (ms): [ %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f ]",
+			times[0], times[1], times[2], times[3], times[4], times[5], times[6]);
 
 		return db;
 	}

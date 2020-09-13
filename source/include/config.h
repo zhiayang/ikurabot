@@ -97,12 +97,36 @@ namespace ikura::config
 		std::vector<Server> getJoinServers();
 	}
 
-	namespace global
+	namespace console
 	{
-		int getConsolePort();
-		bool stripMentionsFromMarkov();
+		struct Password
+		{
+			std::string salt;
+			std::string algo;
+			std::vector<uint8_t> hash;
+		};
 
-		size_t getMinMarkovLength();
-		size_t getMaxMarkovRetries();
+		struct ConsoleConfig
+		{
+			bool enabled;
+			uint16_t port;
+			std::string host;
+
+			Password password;
+		};
+
+		ConsoleConfig getConfig();
+	}
+
+	namespace markov
+	{
+		struct MarkovConfig
+		{
+			bool stripPings;
+			int minLength;
+			int maxRetries;
+		};
+
+		MarkovConfig getConfig();
 	}
 }
