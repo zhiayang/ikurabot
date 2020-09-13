@@ -238,7 +238,7 @@ namespace ikura::config
 
 			if(algo == "sha256" && hash.size() != 32)
 			{
-				lg::error("cfg/console", "password hash has invalid length for '%s'", hash.size(), algo);
+				lg::error("cfg/console", "password hash has invalid length (%d) for '%s'", hash.size(), algo);
 				goto fail;
 			}
 
