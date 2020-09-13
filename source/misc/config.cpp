@@ -229,11 +229,18 @@ namespace ikura::config
 			}
 
 			auto hash = get_string(obj, "hash", "");
+			if(hash.empty())
+			{
+				lg::error("cfg/console", "hash cannot be empty");
+				goto fail;
+			}
+
 			if(hash.size() % 2 != 0)
 			{
 				lg::error("cfg/console", "password hash has invalid length (%d not a multiple of 2)", hash.size());
 				goto fail;
 			}
+
 
 			console::config.password.hash.reserve(hash.size() / 2);
 			for(size_t i = 0; i < hash.size() / 2; i++)
