@@ -5,6 +5,7 @@
 #include "zfu.h"
 #include "defs.h"
 #include "interp.h"
+#include "buffer.h"
 #include "serialise.h"
 
 namespace ikura::interp

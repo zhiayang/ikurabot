@@ -307,11 +307,13 @@ namespace ikura::serialise
 			{
 				using V = typename T::value_type;
 
-				auto sz = read<uint64_t>();
-				if(!sz) return { };
+				auto _sz = read<uint64_t>();
+				if(!_sz) return { };
 
-				T ret; ret.reserve(sz.value());
-				for(size_t i = 0; i < sz.value(); i++)
+				auto sz = _sz.value();
+				T ret; ret.reserve(sz);
+
+				for(size_t i = 0; i < sz; i++)
 				{
 					auto x = read<V>();
 					if(!x.has_value())
@@ -353,11 +355,13 @@ namespace ikura::serialise
 				using K = typename T::key_type;
 				using V = typename T::mapped_type;
 
-				auto sz = read<uint64_t>();
-				if(!sz) return { };
+				auto _sz = read<uint64_t>();
+				if(!_sz) return { };
 
-				T ret; ret.rehash(2 * sz.value());
-				for(size_t i = 0; i < sz.value(); i++)
+				auto sz = _sz.value();
+				T ret; ret.rehash(2 * sz);
+
+				for(size_t i = 0; i < sz; i++)
 				{
 					auto k = read<K>();
 					auto v = read<V>();

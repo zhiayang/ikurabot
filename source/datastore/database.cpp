@@ -33,7 +33,7 @@ namespace ikura::db
 
 	static_assert(sizeof(Superblock) == 24);
 
-	constexpr uint32_t DB_VERSION   = 25;
+	constexpr uint32_t DB_VERSION   = 26;
 	constexpr const char* DB_MAGIC  = "ikura_db";
 
 	// the database will only sync to disk if it was modified
@@ -108,6 +108,7 @@ namespace ikura::db
 		bool succ = false;
 		auto span = Span(buf, len);
 
+		lg::log("db", "loading database...");
 		if(auto db = Database::deserialise(span); db.has_value())
 			succ = true, *TheDatabase.wlock().get() = std::move(db.value());
 

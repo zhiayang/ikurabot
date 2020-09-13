@@ -16,26 +16,6 @@
 
 #include "utf8proc/utf8proc.h"
 
-// fucking nonsense.
-namespace {
-
-	template <typename T>
-	struct equal_span
-	{
-		using is_transparent = void;
-		bool operator () (const std::vector<T>& a, ikura::span<T> b) const        { return b == a; }
-		bool operator () (ikura::span<T> a, const std::vector<T>& b) const        { return a == b; }
-		bool operator () (const std::vector<T>& a, const std::vector<T>& b) const { return a == b; }
-	};
-
-	template <typename T>
-	struct hash_span
-	{
-		size_t operator () (const std::vector<T>& x) const { return std::hash<std::vector<T>>()(x); }
-		size_t operator () (ikura::span<T> x) const        { return std::hash<ikura::span<T>>()(x); }
-	};
-}
-
 namespace ikura::markov
 {
 	struct Word : Serialisable
@@ -86,7 +66,7 @@ namespace ikura::markov
 	struct MarkovModel
 	{
 		// map from list of words (current state) to list of possible output words.
-		tsl::robin_map<std::vector<uint64_t>, WordList, hash_span<uint64_t>, equal_span<uint64_t>> table;
+		std::map<uint64_t, WordList> table;
 
 		// the map from words to indices in the word list.
 		ikura::string_map<uint64_t> wordIndices;
@@ -154,6 +134,10 @@ namespace ikura::markov
 	static Synchronised<MarkovModel> theMarkovModel;
 	Synchronised<MarkovModel>& markovModel() { return theMarkovModel; }
 
+	static uint64_t hash_prefix(ikura::span<uint64_t> pref)
+	{
+		return std::hash<decltype(pref)>()(pref);
+	}
 
 	static void process_one(ikura::str_view input, std::vector<ikura::relative_str> emote_idxs);
 	static void worker_thread()
@@ -448,17 +432,18 @@ namespace ikura::markov
 				// TODO: might want to make this case insensitive?
 				auto the_word = words[i + k];
 				auto prefix = words.drop(i).take(k);
+				auto prefix_hash = hash_prefix(prefix);
 
 				// just take a big lock...
 				markovModel().perform_write([&](auto& markov) -> decltype(auto) {
 
 					WordList* wordlist = nullptr;
 
-					if(auto it = markov.table.find(prefix); it == markov.table.end())
-						wordlist = &markov.table.emplace(prefix.vec(), WordList()).first.value();
+					if(auto it = markov.table.find(prefix_hash); it == markov.table.end())
+						wordlist = &markov.table.emplace(prefix_hash, WordList()).first->second;
 
 					else
-						wordlist = &it.value();
+						wordlist = &it->second;
 
 					wordlist->totalFrequency += 1;
 					if(auto it = wordlist->globalIndexMap.find(the_word); it != wordlist->globalIndexMap.end())
@@ -497,10 +482,12 @@ namespace ikura::markov
 		return markovModel().map_read([&](auto& markov) -> uint64_t {
 			while(!prefix.empty())
 			{
+				auto prefix_hash = hash_prefix(prefix);
+
 				// get the frequency
-				if(auto it = markov.table.find(prefix); it != markov.table.end())
+				if(auto it = markov.table.find(prefix_hash); it != markov.table.end())
 				{
-					const WordList& wl = it.value();
+					const WordList& wl = it->second;
 					auto selection = random::get<size_t>(0, wl.totalFrequency - 1);
 
 					// find the word.
@@ -652,11 +639,14 @@ namespace ikura::markov
 		wr.write(this->globalIndexMap);
 	}
 
+	static double monkaS = 0;
 	std::optional<WordList> WordList::deserialise(Span& buf)
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+
+		auto t = timer();
 
 		WordList ret;
 		if(!rd.read(&ret.totalFrequency))
@@ -668,6 +658,7 @@ namespace ikura::markov
 		if(!rd.read(&ret.globalIndexMap))
 			return { };
 
+		monkaS += t.measure();
 		return ret;
 	}
 
@@ -707,6 +698,26 @@ namespace ikura::markov
 		});
 	}
 
+	// fucking nonsense.
+	namespace {
+
+		template <typename T>
+		struct equal_span
+		{
+			using is_transparent = void;
+			bool operator () (const std::vector<T>& a, ikura::span<T> b) const        { return b == a; }
+			bool operator () (ikura::span<T> a, const std::vector<T>& b) const        { return a == b; }
+			bool operator () (const std::vector<T>& a, const std::vector<T>& b) const { return a == b; }
+		};
+
+		template <typename T>
+		struct hash_span
+		{
+			size_t operator () (const std::vector<T>& x) const { return std::hash<std::vector<T>>()(x); }
+			size_t operator () (ikura::span<T> x) const        { return std::hash<ikura::span<T>>()(x); }
+		};
+	}
+
 	std::optional<MarkovDB> MarkovDB::deserialise(Span& buf)
 	{
 		auto rd = serialise::Reader(buf);
@@ -715,8 +726,21 @@ namespace ikura::markov
 
 		MarkovModel ret;
 
-		if(!rd.read(&ret.table))
-			return { };
+		if(db::getVersion() <= 25)
+		{
+			tsl::robin_map<std::vector<uint64_t>, WordList, hash_span<uint64_t>, equal_span<uint64_t>> map;
+			if(!rd.read(&map))
+				return { };
+
+			for(auto& [ pref, wl ] : map)
+				ret.table[hash_prefix(pref)] = std::move(wl);
+		}
+		else
+		{
+			auto t = timer();
+			if(!rd.read(&ret.table))
+				return { };
+		}
 
 		if(!rd.read(&ret.wordList))
 			return { };
@@ -737,3 +761,4 @@ namespace ikura::markov
 		return MarkovDB();
 	}
 }
+
