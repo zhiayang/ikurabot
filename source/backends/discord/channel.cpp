@@ -26,9 +26,9 @@ namespace ikura::discord
 		return config::discord::getUsername();
 	}
 
-	std::string Channel::getCommandPrefix() const
+	std::vector<std::string> Channel::getCommandPrefixes() const
 	{
-		return this->commandPrefix;
+		return this->commandPrefixes;
 	}
 
 	bool Channel::shouldPrintInterpErrors() const

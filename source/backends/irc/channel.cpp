@@ -7,9 +7,9 @@
 
 namespace ikura::irc
 {
-	std::string Channel::getCommandPrefix() const
+	std::vector<std::string> Channel::getCommandPrefixes() const
 	{
-		return this->commandPrefix;
+		return this->commandPrefixes;
 	}
 
 	std::string Channel::getUsername() const

@@ -21,13 +21,13 @@ namespace ikura::twitch
 	struct Channel : ikura::Channel
 	{
 		Channel() : name(""), lurk(false), mod(false), respondToPings(false) { }
-		Channel(TwitchState* st, std::string n, bool l, bool m, bool p, bool si, bool mh, std::string cp, bool ffz, bool bttv)
+		Channel(TwitchState* st, std::string n, bool l, bool m, bool p, bool si, bool mh, std::vector<std::string> cp, bool ffz, bool bttv)
 			: name(std::move(n)), lurk(l), mod(m), respondToPings(p), silentInterpErrors(si), runMessageHandlers(mh),
-			  commandPrefix(std::move(cp)), state(st), ffzEmotes(ffz), bttvEmotes(bttv) { }
+			  commandPrefixes(std::move(cp)), state(st), ffzEmotes(ffz), bttvEmotes(bttv) { }
 
 		virtual std::string getName() const override;
 		virtual std::string getUsername() const override;
-		virtual std::string getCommandPrefix() const override;
+		virtual std::vector<std::string> getCommandPrefixes() const override;
 		virtual bool shouldReplyMentions() const override;
 		virtual bool shouldPrintInterpErrors() const override;
 		virtual bool shouldRunMessageHandlers() const override;
@@ -47,7 +47,7 @@ namespace ikura::twitch
 		bool respondToPings = false;
 		bool silentInterpErrors = false;
 		bool runMessageHandlers = false;
-		std::string commandPrefix;
+		std::vector<std::string> commandPrefixes;
 
 		mutable std::string lastSentMessage;
 

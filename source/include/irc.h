@@ -43,13 +43,13 @@ namespace ikura::irc
 	struct Channel : ikura::Channel
 	{
 		Channel() : name(""), lurk(false), respondToPings(false) { }
-		Channel(IRCServer* srv, std::string n, std::string nick, bool l, bool p, bool si, bool mh, std::string cp)
+		Channel(IRCServer* srv, std::string n, std::string nick, bool l, bool p, bool si, bool mh, std::vector<std::string> cp)
 			: name(std::move(n)), nickname(std::move(nick)), lurk(l), respondToPings(p), silentInterpErrors(si),
-			  runMessageHandlers(mh), commandPrefix(std::move(cp)), server(srv) { }
+			  runMessageHandlers(mh), commandPrefixes(std::move(cp)), server(srv) { }
 
 		virtual std::string getName() const override;
 		virtual std::string getUsername() const override;
-		virtual std::string getCommandPrefix() const override;
+		virtual std::vector<std::string> getCommandPrefixes() const override;
 		virtual bool shouldReplyMentions() const override;
 		virtual bool shouldPrintInterpErrors() const override;
 		virtual bool shouldRunMessageHandlers() const override;
@@ -68,7 +68,7 @@ namespace ikura::irc
 		bool respondToPings = false;
 		bool silentInterpErrors = false;
 		bool runMessageHandlers = false;
-		std::string commandPrefix;
+		std::vector<std::string> commandPrefixes;
 
 		IRCServer* server = nullptr;
 

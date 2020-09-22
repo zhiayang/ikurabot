@@ -308,7 +308,7 @@ namespace ikura
 		virtual bool shouldRunMessageHandlers() const = 0;
 		virtual std::string getName() const = 0;
 		virtual std::string getUsername() const = 0;
-		virtual std::string getCommandPrefix() const = 0;
+		virtual std::vector<std::string> getCommandPrefixes() const = 0;
 		virtual Backend getBackend() const = 0;
 		virtual bool shouldLurk() const = 0;
 		virtual bool checkUserPermissions(ikura::str_view userid, const PermissionSet& required) const = 0;

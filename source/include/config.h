@@ -24,7 +24,7 @@ namespace ikura::config
 			bool respondToPings;
 			bool silentInterpErrors;
 			bool runMessageHandlers;
-			std::string commandPrefix;
+			std::vector<std::string> commandPrefixes;
 
 			bool haveBTTVEmotes;
 			bool haveFFZEmotes;
@@ -48,7 +48,7 @@ namespace ikura::config
 			bool respondToPings;
 			bool silentInterpErrors;
 			bool runMessageHandlers;
-			std::string commandPrefix;
+			std::vector<std::string> commandPrefixes;
 		};
 
 		std::string getUsername();
@@ -72,7 +72,7 @@ namespace ikura::config
 			bool respondToPings;
 			bool silentInterpErrors;
 			bool runMessageHandlers;
-			std::string commandPrefix;
+			std::vector<std::string> commandPrefixes;
 		};
 
 		struct Server

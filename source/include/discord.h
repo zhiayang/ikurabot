@@ -54,13 +54,13 @@ namespace ikura::discord
 	struct Channel : ikura::Channel
 	{
 		Channel() : lurk(false), respondToPings(false) { }
-		Channel(DiscordState* st, DiscordGuild* g, Snowflake id, bool l, bool p, bool si, bool mh, std::string cp)
+		Channel(DiscordState* st, DiscordGuild* g, Snowflake id, bool l, bool p, bool si, bool mh, std::vector<std::string> cp)
 			: guild(g), channelId(id), lurk(l), respondToPings(p), silentInterpErrors(si), runMessageHandlers(mh),
-			  commandPrefix(std::move(cp)), state(st) { }
+			  commandPrefixes(std::move(cp)), state(st) { }
 
 		virtual std::string getName() const override;
 		virtual std::string getUsername() const override;
-		virtual std::string getCommandPrefix() const override;
+		virtual std::vector<std::string> getCommandPrefixes() const override;
 		virtual bool shouldReplyMentions() const override;
 		virtual bool shouldPrintInterpErrors() const override;
 		virtual bool shouldRunMessageHandlers() const override;
@@ -80,7 +80,7 @@ namespace ikura::discord
 		bool respondToPings;
 		bool silentInterpErrors = false;
 		bool runMessageHandlers = false;
-		std::string commandPrefix;
+		std::vector<std::string> commandPrefixes;
 
 		DiscordState* state = nullptr;
 

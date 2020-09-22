@@ -308,6 +308,33 @@ namespace ikura::config
 	}
 
 
+	static std::vector<std::string> parseCommandPrefixes(const pj::value& obj)
+	{
+		std::vector<std::string> ret;
+
+		if(obj.is_str())
+		{
+			ret = { obj.as_str() };
+		}
+		else if(obj.is_arr())
+		{
+			ret = zfu::map(zfu::filter(zfu::map(obj.as_arr(), [](auto& x) -> std::optional<std::string> {
+				if(x.is_str())  return x.as_str();
+				else            return std::nullopt;
+			}), [](auto& x) -> bool {
+				return x.has_value() && !x->empty();
+			}), [](auto& x) -> auto {
+				return x.value();
+			});
+		}
+		else
+		{
+			lg::error("cfg", "invalid value for command_prefix (expected string or array of strings)");
+		}
+
+		return ret;
+	}
+
 
 	static bool loadDiscordConfig(const pj::object& discord)
 	{
@@ -357,7 +384,7 @@ namespace ikura::config
 					guild.silentInterpErrors    = get_bool(obj, "silent_interp_errors", false);
 					guild.respondToPings        = get_bool(obj, "respond_to_pings", false);
 					guild.runMessageHandlers    = get_bool(obj, "run_message_handlers", false);
-					guild.commandPrefix         = get_string(obj, "command_prefix", "");
+					guild.commandPrefixes       = parseCommandPrefixes(obj["command_prefix"]);
 
 					DiscordConfig.guilds.push_back(std::move(guild));
 				}
@@ -450,7 +477,7 @@ namespace ikura::config
 					chan.runMessageHandlers = get_bool(obj, "run_message_handlers", false);
 					chan.haveFFZEmotes      = get_bool(obj, "ffz_emotes", false);
 					chan.haveBTTVEmotes     = get_bool(obj, "bttv_emotes", false);
-					chan.commandPrefix      = get_string(obj, "command_prefix", "");
+					chan.commandPrefixes    = parseCommandPrefixes(obj["command_prefix"]);
 
 					TwitchConfig.channels.push_back(std::move(chan));
 				}
@@ -548,11 +575,11 @@ namespace ikura::config
 						}
 						else
 						{
+							chan.lurk               = get_bool(obj, "lurk", false);
+							chan.respondToPings     = get_bool(obj, "respond_to_pings", false);
 							chan.silentInterpErrors = get_bool(obj, "silent_interp_errors", false);
-							chan.respondToPings = get_bool(obj, "respond_to_pings", false);
-							chan.lurk = get_bool(obj, "lurk", false);
-							chan.commandPrefix = get_string(obj, "command_prefix", "");
 							chan.runMessageHandlers = get_bool(obj, "run_message_handlers", false);
+							chan.commandPrefixes    = parseCommandPrefixes(obj["command_prefix"]);
 
 							server.channels.push_back(std::move(chan));
 						}

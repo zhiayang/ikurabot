@@ -285,7 +285,7 @@ namespace ikura::irc
 			for(const auto& ch : config.channels)
 			{
 				this->channels[ch.name] = Channel(this, ch.name, config.nickname, ch.lurk, ch.respondToPings, ch.silentInterpErrors,
-					ch.runMessageHandlers, ch.commandPrefix);
+					ch.runMessageHandlers, ch.commandPrefixes);
 
 				srv.channels[ch.name].name = ch.name;
 			}

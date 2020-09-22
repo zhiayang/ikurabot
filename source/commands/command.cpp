@@ -31,10 +31,19 @@ namespace ikura::cmd
 		cs.callerid = userid;
 		cs.channel = chan;
 
-		auto pref = chan->getCommandPrefix();
-		if(!pref.empty() && message.find(pref) == 0)
+		auto match_prefix = [&chan](ikura::str_view msg) -> std::optional<size_t> {
+
+			auto prefixes = chan->getCommandPrefixes();
+			for(const auto& pfx : prefixes)
+				if(msg.find(pfx) == 0)
+					return pfx.size();
+
+			return std::nullopt;
+		};
+
+		if(auto prefix_len = match_prefix(message); prefix_len.has_value())
 		{
-			process_command(cs, userid, username, chan, message.drop(pref.size()));
+			process_command(cs, userid, username, chan, message.drop(*prefix_len));
 			return true;
 		}
 		else if(enablePings && chan->shouldReplyMentions())
