@@ -124,7 +124,7 @@ namespace ikura
 		{
 			{
 				auto lk = std::unique_lock<std::mutex>(this->mtx);
-				this->queue.emplace_back(std::forward<Args&&>(xs)...);
+				this->queue.emplace_back(std::forward<Args>(xs)...);
 			}
 			this->sem.post();
 		}
@@ -132,8 +132,8 @@ namespace ikura
 		void push_quiet(T x)
 		{
 			{
-				this->queue.push_back(std::move(x));
 				auto lk = std::unique_lock<std::mutex>(this->mtx);
+				this->queue.push_back(std::move(x));
 			}
 			this->pending_notifies++;
 		}
@@ -143,7 +143,7 @@ namespace ikura
 		{
 			{
 				auto lk = std::unique_lock<std::mutex>(this->mtx);
-				this->queue.emplace_back(std::forward<Args&&>(xs)...);
+				this->queue.emplace_back(std::forward<Args>(xs)...);
 			}
 			this->pending_notifies++;
 		}
@@ -209,7 +209,7 @@ namespace ikura
 		Synchronised(T&& x) : value(std::move(x)) { }
 
 		template <typename... Args>
-		Synchronised(Args&&... xs) : value(std::forward<Args&&>(xs)...) { }
+		Synchronised(Args&&... xs) : value(std::forward<Args>(xs)...) { }
 
 		Synchronised(Synchronised&&) = delete;
 		Synchronised(const Synchronised&) = delete;
