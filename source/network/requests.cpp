@@ -218,4 +218,10 @@ namespace ikura::request
 	{
 		return make_http_request("PUT", url, params, headers, contentType, body);
 	}
+
+	Response patch(const URL& url, const std::vector<Param>& params, const std::vector<Header>& headers,
+		const std::string& contentType, const std::string& body)
+	{
+		return make_http_request("PATCH", url, params, headers, contentType, body);
+	}
 }

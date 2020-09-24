@@ -34,29 +34,35 @@ namespace ikura::interp
 	static void command_groupadd(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_groupdel(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_listgroups(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
+	static void command_stop_timer(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
+	static void command_start_timer(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 
 	bool is_builtin_command(ikura::str_view x)
 	{
 		return zfu::match(x, "def", "eval", "show", "redef", "undef", "chmod", "global",
-			"usermod", "groupadd", "groupdel", "groups", "showmod", "defun", "listcmds");
+			"usermod", "groupadd", "groupdel", "groups", "showmod", "defun", "listcmds",
+			"stop_timer", "start_timer"
+		);
 	}
 
 	// tsl::robin_map doesn't let us do this for some reason, so just fall back to std::unordered_map.
 	static std::unordered_map<std::string, void (*)(CmdContext&, const Channel*, ikura::str_view)> builtin_cmds = {
-		{ "chmod",      command_chmod      },
-		{ "eval",       command_eval       },
-		{ "global",     command_global     },
-		{ "def",        command_def        },
-		{ "redef",      command_redef      },
-		{ "undef",      command_undef      },
-		{ "show",       command_show       },
-		{ "usermod",    command_usermod    },
-		{ "groupadd",   command_groupadd   },
-		{ "groupdel",   command_groupdel   },
-		{ "groups",     command_listgroups },
-		{ "showmod",    command_showmod    },
-		{ "defun",      command_defun      },
-		{ "listcmds",   command_listcmds   },
+		{ "chmod",      command_chmod       },
+		{ "eval",       command_eval        },
+		{ "global",     command_global      },
+		{ "def",        command_def         },
+		{ "redef",      command_redef       },
+		{ "undef",      command_undef       },
+		{ "show",       command_show        },
+		{ "usermod",    command_usermod     },
+		{ "groupadd",   command_groupadd    },
+		{ "groupdel",   command_groupdel    },
+		{ "groups",     command_listgroups  },
+		{ "showmod",    command_showmod     },
+		{ "defun",      command_defun       },
+		{ "listcmds",   command_listcmds    },
+		{ "stop_timer", command_stop_timer  },
+		{ "start_timer",command_start_timer },
 	};
 
 	/* not sure if this is a good idea...
@@ -427,6 +433,30 @@ namespace ikura::interp
 			return zfu::listToString(cmds, zfu::identity(), /* braces: */ false);
 		});
 		chan->sendMessage(Message(list));
+	}
+
+	// silly
+	static void command_start_timer(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
+	{
+		// syntax: start_timer [seconds]
+		// if no seconds, counts up; else counts down
+
+		int seconds = 0;
+		if(auto [ x, xs ] = util::bisect(arg_str, ' '); !x.empty())
+			seconds = util::stoi(x).value_or(0);
+
+
+		if(auto dc = dynamic_cast<const discord::Channel*>(chan); dc != nullptr)
+			dc->startTimer(seconds);
+
+		else
+			chan->sendMessage(Message("timers only work on discord"));
+	}
+
+	static void command_stop_timer(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
+	{
+		if(auto dc = dynamic_cast<const discord::Channel*>(chan); dc != nullptr)
+			dc->stopTimer();
 	}
 }
 

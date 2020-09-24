@@ -73,6 +73,9 @@ namespace ikura::discord
 		DiscordGuild* getGuild() { return this->guild; }
 		const DiscordGuild* getGuild() const { return this->guild; }
 
+		void startTimer(int seconds) const;
+		void stopTimer() const;
+
 	private:
 		DiscordGuild* guild = nullptr;
 		Snowflake channelId;

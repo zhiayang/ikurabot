@@ -430,6 +430,9 @@ namespace ikura::discord
 
 		should_heartbeat = false;
 
+		// just wait... magic sleep, sorry flutterlice.
+		util::sleep_for(500ms);
+
 		if(this->hb_thread.joinable())
 			this->hb_thread.join();
 

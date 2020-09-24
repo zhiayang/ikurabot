@@ -266,6 +266,7 @@ namespace ikura::markov
 		// push an empty string to terminate.
 		State.queue.push(QueuedMsg::stop());
 
+		// wait for it to stop.
 		if(State.worker.joinable())
 			State.worker.join();
 	}

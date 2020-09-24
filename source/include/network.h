@@ -215,6 +215,8 @@ namespace ikura
 			const std::string& contentType = "", const std::string& body = "");
 		Response put(const URL& url, const std::vector<Param>& params = { }, const std::vector<Header>& headers = { },
 			const std::string& contentType = "", const std::string& body = "");
+		Response patch(const URL& url, const std::vector<Param>& params = { }, const std::vector<Header>& headers = { },
+			const std::string& contentType = "", const std::string& body = "");
 	}
 }
 
