@@ -29,6 +29,8 @@ namespace ikura::irc
 				if(x == std::string::npos)
 					return;
 
+				// lg::log("irc", "<< %s", sv.take(x));
+
 				fn(sv.take(x));
 				auto len = x + strlen("\r\n");
 
@@ -111,7 +113,10 @@ namespace ikura::irc
 				if(msg.command == "AUTHENTICATE")
 				{
 					if(msg.params.size() != 1 || msg.params[0] != "+")
+					{
+						lg::warn(sys, "invalid AUTHENTICATE: %s", msg.params.empty() ? "<empty>" : msg.params[0]);
 						use_sasl = false;
+					}
 
 					cv.set(true);
 				}
@@ -123,6 +128,11 @@ namespace ikura::irc
 
 					if(msg.params.size() != 3 || msg.params[1] == "NAK")
 					{
+						lg::warn(sys, "invalid CAP: %s %s %s",
+							msg.params.size() < 1 ? "<?>" : msg.params[0],
+							msg.params.size() < 2 ? "<?>" : msg.params[1],
+							msg.params.size() < 3 ? "<?>" : msg.params[2]);
+
 						use_sasl = false;
 						cv.set(true);
 					}
@@ -304,8 +314,11 @@ namespace ikura::irc
 		this->mqueue.push_send(QueuedMsg::disconnect());
 		this->mqueue.push_receive(QueuedMsg::disconnect());
 
-		this->rx_thread.join();
-		this->tx_thread.join();
+		if(this->rx_thread.joinable())
+			this->rx_thread.join();
+
+		if(this->tx_thread.joinable())
+			this->tx_thread.join();
 
 		if(this->is_connected)
 			this->disconnect();
