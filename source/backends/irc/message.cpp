@@ -127,6 +127,9 @@ namespace ikura::irc
 					return;
 				}
 
+				if(chan->knownUsers.find(username) == chan->knownUsers.end())
+					lg::log(sys, "new user '%s' (nick: %s)", username, nickname);
+
 				auto& user = chan->knownUsers[username];
 				user.username = username;
 

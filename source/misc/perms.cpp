@@ -224,7 +224,14 @@ namespace ikura
 				if(!chn) return { "", nullptr };
 
 				auto usr = chn->getUser(user);
-				if(!usr) return { "", nullptr };
+				if(!usr)
+				{
+					if(auto it = chn->nicknameMapping.find(user); it != chn->nicknameMapping.end())
+						usr = chn->getUser(it->second);
+
+					if(!usr)
+						return { "", nullptr };
+				}
 
 				return { usr->username, usr };
 			});
@@ -282,33 +289,6 @@ namespace ikura
 		}
 
 
-
-	#if 0
-		{
-			using Ret_T = std::pair<std::string, T*>;
-
-			auto bogus_user = []() -> auto {
-				return Ret_T("", nullptr);
-			};
-
-			// handle for twitch and discord separately -- but we need to somehow update in both.
-			// TODO: figure out a way to update both twitch and discord here?
-			if(chan->getBackend() == Backend::Twitch)
-			{
-			}
-			else if(chan->getBackend() == Backend::IRC)
-			{
-			}
-			else if(chan->getBackend() == Backend::Discord)
-			{
-			}
-			else
-			{
-				return bogus_user();
-			}
-		}
-	#endif
-
 		template <typename T>
 		const std::vector<uint64_t>* get_user_groups(const Channel* chan, ikura::str_view user)
 		{
@@ -347,8 +327,7 @@ namespace ikura
 
 
 		template <typename T>
-		static bool update_user_groups(const PermissionSet& ps, const Channel* chan, ikura::str_view user,
-			Backend backend)
+		static bool update_user_groups(const PermissionSet& ps, const Channel* chan, ikura::str_view user, Backend backend)
 		{
 			auto user_and_name = get_user_from_db<T>(chan, user);
 			if(user_and_name.first.empty() || user_and_name.second == nullptr)
