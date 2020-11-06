@@ -184,8 +184,6 @@ namespace ikura::discord
 
 
 
-
-
 	struct DiscordUser : Serialisable
 	{
 		Snowflake id;
@@ -231,6 +229,12 @@ namespace ikura::discord
 		static constexpr uint8_t TYPE_TAG = serialise::TAG_DISCORD_CHANNEL;
 	};
 
+	namespace EmoteFlags
+	{
+		constexpr uint64_t IS_ANIMATED  = 0x1;
+		constexpr uint64_t NEEDS_COLONS = 0x2;
+	}
+
 	struct DiscordGuild : Serialisable
 	{
 		Snowflake id;
@@ -241,8 +245,8 @@ namespace ikura::discord
 
 		tsl::robin_map<Snowflake, DiscordUser> knownUsers;
 
-		// { id, is_animated }
-		ikura::string_map<std::pair<Snowflake, bool>> emotes;
+		// { id, flags }
+		ikura::string_map<std::pair<Snowflake, uint64_t>> emotes;
 
 		ikura::string_map<Snowflake> roleNames;
 		ikura::string_map<Snowflake> usernameMap;

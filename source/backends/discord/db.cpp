@@ -155,8 +155,21 @@ namespace ikura::discord
 		if(!rd.read(&ret.knownUsers))
 			return { };
 
-		if(!rd.read(&ret.emotes))
-			return { };
+		if(db::getVersion() >= 27)
+		{
+			if(!rd.read(&ret.emotes))
+				return { };
+		}
+		else
+		{
+			ikura::string_map<std::pair<Snowflake, bool>> emotes;
+			if(!rd.read(&emotes))
+				return { };
+
+			for(const auto& [ k, v ] : emotes)
+				ret.emotes[k] = { v.first, v.second ? EmoteFlags::IS_ANIMATED : 0 };
+		}
+
 
 		for(auto it = ret.roles.begin(); it != ret.roles.end(); ++it)
 			ret.roleNames[it->second.name] = it->second.id;

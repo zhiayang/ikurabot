@@ -81,10 +81,10 @@ namespace ikura::discord
 			else
 			{
 				auto name = frag.emote.name;
-				auto [ id, anim ] = guild->emotes[name];
+				auto [ id, flags ] = guild->emotes[name];
 
-				if(id.value != 0)
-					str += zpr::sprint("<%s:%s:%s>", anim ? "a" : "", name, id.str());
+				if(id.value != 0 && (flags & EmoteFlags::NEEDS_COLONS))
+					str += zpr::sprint("<%s:%s:%s>", (flags & EmoteFlags::IS_ANIMATED) ? "a" : "", name, id.str());
 
 				else
 					str += name;

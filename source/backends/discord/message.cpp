@@ -100,7 +100,13 @@ namespace ikura::discord
 			if(!j["available"].as_bool())
 				continue;
 
-			guild.emotes[j["name"].as_str()] = { Snowflake(j["id"].as_str()), j["animated"].as_bool() };
+			// zpr::println("updating emotes: %s -> %s", j["name"].as_str(), j["id"].as_str());
+
+			uint64_t flags = 0;
+			if(j["animated"].as_bool())         flags |= EmoteFlags::IS_ANIMATED;
+			if(j["require_colons"].as_bool())   flags |= EmoteFlags::NEEDS_COLONS;
+
+			guild.emotes[j["name"].as_str()] = { Snowflake(j["id"].as_str()), flags };
 		}
 	}
 
