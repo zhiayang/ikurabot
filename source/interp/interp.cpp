@@ -223,6 +223,8 @@ namespace ikura::interp
 		this->globals["pi"]  = &const_pi;
 		this->globals["tau"] = &const_tau;
 		this->globals["inf"] = &const_inf;
+		this->globals["π"]   = &const_pi;
+		this->globals["τ"]   = &const_tau;
 	}
 
 	void InterpState::serialise(Buffer& buf) const

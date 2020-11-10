@@ -28,8 +28,8 @@ namespace ikura::twitch
 	{
 		// twitch says 20 messages every 30 seconds, so set it a little lower.
 		// for channels that it moderates, the bot gets 100 every 30s.
-		auto pleb_rate = new RateLimit(18, 30s, 0.5s);
-		auto mod_rate  = new RateLimit(95, 30s, 0.5s);
+		auto pleb_rate = RateLimit(18, 30s, 1.05s);
+		auto mod_rate  = RateLimit(95, 30s, 0.6s);
 
 		while(true)
 		{
@@ -37,8 +37,8 @@ namespace ikura::twitch
 			if(msg.disconnected)
 				break;
 
-			auto rate = (msg.is_moderator ? mod_rate : pleb_rate);
-			if(!rate->attempt())
+			auto rate = (msg.is_moderator ? &mod_rate : &pleb_rate);
+			while(!rate->attempt())
 			{
 				if(rate->exceeded())
 					lg::warn("twitch", "exceeded rate limit");
