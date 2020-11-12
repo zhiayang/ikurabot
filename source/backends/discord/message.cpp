@@ -56,12 +56,12 @@ namespace ikura::discord
 
 		auto msg = json["content"].as_str();
 
+		auto [ sanitised, emote_idxs ] = sanitise_discord_message(msg, guild);
+
 		// only process commands if we're not lurking
 		bool ran_cmd = false;
 		if(!this->channels[chan.id].lurk)
-			ran_cmd = cmd::processMessage(author.id.str(), author.nickname, &this->channels[chan.id], msg, /* enablePings: */ true);
-
-		auto [ sanitised, emote_idxs ] = sanitise_discord_message(msg, guild);
+			ran_cmd = cmd::processMessage(author.id.str(), author.nickname, &this->channels[chan.id], sanitised, /* enablePings: */ true);
 
 		/*
 			auto timestamp = parse_timestamp((wasEdit

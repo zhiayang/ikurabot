@@ -413,16 +413,24 @@ namespace ikura
 			return false;
 		};
 
+		auto check_discord_roles = [&discordRoles](const std::vector<discord::Snowflake>& list) -> bool {
+			for(auto& x : list)
+				if(std::find(discordRoles.begin(), discordRoles.end(), x) != discordRoles.end())
+					return true;
+
+			return false;
+		};
+
 		auto flag_ok = check_flags();
 		if(flag_ok)
 		{
 			// if we're ok already, just make sure we're not blacklisted.
-			return !check_list(this->blacklist);
+			return !(check_list(this->blacklist) || check_discord_roles(this->role_blacklist));
 		}
 		else
 		{
 			// else, check if we're in the whitelist.
-			return check_list(this->whitelist);
+			return check_list(this->whitelist) || check_discord_roles(this->role_whitelist);
 		}
 	}
 
