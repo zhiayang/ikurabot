@@ -20,7 +20,7 @@ namespace ikura::discord
 		}
 		else
 		{
-			lg::error("discord", "invalid snowflake '%s'", sv);
+			lg::error("discord", "invalid snowflake '{}'", sv);
 			this->value = 0;
 		}
 	}
@@ -91,7 +91,7 @@ namespace ikura::discord
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			return lg::error_o("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 
 		DiscordDB ret;
 
@@ -136,7 +136,7 @@ namespace ikura::discord
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			return lg::error_o("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 
 		DiscordGuild ret;
 
@@ -200,7 +200,7 @@ namespace ikura::discord
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			return lg::error_o("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 
 		DiscordChannel ret;
 
@@ -233,7 +233,7 @@ namespace ikura::discord
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			return lg::error_o("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 
 		DiscordUser ret;
 
@@ -275,7 +275,7 @@ namespace ikura::discord
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			return lg::error_o("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 
 		DiscordRole ret;
 

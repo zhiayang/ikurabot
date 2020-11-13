@@ -25,13 +25,13 @@ namespace ikura::twitch::ffz
 			if(!force && (interval == 0 || (now - last < interval)))
 				return;
 
-			auto [ hdr, body ] = request::get(URL(zpr::sprint("%s/room/id/%s", FFZ_API_URL, chan_id)));
+			auto [ hdr, body ] = request::get(URL(zpr::sprint("{}/room/id/{}", FFZ_API_URL, chan_id)));
 			if(auto st = hdr.statusCode(); st != 200 || body.empty())
-				return lg::error("ffz", "failed to fetch emotes for channel '%s' (error %d):\n%s", chan_name, st, body);
+				return lg::error("ffz", "failed to fetch emotes for channel '{}' (error {}):\n{}", chan_name, st, body);
 
 			auto res = util::parseJson(body);
 			if(!res)
-				return lg::error("ffz", "json response error: %s", res.error());
+				return lg::error("ffz", "json response error: {}", res.error());
 
 			ikura::string_map<CachedEmote> list;
 
@@ -62,7 +62,7 @@ namespace ikura::twitch::ffz
 				}
 			}
 
-			lg::log("ffz", "fetched %zu emotes for #%s", list.size(), chan_name);
+			lg::log("ffz", "fetched {} emotes for #{}", list.size(), chan_name);
 			database().wlock()->twitchData.channels[chan_name].ffzEmotes.update(std::move(list));
 
 		}, force, channelId, channelName);

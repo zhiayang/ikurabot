@@ -58,7 +58,7 @@ namespace ikura::interp
 			else
 			{
 			add_piece:
-				// lg::log("cmd", "piece = '%s'", code.take(end));
+				// lg::log("cmd", "piece = '{}'", code.take(end));
 				ret.push_back(code.take(end));
 				code.remove_prefix(end);
 				end = 0;
@@ -111,7 +111,7 @@ namespace ikura::interp
 				else
 				{
 					// not sure if we should continue expanding... for now, we do.
-					lg::warn("macro", "expansion error: %s", v.error());
+					lg::warn("macro", "expansion error: {}", v.error());
 					list.push_back(Value::of_string("<error>"));
 				}
 			}
@@ -183,7 +183,7 @@ namespace ikura::interp
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			return lg::error_o("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 
 		std::string name;
 		PermissionSet permissions;
@@ -198,7 +198,7 @@ namespace ikura::interp
 		if(!rd.read(&code))
 			return { };
 
-		// zpr::println("loaded perms '%x' for cmd '%s'", permissions, name);
+		// zpr::println("loaded perms '{x}' for cmd '{}'", permissions, name);
 		auto ret = new Macro(name, code);
 		ret->permissions = permissions;
 		return ret;
@@ -224,7 +224,7 @@ namespace ikura::interp
 			}
 
 			default:
-				return lg::error_o("db", "type tag mismatch (unexpected '%02x')", tag);
+				return lg::error_o("db", "type tag mismatch (unexpected '{02x}')", tag);
 		}
 	}
 }

@@ -47,11 +47,11 @@ namespace ikura
 			else if(lvl == 2)   { lvlcolour = ERR;  str = "[err]"; }
 			else if(lvl == 3)   { lvlcolour = FTL;  str = "[ftl]"; }
 
-			auto timestamp = zpr::sprint("%s %s|%s", util::getCurrentTimeString(), colours::WHITE_BOLD, RESET);
-			auto loglevel  = zpr::sprint("%s%s%s", lvlcolour, str, RESET);
-			auto subsystem = zpr::sprint("%s%s%s", SUBSYS, sys, RESET);
+			auto timestamp = zpr::sprint("{} {}|{}", util::getCurrentTimeString(), colours::WHITE_BOLD, RESET);
+			auto loglevel  = zpr::sprint("{}{}{}", lvlcolour, str, RESET);
+			auto subsystem = zpr::sprint("{}{}{}", SUBSYS, sys, RESET);
 
-			return zpr::sprint("%s %s %s: ", timestamp, loglevel, subsystem);
+			return zpr::sprint("{} {} {}: ", timestamp, loglevel, subsystem);
 		}
 
 		bool isDebugEnabled() { return ENABLE_DEBUG; }
@@ -136,7 +136,7 @@ namespace ikura
 
 			if(!tm) return "??";
 
-			return zpr::sprint("%02d:%02d:%02d",
+			return zpr::sprint("{02}:{02}:{02}",
 				tm->tm_hour, tm->tm_min, tm->tm_sec);
 		}
 
@@ -248,7 +248,7 @@ namespace ikura
 			{
 				char buf[128] = { 0 };
 				strerror_r(errno, buf, 127);
-				lg::error("misc", "failed to get filesize for '%s' (error code %d / %s)", path, errno, buf);
+				lg::error("misc", "failed to get filesize for '{}' (error code {} / {})", path, errno, buf);
 
 				return -1;
 			}

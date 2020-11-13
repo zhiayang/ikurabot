@@ -45,7 +45,7 @@ namespace ikura::twitch
 
 				futures::wait(futs);
 
-				lg::log("twitch", "updated bttv+ffz emotes in %.2f ms", t.measure());
+				lg::log("twitch", "updated bttv+ffz emotes in {.2f} ms", t.measure());
 
 				util::sleep_for(std::chrono::milliseconds(
 					config::twitch::getEmoteAutoUpdateInterval()
@@ -113,7 +113,7 @@ namespace ikura::twitch
 			// }), emotes.end());
 
 			auto emotes = msg.emotePositions;
-			zpr::println("%s\n%s", txt, zfu::listToString(emotes, [&](auto e) { return e.get(txt); }));
+			zpr::println("{}\n{}", txt, zfu::listToString(emotes, [&](auto e) { return e.get(txt); }));
 
 			// msg.emotePositions = emotes;
 		}
@@ -141,7 +141,7 @@ namespace ikura::twitch
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			return lg::error_o("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 
 		CachedEmote ret;
 
@@ -188,7 +188,7 @@ namespace ikura::twitch
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			return lg::error_o("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 
 		EmoteCacheDB ret;
 

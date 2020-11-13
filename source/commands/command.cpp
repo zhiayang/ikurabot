@@ -67,7 +67,7 @@ namespace ikura::cmd
 				if(!handlers.is_list() || !handlers.type()->elm_type()->is_function()
 				|| !handlers.type()->elm_type()->is_same(interp::Type::get_function(interp::Type::get_string(), { interp::Type::get_string() })))
 				{
-					lg::warn("interp", "__on_message list has wrong type (expected [(str) -> str], found %s)", handlers.type()->str());
+					lg::warn("interp", "__on_message list has wrong type (expected [(str) -> str], found {})", handlers.type()->str());
 					return;
 				}
 
@@ -84,7 +84,7 @@ namespace ikura::cmd
 					auto copy = cs;
 					copy.arguments = { interp::Value::of_string(message.str()) };
 
-					lg::dbglog("interp", "running message handler '%s'", handler.get_function()->getName());
+					lg::dbglog("interp", "running message handler '{}'", handler.get_function()->getName());
 					if(auto res = fn->run(&interp, copy); res && res->type()->is_string())
 						chan->sendMessage(value_to_message(res.unwrap()));
 				}
@@ -126,7 +126,7 @@ namespace ikura::cmd
 
 		for(const auto& f : msg.fragments)
 		{
-			if(f.isEmote)   list.push_back(Value::of_string(zpr::sprint(":%s", f.emote.name)));
+			if(f.isEmote)   list.push_back(Value::of_string(zpr::sprint(":{}", f.emote.name)));
 			else            list.push_back(Value::of_string(f.str));
 		}
 
@@ -254,7 +254,7 @@ namespace ikura::cmd
 		{
 			if(!chan->checkUserPermissions(userid, command->perms()))
 			{
-				lg::warn("cmd", "user '%s' tried to execute command '%s' with insufficient permissions", username, command->getName());
+				lg::warn("cmd", "user '{}' tried to execute command '{}' with insufficient permissions", username, command->getName());
 				chan->sendMessage(Message("insufficient permissions"));
 				return;
 			}
@@ -281,12 +281,12 @@ namespace ikura::cmd
 
 			if(pipelined)
 			{
-				lg::log("interp", "pipeline sub-command took %.3f ms to execute", t.measure());
+				lg::log("interp", "pipeline sub-command took {.3f} ms to execute", t.measure());
 				*out = ret->raw_str();
 			}
 			else
 			{
-				lg::log("interp", "command took %.3f ms to execute", t.measure());
+				lg::log("interp", "command took {.3f} ms to execute", t.measure());
 				if(ret)
 					chan->sendMessage(cmd::value_to_message(ret.unwrap()));
 
@@ -294,7 +294,7 @@ namespace ikura::cmd
 					chan->sendMessage(Message(ret.error()));
 
 				else
-					lg::error("interp", "%s", ret.error());
+					lg::error("interp", "{}", ret.error());
 			}
 		}
 		else
@@ -302,7 +302,7 @@ namespace ikura::cmd
 			auto found = run_builtin_command(cs, chan, cmd_str, arg_str);
 			if(found) return;
 
-			lg::warn("cmd", "user '%s' tried non-existent command '%s'", username, cmd_str);
+			lg::warn("cmd", "user '{}' tried non-existent command '{}'", username, cmd_str);
 			return;
 		}
 	}
@@ -319,11 +319,11 @@ namespace ikura::cmd
 			auto [ first, subsequent ] = split_pipeline(input, &do_expand);
 
 			auto cmd_str = first.substr(0, first.find(' ')).trim();
-			auto arg_str = zpr::sprint("%s %s", first.drop(cmd_str.size()).trim(), piped_input);
+			auto arg_str = zpr::sprint("{} {}", first.drop(cmd_str.size()).trim(), piped_input);
 
-			// zpr::println("F = '%s'", first);
-			// zpr::println("S = '%s'", subsequent);
-			// zpr::println("A = '%s'", arg_str);
+			// zpr::println("F = '{}'", first);
+			// zpr::println("S = '{}'", subsequent);
+			// zpr::println("A = '{}'", arg_str);
 
 			auto pipelined = !subsequent.empty();
 			process_one_command(cs, userid, username, chan, cmd_str, arg_str, pipelined, do_expand, &piped_input);

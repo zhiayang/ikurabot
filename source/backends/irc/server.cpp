@@ -29,7 +29,7 @@ namespace ikura::irc
 				if(x == std::string::npos)
 					return;
 
-				// lg::log("irc", "<< %s", sv.take(x));
+				// lg::log("irc", "<< {}", sv.take(x));
 
 				fn(sv.take(x));
 				auto len = x + strlen("\r\n");
@@ -57,10 +57,10 @@ namespace ikura::irc
 	{
 		bool use_sasl = config.useSASL;
 
-		auto sys = zpr::sprint("irc/%s", config.name);
+		auto sys = zpr::sprint("irc/{}", config.name);
 
 		// try to connect.
-		lg::log(sys, "connecting to %s:%d", config.hostname, config.port);
+		lg::log(sys, "connecting to {}:{}", config.hostname, config.port);
 
 		auto backoff = 500ms;
 		for(int i = 0; i < CONNECT_RETRIES; i++)
@@ -68,7 +68,7 @@ namespace ikura::irc
 			if(this->socket.connect())
 				break;
 
-			lg::warn(sys, "connection failed, retrying... (%d/%d)", i + 1, CONNECT_RETRIES);
+			lg::warn(sys, "connection failed, retrying... ({}/{})", i + 1, CONNECT_RETRIES);
 			util::sleep_for(backoff);
 			backoff *= 2;
 		}
@@ -85,8 +85,8 @@ namespace ikura::irc
 
 		// send the nickname and the username.
 		// (for username the hostname and servername are ignored so just send *)
-		this->sendRawMessage(zpr::sprint("NICK %s", config.nickname));
-		this->sendRawMessage(zpr::sprint("USER %s * * :%s", config.username, config.username));
+		this->sendRawMessage(zpr::sprint("NICK {}", config.nickname));
+		this->sendRawMessage(zpr::sprint("USER {} * * :{}", config.username, config.username));
 
 		bool nicknameUsed = false;
 
@@ -114,7 +114,7 @@ namespace ikura::irc
 				{
 					if(msg.params.size() != 1 || msg.params[0] != "+")
 					{
-						lg::warn(sys, "invalid AUTHENTICATE: %s", msg.params.empty() ? "<empty>" : msg.params[0]);
+						lg::warn(sys, "invalid AUTHENTICATE: {}", msg.params.empty() ? "<empty>" : msg.params[0]);
 						use_sasl = false;
 					}
 
@@ -128,7 +128,7 @@ namespace ikura::irc
 
 					if(msg.params.size() != 3 || msg.params[1] == "NAK")
 					{
-						lg::warn(sys, "invalid CAP: %s %s %s",
+						lg::warn(sys, "invalid CAP: {} {} {}",
 							msg.params.size() < 1 ? "<?>" : msg.params[0],
 							msg.params.size() < 2 ? "<?>" : msg.params[1],
 							msg.params.size() < 3 ? "<?>" : msg.params[2]);
@@ -156,7 +156,7 @@ namespace ikura::irc
 
 			if(!res || !use_sasl)
 			{
-				lg::error(sys, "did not receive SASL response from server: %s", res ? "invalid response" : "timed out");
+				lg::error(sys, "did not receive SASL response from server: {}", res ? "invalid response" : "timed out");
 				goto no_sasl;
 			}
 
@@ -181,7 +181,7 @@ namespace ikura::irc
 				// TODO: split this properly.
 				assert(auth_str.size() < 400);
 
-				this->sendRawMessage(zpr::sprint("AUTHENTICATE %s", auth_str));
+				this->sendRawMessage(zpr::sprint("AUTHENTICATE {}", auth_str));
 			}
 
 			// reuse the cv
@@ -214,7 +214,7 @@ namespace ikura::irc
 			res = cv.wait(true, 3000ms);
 			if(!res || !reason.empty())
 			{
-				lg::error(sys, "authentication failed: %s", !res ? "timeout" : reason);
+				lg::error(sys, "authentication failed: {}", !res ? "timeout" : reason);
 				goto failure;
 			}
 
@@ -240,7 +240,7 @@ namespace ikura::irc
 
 		if(nicknameUsed)
 		{
-			lg::warn(sys, "nickname '%s' is already in use", this->nickname);
+			lg::warn(sys, "nickname '{}' is already in use", this->nickname);
 
 			auto nick = this->nickname;
 			for(int i = 0; i < 5 && nicknameUsed; i++)
@@ -250,11 +250,11 @@ namespace ikura::irc
 				size_t offset = 0;
 				auto buf = Buffer(256);
 
-				lg::log(sys, "trying '%s'...", nick);
+				lg::log(sys, "trying '{}'...", nick);
 
 				condvar<bool> cv;
 
-				this->sendRawMessage(zpr::sprint("NICK %s", nick));
+				this->sendRawMessage(zpr::sprint("NICK {}", nick));
 				readMessagesFromSocket(this->socket, buf, offset, [&](ikura::str_view sv) {
 					auto res = parseMessage(sv);
 					if(!res.has_value())
@@ -328,7 +328,7 @@ namespace ikura::irc
 	{
 		// join the channels.
 		for(const auto& [ name, chan ] : this->channels)
-			this->sendRawMessage(zpr::sprint("JOIN %s", name));
+			this->sendRawMessage(zpr::sprint("JOIN {}", name));
 	}
 
 	void IRCServer::disconnect()
@@ -339,7 +339,7 @@ namespace ikura::irc
 		this->socket.disconnect();
 
 		// just quit, then close the socket.
-		lg::log(zpr::sprint("irc/%s", this->name), "disconnected");
+		lg::log(zpr::sprint("irc/{}", this->name), "disconnected");
 	}
 
 
@@ -365,7 +365,7 @@ namespace ikura::irc
 			this->processMessage(msg.msg);
 		}
 
-		lg::dbglog(zpr::sprint("irc/%s", this->name), "receive worker exited");
+		lg::dbglog(zpr::sprint("irc/{}", this->name), "receive worker exited");
 		this->socket.onReceive([](auto) { });
 	}
 
@@ -378,6 +378,6 @@ namespace ikura::irc
 				break;
 		}
 
-		lg::dbglog(zpr::sprint("irc/%s", this->name), "send worker exited");
+		lg::dbglog(zpr::sprint("irc/{}", this->name), "send worker exited");
 	}
 }

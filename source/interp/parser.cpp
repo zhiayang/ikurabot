@@ -367,7 +367,7 @@ namespace ikura::interp::ast
 				return zpr::sprint("unexpected end of input");
 
 			default:
-				return zpr::sprint("unexpected token '%s' (%d)", st.peek().str(), st.peek().type);
+				return zpr::sprint("unexpected token '{}' ({})", st.peek().str(), st.peek().type);
 		}
 	}
 
@@ -485,7 +485,7 @@ namespace ikura::interp::ast
 				break;
 
 			else
-				return zpr::sprint("expected ',' or ']' in list literal, found '%s'", st.peek().str());
+				return zpr::sprint("expected ',' or ']' in list literal, found '{}'", st.peek().str());
 		}
 
 		if(st.peek() != TT::RSquare)
@@ -656,7 +656,7 @@ namespace ikura::interp::ast
 				}
 				else
 				{
-					return zpr::sprint("expected either ']' or ':', found '%s'", st.peek().str());
+					return zpr::sprint("expected either ']' or ':', found '{}'", st.peek().str());
 				}
 			}
 		}
@@ -687,7 +687,7 @@ namespace ikura::interp::ast
 			}
 			else
 			{
-				return zpr::sprint("invalid token '%s' after '$'", st.peek().str());
+				return zpr::sprint("invalid token '{}' after '$'", st.peek().str());
 			}
 
 			st.pop();
@@ -768,7 +768,7 @@ namespace ikura::interp::ast
 			while(!st.empty() && st.peek() != TT::RAngle)
 			{
 				if(st.peek() != TT::Identifier)
-					return zpr::sprint("expected identifier in <>, found '%d'", st.peek().type);
+					return zpr::sprint("expected identifier in <>, found '{}'", st.peek().type);
 
 				generics.emplace_back(st.peek().str());
 				st.pop();
@@ -780,7 +780,7 @@ namespace ikura::interp::ast
 					break;
 
 				else
-					zpr::sprint("unexpected token '%s' in <>", st.peek().str());
+					zpr::sprint("unexpected token '{}' in <>", st.peek().str());
 			}
 
 			if(st.empty() || st.peek() != TT::RAngle)
@@ -795,7 +795,7 @@ namespace ikura::interp::ast
 		if(!type) return type.error();
 
 		if(!type.unwrap()->is_function())
-			return zpr::sprint("'%s' is not a function type", type.unwrap()->str());
+			return zpr::sprint("'{}' is not a function type", type.unwrap()->str());
 
 		auto body = parseBlock(st);
 		if(!body) return body.error();
@@ -848,7 +848,7 @@ namespace ikura::interp::ast
 			else if(st.isKnownGeneric(s))
 				return Type::get_generic(s.str(), group);
 
-			return zpr::sprint("unknown type '%s'", s);
+			return zpr::sprint("unknown type '{}'", s);
 		}
 		else if(st.peek() == TT::LSquare)
 		{
@@ -898,7 +898,7 @@ namespace ikura::interp::ast
 					break;
 
 				else
-					return zpr::sprint("expected either ',' or ')', found '%s'", st.peek().str());
+					return zpr::sprint("expected either ',' or ')', found '{}'", st.peek().str());
 			}
 
 			if(st.empty() || st.peek() != TT::RParen)
@@ -918,7 +918,7 @@ namespace ikura::interp::ast
 		}
 		else
 		{
-			return zpr::sprint("unexpected token '%s' in type", st.peek().str());
+			return zpr::sprint("unexpected token '{}' in type", st.peek().str());
 		}
 	}
 

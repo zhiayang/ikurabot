@@ -90,7 +90,7 @@ namespace ikura::unicode
 
 		if(converted < 0)
 		{
-			lg::error("utf", "failed to convert '%s' to utf-32 (error = %d)", str, (int) converted);
+			lg::error("utf", "failed to convert '{}' to utf-32 (error = {})", str, (int) converted);
 			return { };
 		}
 
@@ -109,7 +109,7 @@ namespace ikura::unicode
 		auto did = utf8proc_reencode(&codepoints[0], codepoints.size(), (utf8proc_option_t) (UTF8PROC_STRIPCC | UTF8PROC_COMPOSE));
 		if(did < 0)
 		{
-			lg::error("unicode", "failed to convert codepoints to utf-8 (error = %d)", (int) did);
+			lg::error("unicode", "failed to convert codepoints to utf-8 (error = {})", (int) did);
 			return "";
 		}
 

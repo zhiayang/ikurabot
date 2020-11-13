@@ -76,7 +76,7 @@ namespace ikura::db
 
 	static void createNewDatabase(const std::fs::path& path)
 	{
-		lg::log("db", "creating new database '%s'", path.string());
+		lg::log("db", "creating new database '{}'", path.string());
 
 		*TheDatabase.wlock().get() = Database::create();
 		TheDatabase.rlock()->sync();
@@ -95,12 +95,12 @@ namespace ikura::db
 		}
 		else if(create)
 		{
-			lg::warn("db", "database '%s' exists, ignoring '--create' flag", path.string());
+			lg::warn("db", "database '{}' exists, ignoring '--create' flag", path.string());
 		}
 
 		if(!(std::fs::is_regular_file(path) || std::fs::is_symlink(path)))
 		{
-			return lg::error_b("db", "given path '%s' was not a regular file (or symlink)",
+			return lg::error_b("db", "given path '{}' was not a regular file (or symlink)",
 				path.string());
 		}
 
@@ -128,15 +128,15 @@ namespace ikura::db
 				if(currentDatabaseVersion < DB_VERSION)
 				{
 					auto backup = path;
-					backup.replace_filename(zpr::sprint("db-backup-v%d.db", currentDatabaseVersion));
+					backup.replace_filename(zpr::sprint("db-backup-v{}.db", currentDatabaseVersion));
 
-					lg::log("db", "making a backup: '%s' -> '%s'", path.string(), backup.string());
+					lg::log("db", "making a backup: '{}' -> '{}'", path.string(), backup.string());
 
 					std::error_code ec;
 					std::fs::copy_file(path, backup, ec);
 
 					if(ec)
-						return lg::error_b("db", "failed to create backup: %s", ec.message());
+						return lg::error_b("db", "failed to create backup: {}", ec.message());
 				}
 
 				TheDatabase.on_write_lock([]() { databaseDirty = true; });
@@ -157,7 +157,7 @@ namespace ikura::db
 				thr.detach();
 			}
 
-			lg::log("db", "%sdatabase (version %d) loaded in %.2f ms",
+			lg::log("db", "{}database (version {}) loaded in {.2f} ms",
 				readOnly ? "READONLY " : "",
 				currentDatabaseVersion, t.measure());
 		}
@@ -197,10 +197,10 @@ namespace ikura::db
 			return error("database truncated (not enough bytes!)");
 
 		if(strncmp(sb->magic, DB_MAGIC, 8) != 0)
-			return error("invalid database identifier (expected '%s', got '%.*s')", DB_MAGIC, 8, sb->magic);
+			return error("invalid database identifier (expected '{}', got '{}')", DB_MAGIC, zpr::p(8)(sb->magic));
 
 		if(sb->version > DB_VERSION)
-			return error("invalid version %lu (expected <= %lu)", sb->version, DB_VERSION);
+			return error("invalid version {} (expected <= {})", sb->version, DB_VERSION);
 
 		auto t = timer();
 		double times[7] = { };
@@ -215,7 +215,7 @@ namespace ikura::db
 
 		currentDatabaseVersion = db._version;
 		if(currentDatabaseVersion < DB_VERSION)
-			lg::log("db", "upgrading database from version %d to %d", currentDatabaseVersion, DB_VERSION);
+			lg::log("db", "upgrading database from version {} to {}", currentDatabaseVersion, DB_VERSION);
 
 		if(!rd.read(&db.twitchData))
 			return error("failed to read twitch data");
@@ -250,7 +250,7 @@ namespace ikura::db
 		// thus, we can "upgrade" the version.
 		db._version = DB_VERSION;
 
-		lg::log("db", "db loads (ms): [ %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f ]",
+		lg::log("db", "db loads (ms): [ {.2f}, {.2f}, {.2f}, {.2f}, {.2f}, {.2f}, {.2f} ]",
 			times[0], times[1], times[2], times[3], times[4], times[5], times[6]);
 
 		return db;
@@ -274,7 +274,7 @@ namespace ikura::db
 		int fd = open(newdb.string().c_str(), O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
 		if(fd < 0)
 		{
-			error("failed to open for writing! error: %s", strerror(errno));
+			error("failed to open for writing! error: {}", strerror(errno));
 			return;
 		}
 
@@ -288,11 +288,11 @@ namespace ikura::db
 		std::fs::rename(newdb, databasePath, ec);
 		if(ec)
 		{
-			error("failed to sync! error: %s", ec.message());
+			error("failed to sync! error: {}", ec.message());
 			return;
 		}
 
-		lg::log("db", "sync in %.2f ms", t.measure());
+		lg::log("db", "sync in {.2f} ms", t.measure());
 	}
 }
 

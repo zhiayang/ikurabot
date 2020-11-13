@@ -319,14 +319,14 @@ namespace ikura
 
 namespace zpr
 {
-	template<>
-	struct print_formatter<ikura::str_view>
-	{
-		std::string print(ikura::str_view sv, const format_args& args)
-		{
-			return print_formatter<std::string_view>().print(sv.sv(), args);
-		}
-	};
+	// template<>
+	// struct print_formatter<ikura::str_view>
+	// {
+	// 	std::string print(ikura::str_view sv, const format_args& args)
+	// 	{
+	// 		return print_formatter<std::string_view>().print(sv.sv(), args);
+	// 	}
+	// };
 }
 
 

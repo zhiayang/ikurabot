@@ -84,7 +84,7 @@ namespace ikura::discord
 				auto [ id, flags ] = guild->emotes[name];
 
 				if(id.value != 0 && (flags & EmoteFlags::NEEDS_COLONS))
-					str += zpr::sprint("<%s:%s:%s>", (flags & EmoteFlags::IS_ANIMATED) ? "a" : "", name, id.str());
+					str += zpr::sprint("<{}:{}:{}>", (flags & EmoteFlags::IS_ANIMATED) ? "a" : "", name, id.str());
 
 				else
 					str += name;
@@ -155,12 +155,12 @@ namespace ikura::discord
 		std::string endpoint;
 		if(edit == false)
 		{
-			endpoint = zpr::sprint("%s/v%d/channels/%s/messages", DiscordState::API_URL, DiscordState::API_VERSION,
+			endpoint = zpr::sprint("{}/v{}/channels/{}/messages", DiscordState::API_URL, DiscordState::API_VERSION,
 				tx.channelId.str());
 		}
 		else
 		{
-			endpoint = zpr::sprint("%s/v%d/channels/%s/messages/%s", DiscordState::API_URL, DiscordState::API_VERSION,
+			endpoint = zpr::sprint("{}/v{}/channels/{}/messages/{}", DiscordState::API_URL, DiscordState::API_VERSION,
 				tx.channelId.str(), msgId.str());
 		}
 
@@ -180,7 +180,7 @@ namespace ikura::discord
 		auto& method = (edit ? request::patch : request::post);
 		auto resp = method(URL(endpoint), { /* no params */ },
 			{
-				request::Header("Authorization", zpr::sprint("Bot %s", config::discord::getOAuthToken())),
+				request::Header("Authorization", zpr::sprint("Bot {}", config::discord::getOAuthToken())),
 				request::Header("User-Agent", "DiscordBot (https://github.com/zhiayang/ikurabot, 0.1.0)"),
 				request::Header("X-RateLimit-Precision", "millisecond")
 			},
@@ -217,7 +217,7 @@ namespace ikura::discord
 			{
 				auto& json = j.unwrap().as_obj();
 				auto wait = json["retry_after"].as_int();
-				lg::warn("discord", "rate limited; retry after %d ms", wait);
+				lg::warn("discord", "rate limited; retry after {} ms", wait);
 
 				// add some buffer
 				wait += 100;
@@ -228,13 +228,13 @@ namespace ikura::discord
 		}
 		else if(hdrs.statusCode() != 200)
 		{
-			lg::error("discord", "send error %d: %s", hdrs.statusCode(), res);
+			lg::error("discord", "send error {}: {}", hdrs.statusCode(), res);
 		}
 		else
 		{
 			if(!edit)
 			{
-				lg::log("msg", "discord/%s/#%s: %s>>>%s %s", tx.guildName, tx.channelName,
+				lg::log("msg", "discord/{}/#{}: {}>>>{} {}", tx.guildName, tx.channelName,
 					colours::GREEN_BOLD, colours::COLOUR_RESET, message);
 			}
 
@@ -311,11 +311,11 @@ namespace ikura::discord
 				if(end)
 				{
 					auto elapsed = (double) (util::getMillisecondTimestamp() - ts->start_ms) / 1000.0;
-					str = zpr::sprint("%s: beep beep (%.1fs)", kek, elapsed);
+					str = zpr::sprint("{}: beep beep ({.1f}s)", kek, elapsed);
 				}
 				else
 				{
-					str = zpr::sprint("%s: %.1fs", kek, std::max(0.0, (double) n / 1000.0));
+					str = zpr::sprint("{}: {.1f}s", kek, std::max(0.0, (double) n / 1000.0));
 				}
 
 				return TxMessage(str, chan->channelId, chan->getGuild()->name, chan->getName());

@@ -91,7 +91,7 @@ namespace ikura::twitch
 			if(this->ws.connect())
 				break;
 
-			lg::warn("twitch", "connection failed, retrying... (%d/%d)", i + 1, CONNECT_RETRIES);
+			lg::warn("twitch", "connection failed, retrying... ({}/{})", i + 1, CONNECT_RETRIES);
 			util::sleep_for(backoff);
 			backoff *= 2;
 		}
@@ -114,14 +114,14 @@ namespace ikura::twitch
 				auto [ hdr, res ] = request::get(URL("https://api.twitch.tv/helix/users"),
 					{ request::Param("login", cfg.name) },
 					{
-						request::Header("Authorization", zpr::sprint("Bearer %s", config::twitch::getOAuthToken())),
+						request::Header("Authorization", zpr::sprint("Bearer {}", config::twitch::getOAuthToken())),
 						request::Header("Client-Id", "q6batx0epp608isickayubi39itsckt"),
 					}
 				);
 
 				if(hdr.statusCode() != 200 || res.empty())
 				{
-					lg::error("twitch", "get user id failed (for '%s'):\n%s", cfg.name, res);
+					lg::error("twitch", "get user id failed (for '{}'):\n{}", cfg.name, res);
 					return "";
 				}
 
@@ -130,14 +130,14 @@ namespace ikura::twitch
 
 				auto res = util::parseJson(msg);
 				if(!res)
-					return lg::error("twitch", "response json error: %s", res.error());
+					return lg::error("twitch", "response json error: {}", res.error());
 
 				auto& json = res.unwrap();
 				auto id = json.as_obj()["data"].as_arr()[0].as_obj()["id"].as_str();
 				auto name = json.as_obj()["data"].as_arr()[0].as_obj()["login"].as_str();
 
 				database().wlock()->twitchData.channels[name].id = id;
-				lg::log("twitch", "#%s -> id %s", name, id);
+				lg::log("twitch", "#{} -> id {}", name, id);
 
 			}).discard();
 		}
@@ -159,8 +159,8 @@ namespace ikura::twitch
 
 		// startup
 		lg::log("twitch", "authenticating...");
-		this->ws.send(zpr::sprint("PASS oauth:%s\r\n", config::twitch::getOAuthToken()));
-		this->ws.send(zpr::sprint("NICK %s\r\n", config::twitch::getUsername()));
+		this->ws.send(zpr::sprint("PASS oauth:{}\r\n", config::twitch::getOAuthToken()));
+		this->ws.send(zpr::sprint("NICK {}\r\n", config::twitch::getUsername()));
 
 		if(!didcon.wait(true, 3000ms))
 		{
@@ -192,7 +192,7 @@ namespace ikura::twitch
 
 		// join channels
 		for(auto& [ _, chan ] : this->channels)
-			this->ws.send(zpr::sprint("JOIN #%s\r\n", chan.getName()));
+			this->ws.send(zpr::sprint("JOIN #{}\r\n", chan.getName()));
 	}
 
 	void TwitchState::disconnect()
@@ -207,7 +207,7 @@ namespace ikura::twitch
 
 		// part from channels. we don't particularly care about the response anyway.
 		for(auto& [ name, chan ] : this->channels)
-			this->ws.send(zpr::sprint("PART #%s\r\n", chan.getName()));
+			this->ws.send(zpr::sprint("PART #{}\r\n", chan.getName()));
 
 		util::sleep_for(350ms);
 		this->ws.disconnect();

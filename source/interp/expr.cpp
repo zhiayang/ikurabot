@@ -49,7 +49,7 @@ namespace ikura::interp::ast
 				return make_int(~e.get_integer());
 		}
 
-		return zpr::sprint("invalid unary '%s' on type '%s'  --  (in expr %s%s)",
+		return zpr::sprint("invalid unary '{}' on type '{}'  --  (in expr {}{})",
 			this->op_str, e.type()->str(), this->op_str, e.str());
 	}
 
@@ -91,7 +91,7 @@ namespace ikura::interp::ast
 					left = &lhs;
 				}
 
-				// lg::log("interp", "%s + %s", left->type()->str(), rhs.type()->str());
+				// lg::log("interp", "{} + {}", left->type()->str(), rhs.type()->str());
 
 				if(rhs.is_list() && (left->type()->elm_type()->is_same(rhs.type()->elm_type())
 					|| left->type()->elm_type()->is_void()
@@ -194,7 +194,7 @@ namespace ikura::interp::ast
 			return make_int(lhs.get_integer() | rhs.get_integer());
 		}
 
-		return zpr::sprint("invalid binary '%s' between types '%s' and '%s' -- in expr (%s %s %s)",
+		return zpr::sprint("invalid binary '{}' between types '{}' and '{}' -- in expr ({} {} {})",
 			op_str, lhs.type()->str(), rhs.type()->str(), lhs.str(), op_str, rhs.str());
 	}
 
@@ -207,7 +207,7 @@ namespace ikura::interp::ast
 			if(!lhs) return lhs;
 
 			if(!lhs->is_bool())
-				return zpr::sprint("non-boolean type '%s' on lhs of '%s'", lhs->type()->str(), this->op_str);
+				return zpr::sprint("non-boolean type '{}' on lhs of '{}'", lhs->type()->str(), this->op_str);
 
 			if(lhs->get_bool() && this->op == TT::LogicalOr)
 				return Value::of_bool(true);
@@ -221,7 +221,7 @@ namespace ikura::interp::ast
 				if(!rhs) return rhs;
 
 				if(!rhs->is_bool())
-					return zpr::sprint("non-boolean type '%s' on rhs of '%s'", rhs->type()->str(), this->op_str);
+					return zpr::sprint("non-boolean type '{}' on rhs of '{}'", rhs->type()->str(), this->op_str);
 
 				return Value::of_bool(rhs->get_bool());
 			}
@@ -241,13 +241,13 @@ namespace ikura::interp::ast
 	Result<Value> TernaryOp::evaluate(InterpState* fs, CmdContext& cs) const
 	{
 		if(this->op != TT::Question)
-			return zpr::sprint("unsupported '%s'", this->op_str);
+			return zpr::sprint("unsupported '{}'", this->op_str);
 
 		auto cond = this->op1->evaluate(fs, cs);
 		if(!cond) return cond;
 
 		if(!cond->is_bool())
-			return zpr::sprint("invalid use of ?: with type '%s' as first operand", cond->type()->str());
+			return zpr::sprint("invalid use of ?: with type '{}' as first operand", cond->type()->str());
 
 		auto tmp = cond->get_bool();
 		if(tmp) return this->op2->evaluate(fs, cs);
@@ -283,7 +283,7 @@ namespace ikura::interp::ast
 		// check if they're assignable.
 		if(auto right = rhs->cast_to(ltyp); !right)
 		{
-			return zpr::sprint("cannot assign value of type '%s' to variable of type '%s'",
+			return zpr::sprint("cannot assign value of type '{}' to variable of type '{}'",
 				rhs->type()->str(), ltyp->str());
 		}
 		else
@@ -360,7 +360,7 @@ namespace ikura::interp::ast
 			}
 
 		fail:
-			return zpr::sprint("invalid comparison '%s' between types '%s' and '%s'", op_str, lhs.type()->str(), rhs.type()->str());
+			return zpr::sprint("invalid comparison '{}' between types '{}' and '{}'", op_str, lhs.type()->str(), rhs.type()->str());
 		};
 
 		for(size_t i = 0; i < this->exprs.size() - 1; i++)
@@ -422,7 +422,7 @@ namespace ikura::interp::ast
 		{
 			auto* map = &base->get_map();
 			if(!base->type()->key_type()->is_same(idx->type()))
-				return zpr::sprint("cannot index '%s' with key '%s'", base->type()->str(), idx->type()->str());
+				return zpr::sprint("cannot index '{}' with key '{}'", base->type()->str(), idx->type()->str());
 
 			if(auto it = map->find(idx.unwrap()); it != map->end())
 			{
@@ -439,7 +439,7 @@ namespace ikura::interp::ast
 		}
 		else
 		{
-			return zpr::sprint("type '%s' cannot be indexed", base->type()->str());
+			return zpr::sprint("type '{}' cannot be indexed", base->type()->str());
 		}
 	}
 
@@ -532,7 +532,7 @@ namespace ikura::interp::ast
 		}
 		else
 		{
-			return zpr::sprint("type '%s' cannot be sliced", base->type()->str());
+			return zpr::sprint("type '{}' cannot be sliced", base->type()->str());
 		}
 	}
 
@@ -542,7 +542,7 @@ namespace ikura::interp::ast
 	{
 		auto [ val, ref ] = fs->resolveVariable(this->name, cs);
 		if(ref) return Value::of_lvalue(ref);
-		else    return Result<Value>::of(val, zpr::sprint("'%s' not found", this->name));
+		else    return Result<Value>::of(val, zpr::sprint("'{}' not found", this->name));
 	}
 
 
@@ -552,7 +552,7 @@ namespace ikura::interp::ast
 		if(!out) return out;
 
 		if(!out->is_list())
-			return zpr::sprint("invalid splat on type '%s'", out->type()->str());
+			return zpr::sprint("invalid splat on type '{}'", out->type()->str());
 
 		return Value::of_variadic_list(out->type()->elm_type(), out->get_list());
 	}
@@ -590,7 +590,7 @@ namespace ikura::interp::ast
 							}
 							else
 							{
-								return zpr::sprint("element type mismatch for append() (arg %d); expected '%s', found '%s'",
+								return zpr::sprint("element type mismatch for append() (arg {}); expected '{}', found '{}'",
 									i, elmty->str(), arg->type()->str());
 							}
 						}
@@ -610,7 +610,7 @@ namespace ikura::interp::ast
 					}
 					else
 					{
-						return zpr::sprint("list has no method '%s'", cc->name);
+						return zpr::sprint("list has no method '{}'", cc->name);
 					}
 				}
 				else
@@ -626,7 +626,7 @@ namespace ikura::interp::ast
 		}
 		else
 		{
-			return zpr::sprint("invalid dotop on lhs type '%s'", left->type()->str());
+			return zpr::sprint("invalid dotop on lhs type '{}'", left->type()->str());
 		}
 	}
 
@@ -679,7 +679,7 @@ namespace ikura::interp::ast
 		auto ty = vals[0].type();
 		for(size_t i = 1; i < vals.size(); i++)
 			if(!vals[i].type()->is_same(ty))
-				return zpr::sprint("conflicting types in list -- '%s' and '%s'", ty->str(), vals[i].type()->str());
+				return zpr::sprint("conflicting types in list -- '{}' and '{}'", ty->str(), vals[i].type()->str());
 
 		return Value::of_list(ty, std::move(vals));
 	}
@@ -689,30 +689,30 @@ namespace ikura::interp::ast
 	Result<Value> LitBoolean::evaluate(InterpState* fs, CmdContext& cs) const    { return make_bool(this->value); }
 
 
-	std::string LitChar::str() const        { return zpr::sprint("'%c'", codepoint); }
-	std::string LitString::str() const      { return zpr::sprint("\"%s\"", value); }
-	std::string LitInteger::str() const     { return zpr::sprint("%d%s", value, imag ? "i" : ""); }
-	std::string LitDouble::str() const      { return zpr::sprint("%.3f%s", value, imag ? "i" : ""); }
-	std::string LitBoolean::str() const     { return zpr::sprint("%s", value ? "true" : "false"); }
+	std::string LitChar::str() const        { return zpr::sprint("'{}'", codepoint); }
+	std::string LitString::str() const      { return zpr::sprint("\"{}\"", value); }
+	std::string LitInteger::str() const     { return zpr::sprint("{}{}", value, imag ? "i" : ""); }
+	std::string LitDouble::str() const      { return zpr::sprint("{.3f}{}", value, imag ? "i" : ""); }
+	std::string LitBoolean::str() const     { return zpr::sprint("{}", value ? "true" : "false"); }
 	std::string LitList::str() const        { return zfu::listToString(elms, [](auto e) { return e->str(); }); }
 
 	std::string VarRef::str() const         { return name; }
-	std::string SubscriptOp::str() const    { return zpr::sprint("%s[%s]", list->str(), index->str()); }
-	std::string SliceOp::str() const        { return zpr::sprint("%s[%s:%s]", list->str(),
+	std::string SubscriptOp::str() const    { return zpr::sprint("{}[{}]", list->str(), index->str()); }
+	std::string SliceOp::str() const        { return zpr::sprint("{}[{}:{}]", list->str(),
 														start ? start->str() : "",
 														end ? end->str() : "");
 											}
-	std::string UnaryOp::str() const        { return zpr::sprint("%s%s", op_str, expr->str()); }
-	std::string SplatOp::str() const        { return zpr::sprint("%s...", expr->str()); }
-	std::string BinaryOp::str() const       { return zpr::sprint("%s %s %s", lhs->str(), op_str, rhs->str()); }
-	std::string AssignOp::str() const       { return zpr::sprint("%s %s %s", lhs->str(), op_str, rhs->str()); }
-	std::string DotOp::str() const          { return zpr::sprint("%s.%s", lhs->str(), rhs->str()); }
+	std::string UnaryOp::str() const        { return zpr::sprint("{}{}", op_str, expr->str()); }
+	std::string SplatOp::str() const        { return zpr::sprint("{}...", expr->str()); }
+	std::string BinaryOp::str() const       { return zpr::sprint("{} {} {}", lhs->str(), op_str, rhs->str()); }
+	std::string AssignOp::str() const       { return zpr::sprint("{} {} {}", lhs->str(), op_str, rhs->str()); }
+	std::string DotOp::str() const          { return zpr::sprint("{}.{}", lhs->str(), rhs->str()); }
 
 	// TODO: don't cheat here
 	std::string TernaryOp::str() const
 	{
 		if(this->op_str == "?")
-			return zpr::sprint("%s ? %s : %s", op1->str(), op2->str(), op3->str());
+			return zpr::sprint("{} ? {} : {}", op1->str(), op2->str(), op3->str());
 
 		return "";
 	}
@@ -721,7 +721,7 @@ namespace ikura::interp::ast
 	{
 		std::string ret;
 		for(size_t i = 0; i < this->ops.size(); i++)
-			ret += zpr::sprint("%s %s ", this->exprs[i]->str(), this->ops[i].second);
+			ret += zpr::sprint("{} {} ", this->exprs[i]->str(), this->ops[i].second);
 
 		ret += this->exprs.back()->str();
 		return ret;

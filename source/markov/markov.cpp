@@ -191,7 +191,7 @@ namespace ikura::markov
 
 	void retrain()
 	{
-		lg::log("markov", "retraining model (%zu)...", State.retrainingTotalSize);
+		lg::log("markov", "retraining model ({})...", State.retrainingTotalSize);
 
 		reset();
 
@@ -478,7 +478,7 @@ namespace ikura::markov
 		auto pfl = 1 + rd_distr(rd_state.mersenne);
 		prefix = prefix.take_last(pfl);
 
-		// lg::log("markov", "prefix len = %.3f / %zu", prb, pfl);
+		// lg::log("markov", "prefix len = {.3f} / {}", prb, pfl);
 
 		return markovModel().map_read([&](auto& markov) -> uint64_t {
 			while(!prefix.empty())
@@ -500,7 +500,7 @@ namespace ikura::markov
 								return markov.wordList[w].word;
 							}, false);
 
-							lg::dbglog("markov", "{ %s } -> '%s'  --  (%d/%d [%.2f%])",
+							lg::dbglog("markov", "{ {} } -> '{}'  --  ({}/{} [{.2f}%])",
 								prf, markov.wordList[word.index].word, word.frequency,
 								wl.totalFrequency, 100.0 * ((double) word.frequency / (double) wl.totalFrequency));
 
@@ -542,7 +542,7 @@ namespace ikura::markov
 							output.push_back(it->second);
 
 						else
-							lg::warn("markov", "ignoring unseen seed word '%s'", s);
+							lg::warn("markov", "ignoring unseen seed word '{}'", s);
 					}
 				});
 			}
@@ -563,11 +563,11 @@ namespace ikura::markov
 			if(output.size() >= min_length)
 				break;
 
-			lg::warn("markov", "insufficient words (%zu/%zu), retrying", output.size(), min_length);
+			lg::warn("markov", "insufficient words ({}/{}), retrying", output.size(), min_length);
 		} while(retries-- > 0);
 
 		if(output.size() < min_length)
-			lg::warn("markov", "failed to generate %zu markov words after %zu attempts", min_length, _retries);
+			lg::warn("markov", "failed to generate {} markov words after {} attempts", min_length, _retries);
 
 
 		return markovModel().map_read([&output](auto& markov) -> Message {
@@ -619,7 +619,7 @@ namespace ikura::markov
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			return lg::error_o("db", "type tag mismatch (found '{}', expected '{}')", t, TYPE_TAG);
 
 		Word ret;
 		if(!rd.read(&ret.index))
@@ -645,7 +645,7 @@ namespace ikura::markov
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			return lg::error_o("db", "type tag mismatch (found '{}', expected '{}')", t, TYPE_TAG);
 
 		auto t = timer();
 
@@ -676,7 +676,7 @@ namespace ikura::markov
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			return lg::error_o("db", "type tag mismatch (found '{}', expected '{}')", t, TYPE_TAG);
 
 		DBWord ret;
 		if(!rd.read(&ret.word))
@@ -723,7 +723,7 @@ namespace ikura::markov
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			return lg::error_o("db", "type tag mismatch (found '{}', expected '{}')", t, TYPE_TAG);
 
 		MarkovModel ret;
 

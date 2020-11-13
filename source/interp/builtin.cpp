@@ -80,7 +80,7 @@ namespace ikura::interp
 	bool run_builtin_command(CmdContext& cs, const Channel* chan, ikura::str_view cmd_str, ikura::str_view arg_str)
 	{
 		auto denied = [&]() -> bool {
-			lg::warn("cmd", "user '%s' tried to execute command '%s' with insufficient permissions",
+			lg::warn("cmd", "user '{}' tried to execute command '{}' with insufficient permissions",
 				cs.callername, cmd_str);
 
 			chan->sendMessage(Message("insufficient permissions"));
@@ -127,7 +127,7 @@ namespace ikura::interp
 		auto t = ikura::timer();
 
 		auto ret = interpreter().wlock()->evaluateExpr(arg_str, cs);
-		lg::log("interp", "command took %.3f ms to execute", t.measure());
+		lg::log("interp", "command took {.3f} ms to execute", t.measure());
 
 		if(ret) chan->sendMessage(cmd::value_to_message(ret.unwrap()));
 		else if(chan->shouldPrintInterpErrors()) chan->sendMessage(Message(ret.error()));
@@ -156,7 +156,7 @@ namespace ikura::interp
 		{
 			auto command = interpreter().rlock()->findCommand(cmd);
 			if(!command)
-				return chan->sendMessage(Message(zpr::sprint("'%s' does not exist", cmd)));
+				return chan->sendMessage(Message(zpr::sprint("'{}' does not exist", cmd)));
 
 			auto res = perms::parse(chan, perm_str, command->perms());
 			if(!res.has_value())
@@ -165,7 +165,7 @@ namespace ikura::interp
 			command->perms() = res.unwrap();
 		}
 
-		chan->sendMessage(Message(zpr::sprint("permissions for '%s' changed", cmd)));
+		chan->sendMessage(Message(zpr::sprint("permissions for '{}' changed", cmd)));
 	}
 
 
@@ -186,7 +186,7 @@ namespace ikura::interp
 		{
 			auto command = interpreter().rlock()->findCommand(cmd);
 			if(!command)
-				return chan->sendMessage(Message(zpr::sprint("'%s' does not exist", cmd)));
+				return chan->sendMessage(Message(zpr::sprint("'{}' does not exist", cmd)));
 
 			perms = command->perms();
 		}
@@ -208,7 +208,7 @@ namespace ikura::interp
 		});
 
 		auto list = zfu::listToString(grps, [](const db::Group* grp) -> auto {
-			return zpr::sprint("(%s, id: %d, cnt: %d)", grp->name, grp->id, grp->members.size());
+			return zpr::sprint("({}, id: {}, cnt: {})", grp->name, grp->id, grp->members.size());
 		}, /* braces: */ false);
 
 		chan->sendMessage(Message(list));
@@ -226,9 +226,9 @@ namespace ikura::interp
 			auto& s = db.sharedData;
 
 			if(s.addGroup(grp))
-				chan->sendMessage(Message(zpr::sprint("created group '%s'", grp)));
+				chan->sendMessage(Message(zpr::sprint("created group '{}'", grp)));
 			else
-				return chan->sendMessage(Message(zpr::sprint("'%s' already exists", grp)));
+				return chan->sendMessage(Message(zpr::sprint("'{}' already exists", grp)));
 		});
 	}
 
@@ -244,9 +244,9 @@ namespace ikura::interp
 			auto& s = db.sharedData;
 
 			if(s.removeGroup(grp))
-				chan->sendMessage(Message(zpr::sprint("removed group '%s'", grp)));
+				chan->sendMessage(Message(zpr::sprint("removed group '{}'", grp)));
 			else
-				chan->sendMessage(Message(zpr::sprint("'%s' does not exist", grp)));
+				chan->sendMessage(Message(zpr::sprint("'{}' does not exist", grp)));
 		});
 	}
 
@@ -268,7 +268,7 @@ namespace ikura::interp
 			if(!str.has_value())
 				return chan->sendMessage(Message("error"));
 
-			return chan->sendMessage(Message(zpr::sprint("member of: %s", str.value())));
+			return chan->sendMessage(Message(zpr::sprint("member of: {}", str.value())));
 		}
 
 		if(perms::updateUserPermissions(chan, user, perm_str))
@@ -289,11 +289,11 @@ namespace ikura::interp
 
 		auto type = ast::parseType(type_str);
 		if(!type)
-			return chan->sendMessage(Message(zpr::sprint("invalid type '%s'", type_str)));
+			return chan->sendMessage(Message(zpr::sprint("invalid type '{}'", type_str)));
 
 		auto res = interpreter().wlock()->addGlobal(name, Value::default_of(type.value()));
 		if(!res) chan->sendMessage(Message(res.error()));
-		else     chan->sendMessage(Message(zpr::sprint("added global '%s' with type '%s'",
+		else     chan->sendMessage(Message(zpr::sprint("added global '{}' with type '{}'",
 					name, type.value()->str())));
 	}
 
@@ -301,12 +301,12 @@ namespace ikura::interp
 	{
 		if(interpreter().rlock()->findCommand(name) != nullptr)
 		{
-			chan->sendMessage(Message(zpr::sprint("'%s' is already defined", name)));
+			chan->sendMessage(Message(zpr::sprint("'{}' is already defined", name)));
 			return false;
 		}
 
 		interpreter().wlock()->commands.emplace(name, thing);
-		chan->sendMessage(Message(zpr::sprint("defined '%s'", name)));
+		chan->sendMessage(Message(zpr::sprint("defined '{}'", name)));
 		return true;
 	}
 
@@ -337,14 +337,14 @@ namespace ikura::interp
 
 		auto existing = interpreter().rlock()->findCommand(name);
 		if(!existing)
-			return chan->sendMessage(Message(zpr::sprint("'%s' does not exist", name)));
+			return chan->sendMessage(Message(zpr::sprint("'{}' does not exist", name)));
 
 		auto macro = dynamic_cast<Macro*>(existing.get());
 		if(!macro)
-			return chan->sendMessage(Message(zpr::sprint("'%s' is not a macro", name)));
+			return chan->sendMessage(Message(zpr::sprint("'{}' is not a macro", name)));
 
 		macro->setCode(expansion);
-		chan->sendMessage(Message(zpr::sprint("redefined '%s'", name)));
+		chan->sendMessage(Message(zpr::sprint("redefined '{}'", name)));
 	}
 
 	static void command_undef(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
@@ -362,7 +362,7 @@ namespace ikura::interp
 		}
 
 		chan->sendMessage(Message(
-			err.empty() ? zpr::sprint("removed '%s'", arg_str) : err
+			err.empty() ? zpr::sprint("removed '{}'", arg_str) : err
 		));
 	}
 
@@ -373,16 +373,16 @@ namespace ikura::interp
 			return chan->sendMessage(Message("'show' takes exactly 1 argument"));
 
 		if(is_builtin_command(arg_str))
-			return chan->sendMessage(Message(zpr::sprint("'%s' is a builtin command", arg_str)));
+			return chan->sendMessage(Message(zpr::sprint("'{}' is a builtin command", arg_str)));
 
 		auto cmd = interpreter().rlock()->findCommand(arg_str);
 		if(cmd == nullptr)
-			return chan->sendMessage(Message(zpr::sprint("'%s' does not exist", arg_str)));
+			return chan->sendMessage(Message(zpr::sprint("'{}' does not exist", arg_str)));
 
 		if(auto macro = dynamic_cast<Macro*>(cmd.get()))
 		{
 			Message msg;
-			msg.add(zpr::sprint("'%s' is defined as: ", arg_str));
+			msg.add(zpr::sprint("'{}' is defined as: ", arg_str));
 
 			auto code = macro->getCode();
 			for(const auto& c : code)
@@ -392,15 +392,15 @@ namespace ikura::interp
 		}
 		else if(auto function = dynamic_cast<Function*>(cmd.get()))
 		{
-			return chan->sendMessage(Message(zpr::sprint("'%s' is defined as: %s",
+			return chan->sendMessage(Message(zpr::sprint("'{}' is defined as: {}",
 				arg_str, function->getDefinition()->str())));
 		}
 		else
 		{
 			if(is_builtin_command(arg_str) || getBuiltinFunction(arg_str))
-				return chan->sendMessage(Message(zpr::sprint("'%s' is builtin", arg_str)));
+				return chan->sendMessage(Message(zpr::sprint("'{}' is builtin", arg_str)));
 
-			return chan->sendMessage(Message(zpr::sprint("'%s' cannot be shown", arg_str))
+			return chan->sendMessage(Message(zpr::sprint("'{}' cannot be shown", arg_str))
 				.add(Emote("monkaTOS")));
 		}
 	}
@@ -657,7 +657,7 @@ namespace ikura::interp
 
 		if(!best)
 		{
-			return zpr::sprint("no matching function for call to '%s'", this->name);
+			return zpr::sprint("no matching function for call to '{}'", this->name);
 		}
 
 		return best->run(fs, cs);
@@ -683,7 +683,7 @@ namespace ikura::interp
 		auto ret = Value::of_list(cs.arguments[0].type()->elm_type(), cs.arguments[0].get_list());
 		ret.set_flags(ret.flags() | Value::FLAG_DISMANTLE_LIST);
 
-		lg::warn("cmd", "user '%s' tried to dismantle", cs.callername);
+		lg::warn("cmd", "user '{}' tried to dismantle", cs.callername);
 
 		return ret;
 	}

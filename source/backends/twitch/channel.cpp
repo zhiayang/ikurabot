@@ -91,7 +91,7 @@ namespace ikura::twitch
 			this->state->sendMessage(this->name, out);
 			this->lastSentMessage = out;
 
-			lg::log("msg", "twitch/#%s: %s>>>%s %s", this->getName(),
+			lg::log("msg", "twitch/#{}: {}>>>{} {}", this->getName(),
 				colours::GREEN_BOLD, colours::COLOUR_RESET, str);
 		}
 

@@ -33,7 +33,7 @@ namespace ikura::interp
 
 			if(idx >= cs.arguments.size())
 			{
-				lg::error("interp", "argument index out of bounds (want %zu, have %zu)", idx, cs.arguments.size());
+				lg::error("interp", "argument index out of bounds (want {}, have {})", idx, cs.arguments.size());
 				return -1;
 			}
 
@@ -104,16 +104,16 @@ namespace ikura::interp
 	Result<bool> InterpState::addGlobal(ikura::str_view name, Value val)
 	{
 		if(is_builtin_var(name) || name.find_first_of("0123456789") == 0)
-			return zpr::sprint("'%s' is already a builtin global", name);
+			return zpr::sprint("'{}' is already a builtin global", name);
 
 		if(auto it = this->globals.find(name); it != this->globals.end())
-			return zpr::sprint("global '%s' already defined", name);
+			return zpr::sprint("global '{}' already defined", name);
 
 		if(val.type()->has_generics())
-			return zpr::sprint("cannot create values of generic type ('%s')", val.type()->str());
+			return zpr::sprint("cannot create values of generic type ('{}')", val.type()->str());
 
 		this->globals[name] = new Value(std::move(val));
-		lg::log("interp", "added global '%s'", name);
+		lg::log("interp", "added global '{}'", name);
 		return true;
 	}
 
@@ -129,7 +129,7 @@ namespace ikura::interp
 		}
 		else
 		{
-			return zpr::sprint("'%s' does not exist", name);
+			return zpr::sprint("'{}' does not exist", name);
 		}
 	}
 
@@ -164,7 +164,7 @@ namespace ikura::interp
 				auto next = it->second;
 				if(seen.find(next) != seen.end())
 				{
-					lg::error("cmd", "circular aliases: %s -> %s", name, next);
+					lg::error("cmd", "circular aliases: {} -> {}", name, next);
 					return nullptr;
 				}
 
@@ -255,7 +255,7 @@ namespace ikura::interp
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			return lg::error_o("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 
 		InterpState interp;
 		if(!rd.read(&interp.commands))

@@ -407,7 +407,7 @@ namespace ikura::interp::lexer
 				case '?': ret = Token(TT::Question, src.take(1));       break;
 
 				default:
-					lg::warn("lexer", "invalid token - stream: '%s'", src);
+					lg::warn("lexer", "invalid token - stream: '{}'", src);
 
 					// try to unicode my way out of this.
 					sz = unicode::get_codepoint_length(src);

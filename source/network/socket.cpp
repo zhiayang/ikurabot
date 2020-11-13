@@ -81,7 +81,7 @@ namespace ikura
 				else if(!status)
 				{
 					if(status.get_value() != 0)
-						lg::error("socket", "read failed: status: %d", status.get_value());
+						lg::error("socket", "read failed: status: {}", status.get_value());
 
 					break;
 				}
@@ -111,7 +111,7 @@ namespace ikura
 
 		if(!this->is_connected)
 		{
-			lg::error("socket", "connection failed: %s", strerror(errno));
+			lg::error("socket", "connection failed: {}", strerror(errno));
 			this->socket->close();
 			return false;
 		}
@@ -239,7 +239,7 @@ namespace ikura
 
 		auto ret = poll(&fds, 1, std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count());
 		if(ret == 0)    return nullptr;
-		if(ret == -1)   { lg::error("socket", "poll error: %s", strerror(errno)); return nullptr; }
+		if(ret == -1)   { lg::error("socket", "poll error: {}", strerror(errno)); return nullptr; }
 
 		if(fds.revents & POLLIN)
 		{

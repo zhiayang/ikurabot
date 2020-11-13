@@ -19,7 +19,7 @@ namespace ikura::request
 				ret += c;
 
 			else
-				ret += "%" + zpr::sprint("%02x", (uint8_t) c);
+				ret += "%" + zpr::sprint("{02x}", (uint8_t) c);
 		}
 
 		return ret;
@@ -33,7 +33,7 @@ namespace ikura::request
 		{
 			ret += "?";
 			for(const auto& p : params)
-				ret += zpr::sprint("%s=%s&", urlencode(p.name), urlencode(p.value));
+				ret += zpr::sprint("{}={}&", urlencode(p.name), urlencode(p.value));
 
 			assert(ret.back() == '&');
 			ret.pop_back();
@@ -69,7 +69,7 @@ namespace ikura::request
 			if(!_hdrs.has_value())
 				return;
 
-			// zpr::println("buf:\n%s", buf.span().sv());
+			// zpr::println("buf:\n{}", buf.span().sv());
 
 			// ok, we got the headers.
 			auto hdrs = _hdrs.value();
@@ -153,7 +153,7 @@ namespace ikura::request
 	static Response make_http_request(const std::string& method, const URL& url, const std::vector<Param>& params,
 		const std::vector<Header>& headers, const std::string& contentType, const std::string& body)
 	{
-		auto address = URL(zpr::sprint("%s://%s", url.protocol(), url.hostname()));
+		auto address = URL(zpr::sprint("{}://{}", url.protocol(), url.hostname()));
 		auto path = url.resource();
 
 		// open a socket, write, wait for response, close.
@@ -164,12 +164,12 @@ namespace ikura::request
 			return { };
 		}
 
-		auto hdr = HttpHeaders(zpr::sprint("%s %s%s HTTP/1.1", method, path, encode_params(params)));
+		auto hdr = HttpHeaders(zpr::sprint("{} {}{} HTTP/1.1", method, path, encode_params(params)));
 		hdr.add("Host", url.hostname());
 		for(const auto& h : headers)
 			hdr.add(h.name, h.value);
 
-		// zpr::println("req: %s", hdr.status());
+		// zpr::println("req: {}", hdr.status());
 
 		if(body.size() > 0)
 		{

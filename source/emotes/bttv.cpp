@@ -22,7 +22,7 @@ namespace ikura::twitch::bttv
 		ce.source = CachedEmote::Source::BTTV;
 		ce.id = id;
 		ce.name = code;
-		ce.url = zpr::sprint("https://cdn.betterttv.net/emote/%s/3x", ce.id);
+		ce.url = zpr::sprint("https://cdn.betterttv.net/emote/{}/3x", ce.id);
 
 		return ce;
 	}
@@ -39,13 +39,13 @@ namespace ikura::twitch::bttv
 
 			database().wlock()->twitchData.globalBttvEmotes.lastUpdatedTimestamp = now;
 
-			auto [ hdr, body ] = request::get(URL(zpr::sprint("%s/cached/emotes/global", BTTV_API_URL)));
+			auto [ hdr, body ] = request::get(URL(zpr::sprint("{}/cached/emotes/global", BTTV_API_URL)));
 			if(auto st = hdr.statusCode(); st != 200 || body.empty())
-				return lg::error("bttv", "failed to fetch emotes (error %d):\n%s", st, body);
+				return lg::error("bttv", "failed to fetch emotes (error {}):\n{}", st, body);
 
 			auto res = util::parseJson(body);
 			if(!res)
-				return lg::error("bttv", "json response error: %s", res.error());
+				return lg::error("bttv", "json response error: {}", res.error());
 
 			ikura::string_map<CachedEmote> list;
 
@@ -58,7 +58,7 @@ namespace ikura::twitch::bttv
 				list.emplace(n, construct_cached_emote(x["id"].as_str(), n));
 			}
 
-			lg::log("bttv", "fetched %zu global emotes", list.size());
+			lg::log("bttv", "fetched {} global emotes", list.size());
 			database().wlock()->twitchData.globalBttvEmotes.emotes = std::move(list);
 
 		}, force);
@@ -71,17 +71,17 @@ namespace ikura::twitch::bttv
 			auto last = database().rlock()->twitchData.channels.at(chan_name).bttvEmotes.lastUpdatedTimestamp;
 			auto interval = config::twitch::getEmoteAutoUpdateInterval();
 
-			// zpr::println("chan: %d - %d", now, last);
+			// zpr::println("chan: {} - {}", now, last);
 			if(!force && (interval == 0 || (now - last < interval)))
 				return;
 
-			auto [ hdr, body ] = request::get(URL(zpr::sprint("%s/cached/users/twitch/%s", BTTV_API_URL, chan_id)));
+			auto [ hdr, body ] = request::get(URL(zpr::sprint("{}/cached/users/twitch/{}", BTTV_API_URL, chan_id)));
 			if(auto st = hdr.statusCode(); st != 200 || body.empty())
-				return lg::error("bttv", "failed to fetch emotes for channel '%s' (error %d):\n%s", chan_name, st, body);
+				return lg::error("bttv", "failed to fetch emotes for channel '{}' (error {}):\n{}", chan_name, st, body);
 
 			auto res = util::parseJson(body);
 			if(!res)
-				return lg::error("bttv", "json response error: %s", res.error());
+				return lg::error("bttv", "json response error: {}", res.error());
 
 			ikura::string_map<CachedEmote> list;
 
@@ -100,7 +100,7 @@ namespace ikura::twitch::bttv
 				list.emplace(n, construct_cached_emote(x["id"].as_str(), n));
 			}
 
-			lg::log("bttv", "fetched %zu emotes for #%s", list.size(), chan_name);
+			lg::log("bttv", "fetched {} emotes for #{}", list.size(), chan_name);
 			database().wlock()->twitchData.channels[chan_name].bttvEmotes.update(std::move(list));
 
 		}, force, channelId, channelName);

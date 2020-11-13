@@ -84,7 +84,7 @@ namespace ikura::irc
 		if(!str.empty())
 		{
 			this->server->sendMessage(this->getName(), out);
-			lg::log("msg", "irc/%s: %s>>>%s %s", this->getName(),
+			lg::log("msg", "irc/{}: {}>>>{} {}", this->getName(),
 				colours::GREEN_BOLD, colours::COLOUR_RESET, str);
 		}
 

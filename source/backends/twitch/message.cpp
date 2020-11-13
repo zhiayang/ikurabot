@@ -33,45 +33,45 @@ namespace ikura::twitch
 		auto time = timer();
 
 		auto m = irc::parseMessage(input);
-		if(!m) return error("malformed: '%s'", input);
+		if(!m) return error("malformed: '{}'", input);
 
 		auto msg = m.value();
 
 		if(msg.command == "PING")
 		{
 			lg::dbglog("twitch", "ping-pong");
-			return this->sendRawMessage(zpr::sprint("PONG %s", msg.params.size() > 0 ? msg.params[0] : ""));
+			return this->sendRawMessage(zpr::sprint("PONG {}", msg.params.size() > 0 ? msg.params[0] : ""));
 		}
 		else if(msg.command == "CAP")
 		{
 			// :tmi.twitch.tv CAP * ACK :twitch.tv/tags
 			if(msg.params.size() != 3)
-				return error("malformed CAP: %s", input);
+				return error("malformed CAP: {}", input);
 
-			log("negotiated capability %s", msg.params[2]);
+			log("negotiated capability {}", msg.params[2]);
 		}
 		else if(msg.command == "JOIN")
 		{
 			// :user!user@user.tmi.twitch.tv JOIN #channel
 			if(msg.params.size() != 1)
-				return error("malformed JOIN: %s", input);
+				return error("malformed JOIN: {}", input);
 
-			log("joined %s", msg.params[0]);
+			log("joined {}", msg.params[0]);
 		}
 		else if(msg.command == "PART")
 		{
 			// :user!user@user.tmi.twitch.tv PART #channel
 			if(msg.params.size() != 2)
-				return error("malformed PART: %s", input);
+				return error("malformed PART: {}", input);
 
-			log("parted %s", msg.params[1]);
+			log("parted {}", msg.params[1]);
 		}
 		else if(msg.command == "NOTICE")
 		{
 			auto channel = msg.params[0];
 			auto message = msg.params[1];
 
-			lg::log("twitch", "notice in %s: %s", channel, message);
+			lg::log("twitch", "notice in {}: {}", channel, message);
 		}
 		else if(msg.command == "PRIVMSG")
 		{
@@ -94,7 +94,7 @@ namespace ikura::twitch
 
 			auto channel = msg.params[0];
 			if(channel[0] != '#')
-				return error("malformed: channel '%s'", channel);
+				return error("malformed: channel '{}'", channel);
 
 			// drop the '#'
 			channel.remove_prefix(1);
@@ -107,7 +107,7 @@ namespace ikura::twitch
 
 			auto message = msg.params[1].trim();
 
-			// zpr::println("%s", input);
+			// zpr::println("{}", input);
 			// for(size_t i = 0; i < message.size(); i++)
 			// 	printf(" %02x", (uint8_t) message[i]);
 
@@ -137,7 +137,7 @@ namespace ikura::twitch
 
 			this->logMessage(ts, userid, &this->channels[channel], message_u8, rel_emotes, ran_cmd);
 
-			// lg::log("msg", "twitch/#%s: (%.2f ms) <%s> %s", channel, time.measure(), username, message_u8);
+			// lg::log("msg", "twitch/#{}: ({.2f} ms) <{}> {}", channel, time.measure(), username, message_u8);
 			console::logMessage(Backend::Twitch, "", channel, time.measure(), username, message_u8);
 		}
 		else if(zfu::match(msg.command, "353", "366"))
@@ -150,7 +150,7 @@ namespace ikura::twitch
 		}
 		else
 		{
-			lg::warn("twitch", "ignoring unhandled irc command %s", msg.command);
+			lg::warn("twitch", "ignoring unhandled irc command {}", msg.command);
 		}
 	}
 
@@ -213,7 +213,7 @@ namespace ikura::twitch
 
 		if(userid.empty())
 		{
-			warn("message from '%s' contained no user id", user);
+			warn("message from '{}' contained no user id", user);
 			return "";
 		}
 
@@ -232,12 +232,12 @@ namespace ikura::twitch
 				const auto& existing_id = tuser.id;
 				if(existing_id.empty())
 				{
-					log("adding user '%s'/'%s' to channel #%s", user, userid, channel);
+					log("adding user '{}'/'{}' to channel #{}", user, userid, channel);
 					tuser.id = userid;
 				}
 				else if(existing_id != userid)
 				{
-					warn("user '%s' changed id from '%s' to '%s'", user, existing_id, userid);
+					warn("user '{}' changed id from '{}' to '{}'", user, existing_id, userid);
 					tuser.id = userid;
 				}
 
@@ -349,7 +349,7 @@ namespace ikura::twitch
 		msg = msg.take(msg.find_first_of("\r\n"));
 
 		twitch::mqueue().emplace_send(
-			zpr::sprint("%s\r\n", msg),
+			zpr::sprint("{}\r\n", msg),
 			is_moderator
 		);
 	}
@@ -393,7 +393,7 @@ namespace ikura::twitch
 				this->sendMessage("Jebaited", channel);
 
 			else
-				this->sendRawMessage(zpr::sprint("PRIVMSG #%s :%s", channel, msg), channel);
+				this->sendRawMessage(zpr::sprint("PRIVMSG #{} :{}", channel, msg), channel);
 		}
 	}
 }

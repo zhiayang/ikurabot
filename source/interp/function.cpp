@@ -14,7 +14,7 @@ namespace ikura::interp
 		{
 			// zpr::println("args:");
 			// for(auto& arg : cs.arguments)
-			// 	zpr::println("%s   :: %s", arg.str(), arg.type()->str());
+			// 	zpr::println("{}   :: {}", arg.str(), arg.type()->str());
 
 			return this->body->evaluate(fs, cs);
 		}
@@ -46,7 +46,7 @@ namespace ikura::interp
 			if(!target) return target;
 
 			if(!target->type()->is_function())
-				return zpr::sprint("type '%s' is not callable", target->type()->str());
+				return zpr::sprint("type '{}' is not callable", target->type()->str());
 
 			auto function = target->get_function();
 			if(!function) return zpr::sprint("error retrieving function");
@@ -107,15 +107,15 @@ namespace ikura::interp
 		{
 			if(this->stmts.size() == 1)
 				if(auto e = dynamic_cast<Expr*>(this->stmts[0]); e != nullptr)
-					return zpr::sprint("=> %s", e->str());
+					return zpr::sprint("=> {}", e->str());
 
-			return zpr::sprint("{ %s }", zfu::listToString(this->stmts, [](auto s) { return s->str(); },
+			return zpr::sprint("{ {} }", zfu::listToString(this->stmts, [](auto s) { return s->str(); },
 				/* braces: */ false, /* sep: */ ";"));
 		}
 
 		std::string FunctionDefn::str() const
 		{
-			return zpr::sprint("fn %s %s%s%s %s %s",
+			return zpr::sprint("fn {} {}{}{} {} {}",
 				this->name,
 				this->generics.empty() ? "" : "<",
 				zfu::listToString(this->generics, [](auto s) { return s; }, false),
@@ -127,7 +127,7 @@ namespace ikura::interp
 
 		std::string FunctionCall::str() const
 		{
-			return zpr::sprint("%s(%s)", this->callee->str(),
+			return zpr::sprint("{}({})", this->callee->str(),
 				zfu::listToString(this->arguments, [](auto e) { return e->str(); }, false)
 			);
 		}
@@ -213,12 +213,12 @@ namespace ikura::interp
 		// if there are no variadics involved, you failed if the counts are different.
 		if((target.empty() || !target.back()->is_variadic_list()) && target.size() != given.size())
 		{
-			return zpr::sprint("call to '%s' with wrong number of arguments (expected %zu, found %zu)",
+			return zpr::sprint("call to '{}' with wrong number of arguments (expected {}, found {})",
 				name, target.size(), given.size());
 		}
 
 		auto type_mismatch = [name](size_t i, const Type::Ptr& exp, const Type::Ptr& got) -> std::string {
-			return zpr::sprint("'%s': arg %zu: type mismatch, expected '%s', found '%s'",
+			return zpr::sprint("'{}': arg {}: type mismatch, expected '{}', found '{}'",
 				name, i + 1, exp->str(), got->str());
 		};
 
@@ -320,7 +320,7 @@ namespace ikura::interp
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			return lg::error_o("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 
 		std::string name;
 		PermissionSet permissions;

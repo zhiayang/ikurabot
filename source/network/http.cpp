@@ -73,7 +73,7 @@ namespace ikura
 			return;
 		} while(false);
 
-		lg::error("url", "invalid url '%s'", url);
+		lg::error("url", "invalid url '{}'", url);
 	}
 
 	URL::URL(ikura::str_view hostname, uint16_t port)
@@ -87,7 +87,7 @@ namespace ikura
 
 	std::string URL::str() const
 	{
-		return zpr::sprint("%s://%s:%d%s", this->_protocol, this->_hostname, this->_port, this->_resource);
+		return zpr::sprint("{}://{}:{}{}", this->_protocol, this->_hostname, this->_port, this->_resource);
 	}
 
 

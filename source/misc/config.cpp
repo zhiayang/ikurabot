@@ -125,7 +125,7 @@ namespace ikura::config
 				return it->second.as_str();
 
 			else
-				lg::error("cfg", "expected string value for '%s'", key);
+				lg::error("cfg", "expected string value for '{}'", key);
 		}
 
 		return def;
@@ -142,7 +142,7 @@ namespace ikura::config
 
 			if(!buf || sz == 0)
 			{
-				lg::error("cfg", "could not read file '%s' for key '%s'", path, key);
+				lg::error("cfg", "could not read file '{}' for key '{}'", path, key);
 				return "";
 			}
 
@@ -173,7 +173,7 @@ namespace ikura::config
 				return it->second.as_arr();
 
 			else
-				lg::error("cfg", "expected array value for '%s'", key);
+				lg::error("cfg", "expected array value for '{}'", key);
 		}
 
 		return { };
@@ -187,7 +187,7 @@ namespace ikura::config
 				return it->second.as_int();
 
 			else
-				lg::error("cfg", "expected integer value for '%s'", key);
+				lg::error("cfg", "expected integer value for '{}'", key);
 		}
 
 		return def;
@@ -201,7 +201,7 @@ namespace ikura::config
 				return it->second.as_bool();
 
 			else
-				lg::error("cfg", "expected boolean value for '%s'", key);
+				lg::error("cfg", "expected boolean value for '{}'", key);
 		}
 
 		return def;
@@ -222,7 +222,7 @@ namespace ikura::config
 
 			if(console::config.password.algo != "sha256")
 			{
-				lg::error("cfg/console", "unsupported hash algo '%s', password disabled",
+				lg::error("cfg/console", "unsupported hash algo '{}', password disabled",
 					console::config.password.algo);
 
 				goto fail;
@@ -239,7 +239,7 @@ namespace ikura::config
 
 			if(algo == "sha256" && hash.size() != 2 * 32)
 			{
-				lg::error("cfg/console", "password hash has invalid length (%d) for '%s'", hash.size(), algo);
+				lg::error("cfg/console", "password hash has invalid length ({}) for '{}'", hash.size(), algo);
 				goto fail;
 			}
 
@@ -266,7 +266,7 @@ namespace ikura::config
 
 				if(!is_valid_char(a) || !is_valid_char(b))
 				{
-					lg::error("cfg/console", "invalid char '%c' or '%c' in hash", a, b);
+					lg::error("cfg/console", "invalid char '{}' or '{}' in hash", a, b);
 					goto fail;
 				}
 
@@ -293,13 +293,13 @@ namespace ikura::config
 
 		if(minLen < 1)
 		{
-			lg::warn("cfg/markov", "invalid value '%ld' for min_length", minLen);
+			lg::warn("cfg/markov", "invalid value '{}' for min_length", minLen);
 			minLen = 1;
 		}
 
 		if(maxRetry < 1)
 		{
-			lg::warn("cfg/markov", "invalid value '%ld' for max_retries", maxRetry);
+			lg::warn("cfg/markov", "invalid value '{}' for max_retries", maxRetry);
 			maxRetry = 0;
 		}
 
@@ -642,7 +642,7 @@ namespace ikura::config
 		pj::parse(config, begin, end, &err);
 
 		if(!err.empty())
-			return lg::error_b("cfg", "json error: %s", err);
+			return lg::error_b("cfg", "json error: {}", err);
 
 		if(auto markov = config.get("markov"); markov.is_obj())
 			loadMarkovConfig(markov.as_obj());

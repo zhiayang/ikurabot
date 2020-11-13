@@ -31,14 +31,14 @@ namespace ikura::discord
 		auto t = msg["t"];
 
 		if(!s.is_int())
-			return error("sequence was not an integer (got '%s')", s.serialise());
+			return error("sequence was not an integer (got '{}')", s.serialise());
 
 		if(!t.is_str())
 			return error("expected string for 't'");
 
 		auto seq = s.as_int();
 		if(seq < this->sequence)
-			lg::warn("discord", "outdated sequence (current %ld, received %ld)", this->sequence, seq);
+			lg::warn("discord", "outdated sequence (current {}, received {})", this->sequence, seq);
 
 		this->sequence = std::max(seq, this->sequence);
 
@@ -64,11 +64,11 @@ namespace ikura::discord
 				if(auto it = dd.guilds.find(id); it != dd.guilds.end())
 				{
 					update_guild_emotes(it.value(), msg["d"].as_obj());
-					lg::log("discord", "updated emotes for guild '%s'", it->second.name);
+					lg::log("discord", "updated emotes for guild '{}'", it->second.name);
 				}
 				else
 				{
-					lg::error("discord", "received emote update for unknown guild '%s'", id.str());
+					lg::error("discord", "received emote update for unknown guild '{}'", id.str());
 				}
 			});
 		}
@@ -81,7 +81,7 @@ namespace ikura::discord
 			auto sess = msg["d"].as_obj()["session_id"].as_str();
 			if(sess != this->session_id)
 			{
-				lg::log("discord", "session id: %s", sess);
+				lg::log("discord", "session id: {}", sess);
 				this->session_id = sess;
 			}
 		}
@@ -91,8 +91,8 @@ namespace ikura::discord
 		}
 		else
 		{
-			lg::warn("discord", "ignoring message type '%s'", type);
-			zpr::println("%s", pj::value(msg).serialise(true));
+			lg::warn("discord", "ignoring message type '{}'", type);
+			zpr::println("{}", pj::value(msg).serialise(true));
 		}
 	}
 }

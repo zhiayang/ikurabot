@@ -13,18 +13,18 @@ namespace ikura::interp
 	{
 		if(this->is_lvalue())               return this->v_lvalue->raw_str();
 		else if(this->_type->is_void())     return "";
-		else if(this->_type->is_bool())     return zpr::sprint("%s", this->v_bool);
-		else if(this->_type->is_char())     return zpr::sprint("%c", (char) this->v_char);
-		else if(this->_type->is_double())   return zpr::sprint("%.3f", this->v_double);
-		else if(this->_type->is_integer())  return zpr::sprint("%d", this->v_integer);
+		else if(this->_type->is_bool())     return zpr::sprint("{}", this->v_bool);
+		else if(this->_type->is_char())     return zpr::sprint("{}", (char) this->v_char);
+		else if(this->_type->is_double())   return zpr::sprint("{.3f}", this->v_double);
+		else if(this->_type->is_integer())  return zpr::sprint("{}", this->v_integer);
 		else if(this->_type->is_complex())
 		{
 			auto imag = this->v_complex.imag();
 			if(std::abs(imag) < 0.0001)
 				imag = 0;
 
-			if(imag != 0)   return zpr::sprint("%.3f%+.3fi", this->v_complex.real(), imag);
-			else            return zpr::sprint("%.3f", this->v_complex.real());
+			if(imag != 0)   return zpr::sprint("{.3f}{+.3f}i", this->v_complex.real(), imag);
+			else            return zpr::sprint("{.3f}", this->v_complex.real());
 		}
 		else if(this->_type->is_map())
 		{
@@ -32,7 +32,7 @@ namespace ikura::interp
 			size_t i = 0;
 			for(const auto& [ k, v ] : this->v_map)
 			{
-				ret += zpr::sprint("%s: %s", k.raw_str(), v.raw_str());
+				ret += zpr::sprint("{}: {}", k.raw_str(), v.raw_str());
 				if(i + 1 != this->v_map.size())
 					ret += " ";
 
@@ -66,18 +66,18 @@ namespace ikura::interp
 	{
 		if(this->is_lvalue())               return this->v_lvalue->str();
 		else if(this->_type->is_void())     return "()";
-		else if(this->_type->is_bool())     return zpr::sprint("%s", this->v_bool);
-		else if(this->_type->is_char())     return zpr::sprint("'%c'", (char) this->v_char);
-		else if(this->_type->is_double())   return zpr::sprint("%.3f", this->v_double);
-		else if(this->_type->is_integer())  return zpr::sprint("%d", this->v_integer);
+		else if(this->_type->is_bool())     return zpr::sprint("{}", this->v_bool);
+		else if(this->_type->is_char())     return zpr::sprint("'{}'", (char) this->v_char);
+		else if(this->_type->is_double())   return zpr::sprint("{.3f}", this->v_double);
+		else if(this->_type->is_integer())  return zpr::sprint("{}", this->v_integer);
 		else if(this->_type->is_complex())
 		{
 			auto imag = this->v_complex.imag();
 			if(std::abs(imag) < 0.0001)
 				imag = 0;
 
-			if(imag != 0)   return zpr::sprint("%.3f%+.3fi", this->v_complex.real(), imag);
-			else            return zpr::sprint("%.3f", this->v_complex.real());
+			if(imag != 0)   return zpr::sprint("{.3f}{+.3f}i", this->v_complex.real(), imag);
+			else            return zpr::sprint("{.3f}", this->v_complex.real());
 		}
 		else if(this->_type->is_map())
 		{
@@ -85,7 +85,7 @@ namespace ikura::interp
 			size_t i = 0;
 			for(const auto& [ k, v ] : this->v_map)
 			{
-				ret += zpr::sprint("%s: %s", k.str(), v.str());
+				ret += zpr::sprint("{}: {}", k.str(), v.str());
 				if(i + 1 != this->v_map.size())
 					ret += ", ";
 
@@ -111,7 +111,7 @@ namespace ikura::interp
 		}
 		else if(this->_type->is_function())
 		{
-			return zpr::sprint("<fn: %s>", this->v_function->getName());
+			return zpr::sprint("<fn: {}>", this->v_function->getName());
 		}
 		else
 		{
@@ -372,7 +372,7 @@ namespace ikura::interp
 	{
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
-			return lg::error_o("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			return lg::error_o("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 
 		auto tmp = Type::deserialise(buf);
 		if(!tmp)

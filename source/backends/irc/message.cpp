@@ -14,7 +14,7 @@ namespace ikura::irc
 
 	void IRCServer::processMessage(ikura::str_view sv)
 	{
-		auto sys = zpr::sprint("irc/%s", this->name);
+		auto sys = zpr::sprint("irc/{}", this->name);
 		auto ret = parseMessage(sv);
 		if(!ret.has_value())
 		{
@@ -26,26 +26,26 @@ namespace ikura::irc
 		if(msg.command == "PING")
 		{
 			lg::dbglog(sys, "ping-pong");
-			this->sendRawMessage(zpr::sprint("PONG %s", msg.params.size() > 0 ? msg.params[0] : ""));
+			this->sendRawMessage(zpr::sprint("PONG {}", msg.params.size() > 0 ? msg.params[0] : ""));
 		}
 		else if(msg.command == "JOIN")
 		{
 			if(msg.params.size() != 1)
-				return lg::error(sys, "malformed JOIN: %s", sv);
+				return lg::error(sys, "malformed JOIN: {}", sv);
 
 			if(msg.nick == this->nickname)
-				lg::log(sys, "joined %s", msg.params[0]);
+				lg::log(sys, "joined {}", msg.params[0]);
 		}
 		else if(msg.command == "NOTICE")
 		{
 			auto channel = msg.params[0];
 			auto message = msg.params[1];
 
-			lg::log(sys, "notice in %s: %s", channel, message);
+			lg::log(sys, "notice in {}: {}", channel, message);
 		}
 		else if(msg.command == "NICK")
 		{
-			lg::log(sys, "nickname change: %s -> %s", msg.nick, msg.params[0]);
+			lg::log(sys, "nickname change: {} -> {}", msg.nick, msg.params[0]);
 		}
 		else if(msg.command == "PRIVMSG")
 		{
@@ -69,7 +69,7 @@ namespace ikura::irc
 		}
 		else
 		{
-			lg::log(sys, "unhandled irc command '%s' (msg = %s)", msg.command, sv);
+			lg::log(sys, "unhandled irc command '{}' (msg = {})", msg.command, sv);
 		}
 	}
 
@@ -77,7 +77,7 @@ namespace ikura::irc
 	void IRCServer::sendRawMessage(ikura::str_view msg)
 	{
 		// imagine making copies in $YEAR
-		auto s = zpr::sprint("%s\r\n", msg);
+		auto s = zpr::sprint("{}\r\n", msg);
 		this->socket.send(ikura::Span((const uint8_t*) s.data(), s.size()));
 	}
 
@@ -96,7 +96,7 @@ namespace ikura::irc
 			// strip
 			msg = msg.take(msg.find_first_of("\r\n"));
 
-			auto s = zpr::sprint("PRIVMSG %s :%s\r\n", channel, msg);
+			auto s = zpr::sprint("PRIVMSG {} :{}\r\n", channel, msg);
 			this->socket.send(ikura::Span((const uint8_t*) s.data(), s.size()));
 		}
 	}
@@ -106,7 +106,7 @@ namespace ikura::irc
 
 	static void update_user_creds(IRCServer* srv, ikura::str_view channel, ikura::str_view username, ikura::str_view nickname)
 	{
-		auto sys = zpr::sprint("irc/%s", srv->name);
+		auto sys = zpr::sprint("irc/{}", srv->name);
 
 		uint64_t perms = permissions::EVERYONE;
 		database().perform_write([&](auto& db) {
@@ -123,18 +123,18 @@ namespace ikura::irc
 				auto chan = serv->getChannel(channel);
 				if(!chan)
 				{
-					lg::error(sys, "could not find channel '%s' in server", channel);
+					lg::error(sys, "could not find channel '{}' in server", channel);
 					return;
 				}
 
 				if(chan->knownUsers.find(username) == chan->knownUsers.end())
-					lg::log(sys, "new user '%s' (nick: %s)", username, nickname);
+					lg::log(sys, "new user '{}' (nick: {})", username, nickname);
 
 				auto& user = chan->knownUsers[username];
 				user.username = username;
 
 				if(!user.nickname.empty() && user.nickname != nickname)
-					lg::warn(sys, "user '%s' changed nick from '%s' to '%s'", username, user.nickname, nickname);
+					lg::warn(sys, "user '{}' changed nick from '{}' to '{}'", username, user.nickname, nickname);
 
 				user.nickname = nickname;
 
@@ -150,7 +150,7 @@ namespace ikura::irc
 	{
 		auto time = timer();
 
-		auto sys = zpr::sprint("irc/%s", srv->name);
+		auto sys = zpr::sprint("irc/{}", srv->name);
 
 		auto username = msg.user;
 
@@ -184,7 +184,7 @@ namespace ikura::irc
 			srv->logMessage(util::getMillisecondTimestamp(), username, msg.nick, &srv->channels[channel], message, ran_cmd);
 
 			console::logMessage(Backend::IRC, srv->name, channel, time.measure(), msg.nick, message);
-			// lg::log("msg", "irc/%s: (%.2f ms) <%s> %s", channel, time.measure(), msg.nick, message);
+			// lg::log("msg", "irc/{}: ({.2f} ms) <{}> {}", channel, time.measure(), msg.nick, message);
 		}
 		else
 		{
@@ -192,38 +192,38 @@ namespace ikura::irc
 				lg::warn(sys, "received privmsg that wasn't directed at us");
 
 			// this is a pm... just print it out
-			lg::log("privmsg", "%s: <%s> %s", sys, msg.nick, msg.params.back());
+			lg::log("privmsg", "{}: <{}> {}", sys, msg.nick, msg.params.back());
 		}
 	}
 
 
 	static void handle_ctcp(IRCServer* srv, const IRCMessage& msg)
 	{
-		auto sys = zpr::sprint("irc/%s", srv->name);
+		auto sys = zpr::sprint("irc/{}", srv->name);
 
 		if(msg.ctcpCommand == "VERSION")
 		{
 			lg::log(sys, "replied to ctcp VERSION");
-			srv->sendRawMessage(zpr::sprint("NOTICE %s :\x01VERSION %s\x01", msg.nick, "ikura ver-0.1.0"));
+			srv->sendRawMessage(zpr::sprint("NOTICE {} :\x01VERSION {}\x01", msg.nick, "ikura ver-0.1.0"));
 		}
 		else if(msg.ctcpCommand == "CLIENTINFO")
 		{
 			lg::log(sys, "replied to ctcp CLIENTINFO");
-			srv->sendRawMessage(zpr::sprint("NOTICE %s :\x01CLIENTINFO CLIENTINFO ACTION VERSION PING TIME\x01", msg.nick));
+			srv->sendRawMessage(zpr::sprint("NOTICE {} :\x01CLIENTINFO CLIENTINFO ACTION VERSION PING TIME\x01", msg.nick));
 		}
 		else if(msg.ctcpCommand == "PING")
 		{
 			lg::log(sys, "replied to ctcp PING");
-			srv->sendRawMessage(zpr::sprint("NOTICE %s :\x01PING %s\x01", msg.nick, msg.params[0]));
+			srv->sendRawMessage(zpr::sprint("NOTICE {} :\x01PING {}\x01", msg.nick, msg.params[0]));
 		}
 		else if(msg.ctcpCommand == "TIME")
 		{
 			lg::log(sys, "replied to ctcp TIME");
-			srv->sendRawMessage(zpr::sprint("NOTICE %s :\x01TIME %s\x01", msg.nick, util::getCurrentTimeString()));
+			srv->sendRawMessage(zpr::sprint("NOTICE {} :\x01TIME {}\x01", msg.nick, util::getCurrentTimeString()));
 		}
 		else
 		{
-			lg::warn(sys, "unsupported ctcp command '%s'", msg.ctcpCommand);
+			lg::warn(sys, "unsupported ctcp command '{}'", msg.ctcpCommand);
 		}
 	}
 }

@@ -76,8 +76,8 @@ namespace ikura::discord
 		if(!ran_cmd && chan.name != "bot-shrine")
 			markov::process(sanitised, emote_idxs);
 
-		// zpr::println("the raw message:\n%s", json["content"].as_str());
-		// zpr::println("the sanitised message:\n%s", sanitised);
+		// zpr::println("the raw message:\n{}", json["content"].as_str());
+		// zpr::println("the sanitised message:\n{}", sanitised);
 
 		auto ts = util::getMillisecondTimestamp();
 		this->logMessage(ts, author, chan, guild, Snowflake(json["id"].as_str()), sanitised, emote_idxs, ran_cmd, wasEdit);
@@ -85,7 +85,7 @@ namespace ikura::discord
 		console::logMessage(Backend::Discord, guild.name, chan.name, time.measure(), author.nickname,
 			(wasEdit ? "(edit) " : "") + sanitised);
 
-		// lg::log("msg", "discord/%s/#%s: %s(%.2f ms) <%s> %s", guild.name, chan.name, wasEdit ? "(edit) " : "",
+		// lg::log("msg", "discord/{}/#{}: {}({.2f} ms) <{}> {}", guild.name, chan.name, wasEdit ? "(edit) " : "",
 		// 	time.measure(), author.nickname, sanitised);
 	}
 
@@ -100,7 +100,7 @@ namespace ikura::discord
 			if(!j["available"].as_bool())
 				continue;
 
-			// zpr::println("updating emotes: %s -> %s", j["name"].as_str(), j["id"].as_str());
+			// zpr::println("updating emotes: {} -> {}", j["name"].as_str(), j["id"].as_str());
 
 			uint64_t flags = 0;
 			if(j["animated"].as_bool())         flags |= EmoteFlags::IS_ANIMATED;
@@ -161,7 +161,7 @@ namespace ikura::discord
 
 			update_guild_emotes(guild, json);
 
-			lg::log("discord", "updated guild %s", guild.name);
+			lg::log("discord", "updated guild {}", guild.name);
 		});
 	}
 
@@ -311,10 +311,10 @@ namespace ikura::discord
 			}
 		}
 
-		// zpr::println("output = %s", output);
+		// zpr::println("output = {}", output);
 		// zpr::println("emotes:");
 		// for(auto& rs : emote_idxs)
-		// 	zpr::println("  %s", rs.get(output));
+		// 	zpr::println("  {}", rs.get(output));
 
 		return { output, emote_idxs };
 	}
@@ -347,22 +347,22 @@ namespace ikura::discord
 		{
 			user.id = id;
 
-			lg::log("discord", "adding (nick: %s, user: %s, id: %s) to guild '%s'",
+			lg::log("discord", "adding (nick: {}, user: {}, id: {}) to guild '{}'",
 				user.nickname, user.username, id.str(), guild.name);
 		}
 		else if(!old_username.empty() && old_username != user.username)
 		{
 			guild.usernameMap.erase(old_username);
-			lg::log("discord", "username changed; old: %s, new: %s", old_username, user.username);
+			lg::log("discord", "username changed; old: {}, new: {}", old_username, user.username);
 		}
 		else if(!old_nickname.empty() && old_nickname != user.nickname)
 		{
 			guild.nicknameMap.erase(old_nickname);
-			lg::log("discord", "nickname changed; old: %s, new: %s", old_nickname, user.nickname);
+			lg::log("discord", "nickname changed; old: {}, new: {}", old_nickname, user.nickname);
 		}
 		else if(user.id != id)
 		{
-			lg::warn("discord", "user id got changed?! old: %s, new: %s",
+			lg::warn("discord", "user id got changed?! old: {}, new: {}",
 				user.id.str(), id.str());
 		}
 
@@ -390,7 +390,7 @@ namespace ikura::discord
 
 			if(sm.size() != 1 + 10)
 			{
-				lg::error("discord", "malformed timestamp '%s'", s);
+				lg::error("discord", "malformed timestamp '{}'", s);
 				return 0;
 			}
 
@@ -416,8 +416,8 @@ namespace ikura::discord
 			tm.tm_min  = minute;
 			tm.tm_sec  = second;
 
-			// zpr::println("%s", s);
-			// zpr::println("%04d-%02d-%02dT%02d:%02d:%02d.%06d%c%02d:%02d", year, month, day, hour, minute, second, sfrac,
+			// zpr::println("{}", s);
+			// zpr::println("{04}-{02}-{02}T{02}:{02}:{02}.{06}{}{02}:{02}", year, month, day, hour, minute, second, sfrac,
 			// 	tz_neg ? '-' : '+', tz_hr, tz_min);
 
 			auto tp = std::chrono::system_clock::from_time_t(std::mktime(&tm));

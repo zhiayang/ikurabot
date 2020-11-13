@@ -44,21 +44,21 @@ namespace ikura
 
 
 	WebSocket::WebSocket(ikura::str_view host, uint16_t port, bool ssl, std::chrono::nanoseconds timeout)
-		: conn(host, port, ssl, timeout), buffer(DEFAULT_FRAME_BUFFER_SIZE), url(zpr::sprint("%s:%d", host, port)) { }
+		: conn(host, port, ssl, timeout), buffer(DEFAULT_FRAME_BUFFER_SIZE), url(zpr::sprint("{}:{}", host, port)) { }
 
 	WebSocket::WebSocket(const URL& url, std::chrono::nanoseconds timeout) : buffer(DEFAULT_FRAME_BUFFER_SIZE), url(url)
 	{
 		auto proto = url.protocol();
 		if(proto != "ws" && proto != "wss")
 		{
-			lg::error("ws", "invalid protocol '%s'", proto);
+			lg::error("ws", "invalid protocol '{}'", proto);
 			return;
 		}
 
 		auto host = url.hostname();
 		if(host.empty())
 		{
-			lg::error("ws", "invalid url '%s'", host);
+			lg::error("ws", "invalid url '{}'", host);
 			return;
 		}
 
@@ -86,7 +86,7 @@ namespace ikura
 			return lg::error_b("ws", "connection failed (underlying socket)");
 
 		auto path = this->url.resource();
-		auto http = HttpHeaders(zpr::sprint("GET %s%s%s HTTP/1.1",
+		auto http = HttpHeaders(zpr::sprint("GET {}{}{} HTTP/1.1",
 								path, this->url.parameters().empty() ? "" : "?",
 								this->url.parameters())
 						)
@@ -124,13 +124,13 @@ namespace ikura
 			if(hdrs.status().find("HTTP/1.1 101") != 0)
 			{
 				success = false;
-				lg::error("ws", "unexpected http status '%s' (expected 101)", hdrs.status());
+				lg::error("ws", "unexpected http status '{}' (expected 101)", hdrs.status());
 			}
 			else if((hdrs.get("upgrade") != "websocket" && hdrs.get("upgrade") != "Websocket")
 				|| (hdrs.get("connection") != "upgrade" && hdrs.get("connection") != "Upgrade"))
 			{
 				success = false;
-				lg::error("ws", "no upgrade header: %s", hdrs.bytes());
+				lg::error("ws", "no upgrade header: {}", hdrs.bytes());
 			}
 			else if(auto key = hdrs.get("sec-websocket-accept"); key != "BIrH2fXtdYwV1IU9u+MiGYCsuTA=")
 			{
@@ -139,15 +139,15 @@ namespace ikura
 				// -> base64 = BIrH2fXtdYwV1IU9u+MiGYCsuTA=
 
 				success = false;
-				lg::error("ws", "invalid key (got '%s')", key);
+				lg::error("ws", "invalid key (got '{}')", key);
 			}
 
-			// zpr::println("rx:\n%s\n", buf.sv());
+			// zpr::println("rx:\n{}\n", buf.sv());
 			buf.clear();
 			cv.set(true);
 		});
 
-		// zpr::println("sending:\n%s\n", http.bytes());
+		// zpr::println("sending:\n{}\n", http.bytes());
 
 		this->conn.send(Span::fromString(http.bytes()));
 		if(!cv.wait(true, DEFAULT_TIMEOUT))
@@ -177,7 +177,7 @@ namespace ikura
 
 			this->buffer.write(data);
 
-			// zpr::println("rx:\n%s", data.sv().drop(2));
+			// zpr::println("rx:\n{}", data.sv().drop(2));
 			auto the_buffer = this->buffer.span().drop(this->offset);
 
 			// note that we must do 'return' here, because breaking out of the loop normally will
@@ -308,7 +308,7 @@ namespace ikura
 	void WebSocket::send_raw(uint8_t opcode, bool fin, Buffer&& payload)
 	{
 		if((opcode & 0xF0) != 0 || opcode >= 0x0B)
-			return lg::error("ws", "invalid opcode '%x', opcode");
+			return lg::error("ws", "invalid opcode '{x}', opcode");
 
 		// first calculate the size of the frame header. (including the mask)
 		size_t hdrsz = sizeof(raw_frame_t) + sizeof(uint32_t);
@@ -392,7 +392,7 @@ namespace ikura
 
 	void WebSocket::handle_frame(uint8_t opcode, bool fin, Span data)
 	{
-		// error("HANDLE %x / %zu (%.*s)", opcode, data.size(), data.size(), (char*) data.data());
+		// error("HANDLE {x} / {} ({})", opcode, data.size(), zpr::p(data.size())((char*) data.data()));
 		if(opcode == OP_PING)
 		{
 			this->send_pong(data);
@@ -400,7 +400,7 @@ namespace ikura
 		else if(opcode == OP_CLOSE)
 		{
 			// uwu, server closed us
-			lg::warn("ws", "server closed connection: code %d, msg: %s",
+			lg::warn("ws", "server closed connection: code {}, msg: {}",
 				util::to_native(*data.as<uint16_t>()),
 				data.sv().size() > 2
 					? data.sv().drop(2)
@@ -414,7 +414,7 @@ namespace ikura
 		}
 		else if(opcode == OP_TEXT)
 		{
-			// zpr::println("recv:\n%s", data.sv());
+			// zpr::println("recv:\n{}", data.sv());
 			if(this->text_callback)
 				this->text_callback(fin, data.sv());
 

@@ -23,7 +23,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -52,7 +52,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -81,7 +81,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -111,7 +111,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -145,7 +145,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -178,7 +178,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -207,7 +207,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -237,7 +237,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -288,7 +288,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -340,7 +340,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -371,7 +371,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -411,7 +411,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -455,7 +455,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -503,7 +503,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -545,7 +545,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -581,7 +581,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -612,7 +612,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -639,7 +639,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -667,7 +667,7 @@ namespace ikura::interp::ast
 		auto rd = serialise::Reader(buf);
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
 			return nullptr;
 		}
 
@@ -720,7 +720,7 @@ namespace ikura::interp::ast
 			case serialise::TAG_AST_OP_DOT:         return DotOp::deserialise(buf);
 		}
 
-		lg::error("db", "type tag mismatch (unexpected '%02x')", tag);
+		lg::error("db", "type tag mismatch (unexpected '{02x}')", tag);
 		return nullptr;
 	}
 

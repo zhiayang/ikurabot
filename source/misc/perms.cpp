@@ -88,7 +88,7 @@ namespace ikura
 					auto role = guild->getRole(name);
 
 					if(role == nullptr)
-						return zpr::sprint("nonexistent role '%s'", name);
+						return zpr::sprint("nonexistent role '{}'", name);
 
 					foozle(perms.role_whitelist, perms.role_blacklist, role->id);
 				}
@@ -96,14 +96,14 @@ namespace ikura
 				{
 					auto grp = database().rlock()->sharedData.getGroup(name);
 					if(grp == nullptr)
-						return zpr::sprint("nonexistent group '%s'", name);
+						return zpr::sprint("nonexistent group '{}'", name);
 
 					foozle(perms.whitelist, perms.blacklist, grp->id);
 				}
 			}
 
 			if(!sv.empty())
-				return zpr::sprint("junk at end of permissions (%s)", sv);
+				return zpr::sprint("junk at end of permissions ({})", sv);
 
 			return perms;
 		}
@@ -153,7 +153,7 @@ namespace ikura
 				return "??";
 			};
 
-			auto out = zpr::sprint("flags: %x, w: %s, b: %s",
+			auto out = zpr::sprint("flags: {x}, w: {}, b: {}",
 				perms.flags,
 				zfu::listToString(perms.whitelist, get_grp_name),
 				zfu::listToString(perms.blacklist, get_grp_name)
@@ -171,7 +171,7 @@ namespace ikura
 					return "??";
 				};
 
-				out += zpr::sprint(", dw: %s, db: %s",
+				out += zpr::sprint(", dw: {}, db: {}",
 					zfu::listToString(perms.role_whitelist, get_role_name),
 					zfu::listToString(perms.role_blacklist, get_role_name)
 				);
@@ -199,7 +199,7 @@ namespace ikura
 				if(userid.empty())
 				{
 				fail:
-					chan->sendMessage(Message(zpr::sprint("unknown user '%s'", user)));
+					chan->sendMessage(Message(zpr::sprint("unknown user '{}'", user)));
 					return { "", nullptr };
 				}
 
@@ -265,7 +265,7 @@ namespace ikura
 			}
 
 			auto no_user = [&]() -> auto {
-				chan->sendMessage(Message(zpr::sprint("unknown user '%s'", user)));
+				chan->sendMessage(Message(zpr::sprint("unknown user '{}'", user)));
 				return Ret_T("", nullptr);
 			};
 
@@ -318,9 +318,9 @@ namespace ikura
 			return database().map_read([&groups](auto& db) -> std::string {
 				return zfu::listToString(*groups, [&db](uint64_t gid) -> auto {
 					if(auto grp = db.sharedData.getGroup(gid); grp != nullptr)
-						return zpr::sprint("(%s, id: %d)", grp->name, grp->id);
+						return zpr::sprint("({}, id: {})", grp->name, grp->id);
 
-					return zpr::sprint("(id: %d)", gid);
+					return zpr::sprint("(id: {})", gid);
 				});
 			});
 		}
@@ -453,7 +453,7 @@ namespace ikura
 
 		if(auto t = rd.tag(); t != TYPE_TAG)
 		{
-			lg::error("db", "type tag mismatch (found '%02x', expected '%02x')", t, TYPE_TAG);
+			lg::error("db", "type tag mismatch (found '{}', expected '{}')", t, TYPE_TAG);
 			return { };
 		}
 

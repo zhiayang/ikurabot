@@ -17,7 +17,6 @@ using namespace std::chrono_literals;
 /*
 	TODO (general):
 
-	upgrade to released zpr
 	markov state browser/editor
 
 	TODO (bot):
@@ -78,10 +77,10 @@ int main(int argc, char** argv)
 
 	ikura::lg::log("ikura", "starting...");
 	if(!ikura::config::load(opts[0]))
-		ikura::lg::fatal("cfg", "failed to load config file '%s'", opts[0]);
+		ikura::lg::fatal("cfg", "failed to load config file '{}'", opts[0]);
 
 	if(!ikura::db::load(opts[1], zfu::contains(opts, "--create"), zfu::contains(opts, "--readonly")))
-		ikura::lg::fatal("db", "failed to load database '%s'", opts[1]);
+		ikura::lg::fatal("db", "failed to load database '{}'", opts[1]);
 
 	if(ikura::config::haveTwitch())
 	{

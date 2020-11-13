@@ -61,9 +61,9 @@ namespace ikura::console
 
 	static void print_prompt(Socket* sock)
 	{
-		auto ch = (State.currentChannel ? zpr::sprint(" (%s%s) ", State.currentChannel->getBackend() == Backend::Twitch ? "#" : "",
+		auto ch = (State.currentChannel ? zpr::sprint(" ({}{}) ", State.currentChannel->getBackend() == Backend::Twitch ? "#" : "",
 			State.currentChannel->getName()) : "");
-		echo_message(sock, zpr::sprint("λ ikura%s$ ", ch));
+		echo_message(sock, zpr::sprint("λ ikura{}$ ", ch));
 	}
 
 	static void kill_socket(Socket* sock)
@@ -80,14 +80,14 @@ namespace ikura::console
 
 		sock->onReceive([](auto) { });
 
-		lg::log("console", "disconnected session (ip: %s)", sock->getAddress());
+		lg::log("console", "disconnected session (ip: {})", sock->getAddress());
 	}
 
 	// returns false if we should quit.
 	static bool process_command(Socket* sock, ikura::str_view cmd_str)
 	{
 		if(!cmd_str.empty() && sock != nullptr)
-			lg::log("console", "console command: %s", cmd_str);
+			lg::log("console", "console command: {}", cmd_str);
 
 		auto say = [&](ikura::str_view msg) {
 
@@ -319,7 +319,7 @@ namespace ikura::console
 							if(p == 1.0)
 								break;
 
-							ikura::lg::log("markov", "retraining progress: %.2f", 100 * p);
+							ikura::lg::log("markov", "retraining progress: {.2f}", 100 * p);
 						}
 					});
 
@@ -349,11 +349,11 @@ namespace ikura::console
 						if(chan != nullptr)
 						{
 							State.currentChannel = chan;
-							echo_message(sock, zpr::sprint("joined #%s\n", channel));
+							echo_message(sock, zpr::sprint("joined #{}\n", channel));
 						}
 						else
 						{
-							echo_message(sock, zpr::sprint("channel '#%s' does not exist\n", channel));
+							echo_message(sock, zpr::sprint("channel '#{}' does not exist\n", channel));
 						}
 					}
 					else if(backend == Backend::IRC)
@@ -362,11 +362,11 @@ namespace ikura::console
 						if(chan != nullptr)
 						{
 							State.currentChannel = chan;
-							echo_message(sock, zpr::sprint("joined %s\n", channel));
+							echo_message(sock, zpr::sprint("joined {}\n", channel));
 						}
 						else
 						{
-							echo_message(sock, zpr::sprint("channel '%s' does not exist\n", channel));
+							echo_message(sock, zpr::sprint("channel '{}' does not exist\n", channel));
 						}
 					}
 					else if(backend == Backend::Discord)
@@ -391,7 +391,7 @@ namespace ikura::console
 
 						if(guild == nullptr)
 						{
-							echo_message(sock, zpr::sprint("guild '%s' does not exist\n", guild_name));
+							echo_message(sock, zpr::sprint("guild '{}' does not exist\n", guild_name));
 							goto end;
 						}
 
@@ -402,7 +402,7 @@ namespace ikura::console
 
 						if(chan_id.empty())
 						{
-							echo_message(sock, zpr::sprint("channel '#%s' does not exist\n", channel_name));
+							echo_message(sock, zpr::sprint("channel '#{}' does not exist\n", channel_name));
 							goto end;
 						}
 
@@ -410,7 +410,7 @@ namespace ikura::console
 						assert(chan);
 
 						State.currentChannel = chan;
-						echo_message(sock, zpr::sprint("joined #%s\n", channel_name));
+						echo_message(sock, zpr::sprint("joined #{}\n", channel_name));
 					}
 				}
 				else if(cmd == "say")
@@ -481,7 +481,7 @@ namespace ikura::console
 				}
 				else if(!cmd.empty())
 				{
-					echo_message(sock, zpr::sprint("unknown command '%s'\n", cmd));
+					echo_message(sock, zpr::sprint("unknown command '{}'\n", cmd));
 				}
 
 			end:
@@ -526,7 +526,7 @@ namespace ikura::console
 			csrf = base64::encode(bytes, CSRF_BYTES);
 		}
 
-		echo("csrf: %s\n", csrf);
+		echo("csrf: {}\n", csrf);
 		echo("csrf? ");
 
 		condvar<bool> cv;
@@ -562,7 +562,7 @@ namespace ikura::console
 				return;
 
 			auto pass = buf.sv().take(buf.sv().find("\n")).trim(/* newlines: */ true);
-			auto foo = zpr::sprint("%s+%s", pass, cfg.password.salt);
+			auto foo = zpr::sprint("{}+{}", pass, cfg.password.salt);
 
 			uint8_t hash[32];
 			hash::sha256(hash, foo.data(), foo.size());
@@ -593,7 +593,7 @@ namespace ikura::console
 			return;
 		}
 
-		lg::log("console", "session authenticated (ip: %s)", sock->getAddress());
+		lg::log("console", "session authenticated (ip: {})", sock->getAddress());
 
 		print_prompt(sock);
 
@@ -674,7 +674,7 @@ namespace ikura::console
 
 			if(srv->listen())
 			{
-				lg::log("console", "starting console on port %d (bind: %s)", port, srv->getAddress());
+				lg::log("console", "starting console on port {} (bind: {})", port, srv->getAddress());
 
 				auto reaper = std::thread([]() {
 					while(true)
@@ -695,7 +695,7 @@ namespace ikura::console
 
 					if(auto sock = srv->accept(200ms); sock != nullptr)
 					{
-						lg::log("console", "authenticating session (ip: %s)", sock->getAddress());
+						lg::log("console", "authenticating session (ip: {})", sock->getAddress());
 						State.socketBuffers.wlock()->emplace(sock, new Buffer(512));
 						setup_receiver(sock);
 					}
@@ -715,7 +715,7 @@ namespace ikura::console
 			}
 			else
 			{
-				lg::warn("console", "could not bind console port %d", port);
+				lg::warn("console", "could not bind console port {}", port);
 			}
 		}
 
@@ -728,16 +728,16 @@ namespace ikura::console
 	{
 		std::string origin;
 		if(backend == Backend::Twitch)
-			origin = zpr::sprint("twitch/#%s", channel);
+			origin = zpr::sprint("twitch/#{}", channel);
 
 		else if(backend == Backend::IRC)
-			origin = zpr::sprint("irc/%s/%s", server, channel);
+			origin = zpr::sprint("irc/{}/{}", server, channel);
 
 		else if(backend == Backend::Discord)
-			origin = zpr::sprint("discord/%s/#%s", server, channel);
+			origin = zpr::sprint("discord/{}/#{}", server, channel);
 
-		auto out = zpr::sprint("%s: (%.2f ms) <%s> %s", origin, time, user, message);
-		lg::log("msg", "%s", out);
+		auto out = zpr::sprint("{}: ({.2f} ms) <{}> {}", origin, time, user, message);
+		lg::log("msg", "{}", out);
 
 		// broadcast to all sockets.
 		State.socketBuffers.perform_read([&](auto& sb) {
@@ -771,7 +771,7 @@ namespace ikura::console
 
 				if(pass)
 				{
-					echo_message(sock, zpr::sprint("\n%s %s|%s %smsg%s: %s",
+					echo_message(sock, zpr::sprint("\n{} {}|{} {}msg{}: {}",
 						util::getCurrentTimeString(), colours::WHITE_BOLD, colours::COLOUR_RESET,
 						colours::BLUE_BOLD, colours::COLOUR_RESET, out));
 				}

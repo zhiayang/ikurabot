@@ -117,7 +117,7 @@ namespace ikura::discord
 				auto interval = obj["d"].as_obj()["heartbeat_interval"].as_int();
 				this->heartbeat_interval = std::chrono::milliseconds(interval);
 
-				lg::log("discord", "connected (heartbeat = %ld ms)", interval);
+				lg::log("discord", "connected (heartbeat = {} ms)", interval);
 
 				// this is so dumb.
 				this->didAckHeartbeat = true;
@@ -126,7 +126,7 @@ namespace ikura::discord
 			}
 			else
 			{
-				lg::error("discord", "unhandled opcode %d", op);
+				lg::error("discord", "unhandled opcode {}", op);
 			}
 		});
 
@@ -136,7 +136,7 @@ namespace ikura::discord
 			if(this->ws.connect())
 				break;
 
-			lg::warn("discord", "connection failed, retrying... (%d/%d)", i + 1, CONNECT_RETRIES);
+			lg::warn("discord", "connection failed, retrying... ({}/{})", i + 1, CONNECT_RETRIES);
 			util::sleep_for(backoff);
 			backoff *= 2;
 		}
@@ -194,7 +194,7 @@ namespace ikura::discord
 
 	void DiscordState::send_resume(int64_t seq, const std::string& ses)
 	{
-		lg::log("discord", "resuming session '%s', seq %d", ses, seq);
+		lg::log("discord", "resuming session '{}', seq {}", ses, seq);
 		this->ws.send(pj::value(std::map<std::string, pj::value> {
 			{ "op", pj::value(opcode::RESUME) },
 			{
@@ -275,7 +275,7 @@ namespace ikura::discord
 			}
 			else
 			{
-				lg::warn("discord", "unhandled opcode '%d'", op);
+				lg::warn("discord", "unhandled opcode '{}'", op);
 			}
 		});
 
@@ -294,7 +294,7 @@ namespace ikura::discord
 			{
 				if(!resume || resumable)
 				{
-					lg::warn("discord", "%s timed out, waiting a little while...", resume ? "resume" : "identify");
+					lg::warn("discord", "{} timed out, waiting a little while...", resume ? "resume" : "identify");
 					util::sleep_for(6s);
 				}
 				else
@@ -310,7 +310,7 @@ namespace ikura::discord
 			}
 			else
 			{
-				lg::warn("discord", "%s timed out", resume ? "resume" : "identify");
+				lg::warn("discord", "{} timed out", resume ? "resume" : "identify");
 				this->disconnect();
 				return false;
 			}
@@ -361,7 +361,7 @@ namespace ikura::discord
 			}
 			else
 			{
-				lg::warn("discord", "unhandled opcode '%d'", op);
+				lg::warn("discord", "unhandled opcode '{}'", op);
 			}
 		});
 
@@ -486,10 +486,10 @@ namespace ikura::discord
 	{
 		assert(config::haveDiscord());
 
-		auto [ hdr, res ] = request::get(URL(zpr::sprint("%s/v%d/gateway/bot",
+		auto [ hdr, res ] = request::get(URL(zpr::sprint("{}/v{}/gateway/bot",
 			DiscordState::API_URL, DiscordState::API_VERSION)),
 			{ /* no params */ }, {
-				request::Header("Authorization", zpr::sprint("Bot %s", config::discord::getOAuthToken())),
+				request::Header("Authorization", zpr::sprint("Bot {}", config::discord::getOAuthToken())),
 				request::Header("User-Agent", "DiscordBot (https://github.com/zhiayang/ikurabot, 0.1.0)"),
 				request::Header("Connection", "close"),
 			}
@@ -499,7 +499,7 @@ namespace ikura::discord
 		pj::parse(resp, res.begin(), res.end(), &err);
 
 		if(!err.empty())
-			return lg::error("discord", "gateway json error: %s", err);
+			return lg::error("discord", "gateway json error: {}", err);
 
 		auto obj = resp.as_obj();
 		auto url = obj["url"].as_str();
@@ -509,22 +509,22 @@ namespace ikura::discord
 
 		if(rem <= 20)
 		{
-			lg::warn("discord", "5 connection attempts remaining (reset in %ld seconds)",
+			lg::warn("discord", "5 connection attempts remaining (reset in {} seconds)",
 				limit["reset_after"].as_int());
 		}
 		else if(rem == 0)
 		{
-			return lg::error("discord", "connection rate limit reached (reset in %ld seconds)",
+			return lg::error("discord", "connection rate limit reached (reset in {} seconds)",
 				limit["reset_after"].as_int());
 		}
 		else
 		{
-			lg::log("discord", "%ld connections left", rem);
+			lg::log("discord", "{} connections left", rem);
 		}
 
 		// fixup the url with version and format.
-		url = zpr::sprint("%s?v=%d&encoding=json", url, DiscordState::API_VERSION);
-		lg::log("discord", "connecting to %s", url);
+		url = zpr::sprint("{}?v={}&encoding=json", url, DiscordState::API_VERSION);
+		lg::log("discord", "connecting to {}", url);
 
 		_state = new Synchronised<DiscordState>(URL(url), 5000ms);
 

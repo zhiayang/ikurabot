@@ -161,14 +161,14 @@ namespace ikura::interp
 		if(this->is_string())       return "str";
 		if(this->is_double())       return "double";
 		if(this->is_integer())      return "int";
-		if(this->is_variadic_list())return zpr::sprint("[%s...]", this->elm_type()->str());
-		if(this->is_list())         return zpr::sprint("[%s]", this->elm_type()->str());
-		if(this->is_map())          return zpr::sprint("[%s: %s]", this->key_type()->str(), this->elm_type()->str());
+		if(this->is_variadic_list())return zpr::sprint("[{}...]", this->elm_type()->str());
+		if(this->is_list())         return zpr::sprint("[{}]", this->elm_type()->str());
+		if(this->is_map())          return zpr::sprint("[{}: {}]", this->key_type()->str(), this->elm_type()->str());
 		if(this->is_complex())      return "complex";
 		if(this->is_generic())      return this->_gen_name;
 		if(this->is_function())
 		{
-			return zpr::sprint("(%s) -> %s",
+			return zpr::sprint("({}) -> {}",
 				zfu::listToString(this->arg_types(), [](const auto& t) -> auto { return t->str(); }, /* braces: */ false),
 				this->ret_type()->str()
 			);
@@ -316,6 +316,6 @@ namespace ikura::interp
 			return Type::get_generic(std::move(name), group);
 		}
 
-		return lg::error_o("db", "invalid type '%x'", t);
+		return lg::error_o("db", "invalid type '{02x}'", t);
 	}
 }
