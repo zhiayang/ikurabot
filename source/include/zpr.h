@@ -1051,7 +1051,7 @@ namespace zpr
 
 			auto args_copy = args;
 			args_copy.width = fwidth;
-			auto len = print_floating(cb, negative ? -value : value, args_copy);
+			auto len = static_cast<int64_t>(print_floating(cb, negative ? -value : value, args_copy));
 
 			// output the exponent part
 			if(minwidth > 0)

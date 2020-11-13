@@ -14,7 +14,18 @@
 
 namespace ikura
 {
-	using complex = std::complex<double>;
+	class complex : public std::complex<double>
+	{
+	public:
+		complex() {}
+		complex(const std::complex<double>& c) : std::complex<double>(c) { }
+
+		using std::complex<double>::complex;
+
+		bool is_integral() const { return this->real() == static_cast<double>(static_cast<int64_t>(this->real())); }
+		bool is_complex() const { return this->imag() == 0; }
+		int64_t integer() const { return static_cast<int64_t>(this->real()); }
+	};
 }
 
 namespace ikura::interp
@@ -33,7 +44,7 @@ namespace ikura::interp
 		static constexpr uint8_t T_MAP      = 5;
 		static constexpr uint8_t T_CHAR     = 6;
 		static constexpr uint8_t T_FUNCTION = 7;
-		static constexpr uint8_t T_COMPLEX  = 8;
+		static constexpr uint8_t T_NUMBER   = 8;
 		static constexpr uint8_t T_VAR_LIST = 9;
 		static constexpr uint8_t T_GENERIC  = 10;
 
@@ -50,10 +61,8 @@ namespace ikura::interp
 		bool is_list() const;
 		bool is_char() const;
 		bool is_string() const; // is_list && list->elm_type->is_char
-		bool is_double() const;
-		bool is_integer() const;
 		bool is_function() const;
-		bool is_complex() const;
+		bool is_number() const;
 		bool is_variadic_list() const;
 		bool is_generic() const;        // whether the type itself is a generic type
 		bool has_generics() const;      // whether the type is generic in some way, eg. array of T.
@@ -67,9 +76,7 @@ namespace ikura::interp
 		static Ptr get_bool();
 		static Ptr get_char();
 		static Ptr get_string();
-		static Ptr get_double();
-		static Ptr get_integer();
-		static Ptr get_complex();
+		static Ptr get_number();
 		static Ptr get_list(Ptr elm_type);
 		static Ptr get_variadic_list(Ptr elm_type);
 		static Ptr get_map(Ptr key_type, Ptr elm_type);
@@ -110,19 +117,16 @@ namespace ikura::interp
 		bool is_list() const;
 		bool is_char() const;
 		bool is_string() const; // is_list && list->elm_type->is_char
-		bool is_double() const;
+		bool is_real() const;
 		bool is_lvalue() const;
-		bool is_integer() const;
 		bool is_function() const;
-		bool is_complex() const;
+		bool is_number() const;
 		bool is_same_type(const Value& other) const { return this->_type->is_same(other._type); }
 
 		bool     get_bool() const;
 		uint32_t get_char() const;
-		double   get_double() const;
 		Value*   get_lvalue() const;
-		int64_t  get_integer() const;
-		ikura::complex get_complex() const;
+		ikura::complex get_number() const;
 		std::shared_ptr<Command> get_function() const;
 
 		std::vector<Value>& get_list();
@@ -141,13 +145,14 @@ namespace ikura::interp
 		static Value of_void();
 		static Value of_bool(bool b);
 		static Value of_char(uint32_t c);
-		static Value of_double(double d);
-		static Value of_complex(const ikura::complex& c);
-		static Value of_complex(double re, double im);
+		static Value of_number(const ikura::complex& c);
+
+		static Value of_number(double re, double im);
+		static Value of_number(double re);
+
 		static Value of_string(const char* s);
 		static Value of_string(ikura::str_view s);
 		static Value of_string(const std::string& s);
-		static Value of_integer(int64_t i);
 		static Value of_lvalue(Value* v);
 		static Value of_list(Type::Ptr, std::vector<Value> l);
 		static Value of_variadic_list(Type::Ptr, std::vector<Value> l);
@@ -190,9 +195,7 @@ namespace ikura::interp
 			else if(rhs._type->is_bool())       this->v_bool = std::move(rhs.v_bool);
 			else if(rhs._type->is_list())       this->v_list = std::move(rhs.v_list);
 			else if(rhs._type->is_char())       this->v_char = std::move(rhs.v_char);
-			else if(rhs._type->is_double())     this->v_double = std::move(rhs.v_double);
-			else if(rhs._type->is_integer())    this->v_integer = std::move(rhs.v_integer);
-			else if(rhs._type->is_complex())    this->v_complex = std::move(rhs.v_complex);
+			else if(rhs._type->is_number())     this->v_number = std::move(rhs.v_number);
 			else if(rhs.is_lvalue())            this->v_lvalue = std::move(rhs.v_lvalue);
 			else if(rhs.is_function())          this->v_function = rhs.v_function;
 			else                                assert(false);
@@ -213,9 +216,7 @@ namespace ikura::interp
 			else if(this->_type->is_bool())     return this->v_bool == other.v_bool;
 			else if(this->_type->is_list())     return this->v_list == other.v_list;
 			else if(this->_type->is_char())     return this->v_char == other.v_char;
-			else if(this->_type->is_double())   return this->v_double == other.v_double;
-			else if(this->_type->is_integer())  return this->v_integer == other.v_integer;
-			else if(this->_type->is_complex())  return this->v_complex == other.v_complex;
+			else if(this->_type->is_number())   return this->v_number == other.v_number;
 			else if(this->is_lvalue())          return this->v_lvalue == other.v_lvalue;
 			else                                return false;
 		}
@@ -230,9 +231,7 @@ namespace ikura::interp
 			else if(this->_type->is_bool())     return this->v_bool < rhs.v_bool;
 			else if(this->_type->is_list())     return this->v_list < rhs.v_list;
 			else if(this->_type->is_char())     return this->v_char < rhs.v_char;
-			else if(this->_type->is_double())   return this->v_double < rhs.v_double;
-			else if(this->_type->is_integer())  return this->v_integer < rhs.v_integer;
-			else if(this->_type->is_complex())  return std::norm(this->v_complex) < std::norm(rhs.v_complex);
+			else if(this->_type->is_number())   return std::norm(this->v_number) < std::norm(rhs.v_number);
 			else if(this->is_lvalue())
 			{
 				if(this->v_lvalue && rhs.v_lvalue)
@@ -250,15 +249,13 @@ namespace ikura::interp
 		uint8_t _flags = 0;
 		bool v_is_lvalue = false;
 		struct {
-			int64_t  v_integer   = 0;
-			double   v_double    = 0;
 			bool     v_bool      = false;
 			Value*   v_lvalue    = 0;
 			uint32_t v_char      = 0;
 
 			std::shared_ptr<Command> v_function;
 
-			ikura::complex v_complex = 0;
+			ikura::complex v_number = 0;
 			std::vector<Value> v_list;
 			std::map<Value, Value> v_map;
 		};

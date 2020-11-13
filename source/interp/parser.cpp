@@ -839,8 +839,7 @@ namespace ikura::interp::ast
 			auto s = st.peek().str();
 			st.pop();
 
-			if(s == "int")         return Type::get_integer();
-			else if(s == "double") return Type::get_double();
+			if(s == "num")         return Type::get_number();
 			else if(s == "bool")   return Type::get_bool();
 			else if(s == "char")   return Type::get_char();
 			else if(s == "str")    return Type::get_string();

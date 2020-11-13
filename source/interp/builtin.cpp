@@ -467,10 +467,8 @@ namespace ikura::interp
 {
 	static constexpr auto t_fn = Type::get_function;
 	static constexpr auto t_gen = Type::get_generic;
-	static constexpr auto t_int = Type::get_integer;
-	static constexpr auto t_cmp = Type::get_complex;
+	static constexpr auto t_num = Type::get_number;
 	static constexpr auto t_str = Type::get_string;
-	static constexpr auto t_dbl = Type::get_double;
 	static constexpr auto t_map = Type::get_map;
 	static constexpr auto t_char = Type::get_char;
 	static constexpr auto t_bool = Type::get_bool;
@@ -481,128 +479,81 @@ namespace ikura::interp
 	static Result<interp::Value> fn_markov(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_dismantle(InterpState* fs, CmdContext& cs);
 
-	static Result<interp::Value> fn_int_to_int(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_num_to_int(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_str_to_int(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_dbl_to_int(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_char_to_int(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_bool_to_int(InterpState* fs, CmdContext& cs);
 
 	static Result<interp::Value> fn_str_to_str(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_int_to_str(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_dbl_to_str(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_num_to_str(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_map_to_str(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_list_to_str(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_char_to_str(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_bool_to_str(InterpState* fs, CmdContext& cs);
 
-
 	static Result<interp::Value> fn_rtod(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_dtor(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_atan2(InterpState* fs, CmdContext& cs);
 
-	static Result<interp::Value> fn_ln_real(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_lg_real(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_log_real(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_exp_real(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_abs_real(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_sqrt_real(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_ln(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_lg(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_log(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_exp(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_abs(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_sqrt(InterpState* fs, CmdContext& cs);
 
-	static Result<interp::Value> fn_ln_complex(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_lg_complex(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_log_complex(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_exp_complex(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_abs_complex(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_sqrt_complex(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_sin(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_cos(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_tan(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_asin(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_acos(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_atan(InterpState* fs, CmdContext& cs);
 
-	static Result<interp::Value> fn_sin_real(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_cos_real(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_tan_real(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_asin_real(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_acos_real(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_atan_real(InterpState* fs, CmdContext& cs);
-
-	static Result<interp::Value> fn_sin_complex(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_cos_complex(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_tan_complex(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_asin_complex(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_acos_complex(InterpState* fs, CmdContext& cs);
-	static Result<interp::Value> fn_atan_complex(InterpState* fs, CmdContext& cs);
-
-	static auto bfn_int_to_int  = BuiltinFunction("int", t_fn(t_int(), { t_int() }), &fn_int_to_int);
-	static auto bfn_str_to_int  = BuiltinFunction("int", t_fn(t_int(), { t_str() }), &fn_str_to_int);
-	static auto bfn_dbl_to_int  = BuiltinFunction("int", t_fn(t_int(), { t_dbl() }), &fn_dbl_to_int);
-	static auto bfn_char_to_int = BuiltinFunction("int", t_fn(t_int(), { t_char() }), &fn_char_to_int);
-	static auto bfn_bool_to_int = BuiltinFunction("int", t_fn(t_int(), { t_bool() }), &fn_bool_to_int);
+	static auto bfn_num_to_int  = BuiltinFunction("int", t_fn(t_num(), { t_num() }), &fn_num_to_int);
+	static auto bfn_str_to_int  = BuiltinFunction("int", t_fn(t_num(), { t_str() }), &fn_str_to_int);
+	static auto bfn_char_to_int = BuiltinFunction("int", t_fn(t_num(), { t_char() }), &fn_char_to_int);
+	static auto bfn_bool_to_int = BuiltinFunction("int", t_fn(t_num(), { t_bool() }), &fn_bool_to_int);
 
 	static auto bfn_str_to_str  = BuiltinFunction("str", t_fn(t_str(), { t_str() }), &fn_str_to_str);
-	static auto bfn_int_to_str  = BuiltinFunction("str", t_fn(t_str(), { t_int() }), &fn_int_to_str);
-	static auto bfn_dbl_to_str  = BuiltinFunction("str", t_fn(t_str(), { t_dbl() }), &fn_dbl_to_str);
+	static auto bfn_num_to_str  = BuiltinFunction("str", t_fn(t_str(), { t_num() }), &fn_num_to_str);
 	static auto bfn_bool_to_str = BuiltinFunction("str", t_fn(t_str(), { t_bool() }), &fn_bool_to_str);
 	static auto bfn_char_to_str = BuiltinFunction("str", t_fn(t_str(), { t_char() }), &fn_char_to_str);
 	static auto bfn_list_to_str = BuiltinFunction("str", t_fn(t_str(), { t_list(t_void()) }), &fn_list_to_str);
 	static auto bfn_map_to_str  = BuiltinFunction("str", t_fn(t_str(), { t_map(t_void(), t_void()) }), &fn_map_to_str);
 
-	static auto bfn_ln_real   = BuiltinFunction("ln",   t_fn(t_dbl(), { t_dbl() }), &fn_ln_real);
-	static auto bfn_lg_real   = BuiltinFunction("lg",   t_fn(t_dbl(), { t_dbl() }), &fn_lg_real);
-	static auto bfn_log_real  = BuiltinFunction("log",  t_fn(t_dbl(), { t_dbl(), t_dbl() }), &fn_log_real);
-	static auto bfn_exp_real  = BuiltinFunction("exp",  t_fn(t_dbl(), { t_dbl() }), &fn_exp_real);
-	static auto bfn_abs_real  = BuiltinFunction("abs",  t_fn(t_dbl(), { t_dbl() }), &fn_abs_real);
-	static auto bfn_sqrt_real = BuiltinFunction("sqrt", t_fn(t_dbl(), { t_dbl() }), &fn_sqrt_real);
-
-	static auto bfn_sin_real  = BuiltinFunction("sin",  t_fn(t_dbl(), { t_dbl() }), &fn_sin_real);
-	static auto bfn_cos_real  = BuiltinFunction("cos",  t_fn(t_dbl(), { t_dbl() }), &fn_cos_real);
-	static auto bfn_tan_real  = BuiltinFunction("tan",  t_fn(t_dbl(), { t_dbl() }), &fn_tan_real);
-	static auto bfn_asin_real = BuiltinFunction("asin", t_fn(t_dbl(), { t_dbl() }), &fn_asin_real);
-	static auto bfn_acos_real = BuiltinFunction("acos", t_fn(t_dbl(), { t_dbl() }), &fn_acos_real);
-	static auto bfn_atan_real = BuiltinFunction("atan", t_fn(t_dbl(), { t_dbl() }), &fn_atan_real);
-
-	static auto bfn_ln_complex   = BuiltinFunction("ln",   t_fn(t_cmp(), { t_cmp() }), &fn_ln_complex);
-	static auto bfn_lg_complex   = BuiltinFunction("lg",   t_fn(t_cmp(), { t_cmp() }), &fn_lg_complex);
-	static auto bfn_log_complex  = BuiltinFunction("log",  t_fn(t_cmp(), { t_cmp(), t_cmp() }), &fn_log_complex);
-	static auto bfn_exp_complex  = BuiltinFunction("exp",  t_fn(t_cmp(), { t_cmp() }), &fn_exp_complex);
-	static auto bfn_abs_complex  = BuiltinFunction("abs",  t_fn(t_cmp(), { t_cmp() }), &fn_abs_complex);
-	static auto bfn_sqrt_complex = BuiltinFunction("sqrt", t_fn(t_cmp(), { t_cmp() }), &fn_sqrt_complex);
-
-	static auto bfn_sin_complex  = BuiltinFunction("sin",  t_fn(t_cmp(), { t_cmp() }), &fn_sin_complex);
-	static auto bfn_cos_complex  = BuiltinFunction("cos",  t_fn(t_cmp(), { t_cmp() }), &fn_cos_complex);
-	static auto bfn_tan_complex  = BuiltinFunction("tan",  t_fn(t_cmp(), { t_cmp() }), &fn_tan_complex);
-	static auto bfn_asin_complex = BuiltinFunction("asin", t_fn(t_cmp(), { t_cmp() }), &fn_asin_complex);
-	static auto bfn_acos_complex = BuiltinFunction("acos", t_fn(t_cmp(), { t_cmp() }), &fn_acos_complex);
-	static auto bfn_atan_complex = BuiltinFunction("atan", t_fn(t_cmp(), { t_cmp() }), &fn_atan_complex);
-
 	static std::unordered_map<std::string, FunctionOverloadSet> builtin_overloaded_fns = {
 		{
-			"int", FunctionOverloadSet("int", t_fn(t_int(), { t_gen("T", 0) }), {
-				&bfn_int_to_int, &bfn_str_to_int, &bfn_dbl_to_int, &bfn_bool_to_int, &bfn_char_to_int,
+			"int", FunctionOverloadSet("int", t_fn(t_num(), { t_gen("T", 0) }), {
+				&bfn_num_to_int, &bfn_str_to_int, &bfn_bool_to_int, &bfn_char_to_int
 			})
 		},
 
 		{
 			"str", FunctionOverloadSet("str", t_fn(t_str(), { t_gen("T", 0) }), {
-				&bfn_str_to_str, &bfn_int_to_str, &bfn_dbl_to_str, &bfn_bool_to_str, &bfn_char_to_str,
-				&bfn_list_to_str, &bfn_map_to_str,
+				&bfn_str_to_str, &bfn_num_to_str, &bfn_bool_to_str, &bfn_char_to_str, &bfn_list_to_str, &bfn_map_to_str
 			})
 		},
-
-		{ "ln",   FunctionOverloadSet("ln",   t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_ln_real,   &bfn_ln_complex }) },
-		{ "lg",   FunctionOverloadSet("lg",   t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_lg_real,   &bfn_lg_complex }) },
-		{ "log",  FunctionOverloadSet("log",  t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_log_real,  &bfn_log_complex }) },
-		{ "exp",  FunctionOverloadSet("exp",  t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_exp_real,  &bfn_exp_complex }) },
-		{ "abs",  FunctionOverloadSet("abs",  t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_abs_real,  &bfn_abs_complex }) },
-		{ "sqrt", FunctionOverloadSet("sqrt", t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_sqrt_real, &bfn_sqrt_complex }) },
-
-		{ "sin",  FunctionOverloadSet("sin",  t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_sin_real,  &bfn_sin_complex }) },
-		{ "cos",  FunctionOverloadSet("cos",  t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_cos_real,  &bfn_cos_complex }) },
-		{ "tan",  FunctionOverloadSet("tan",  t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_tan_real,  &bfn_tan_complex }) },
-		{ "asin", FunctionOverloadSet("asin", t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_asin_real, &bfn_asin_complex }) },
-		{ "acos", FunctionOverloadSet("acos", t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_acos_real, &bfn_acos_complex }) },
-		{ "atan", FunctionOverloadSet("atan", t_fn(t_gen("R", 0), { t_gen("T", 0) }), { &bfn_atan_real, &bfn_atan_complex }) },
 	};
 
 	static std::unordered_map<std::string, BuiltinFunction> builtin_fns = {
-		{ "atan2",  BuiltinFunction("atan2",  t_fn(t_dbl(), { t_dbl(), t_dbl() }), &fn_atan2) },
-		{ "rtod",   BuiltinFunction("rtod",   t_fn(t_dbl(), { t_dbl() }), &fn_rtod) },
-		{ "dtor",   BuiltinFunction("dtor",   t_fn(t_dbl(), { t_dbl() }), &fn_dtor) },
+
+		{ "ln",     BuiltinFunction("ln",   t_fn(t_num(), { t_num() }), &fn_ln) },
+		{ "lg",     BuiltinFunction("lg",   t_fn(t_num(), { t_num() }), &fn_lg) },
+		{ "log",    BuiltinFunction("log",  t_fn(t_num(), { t_num() }), &fn_log) },
+		{ "exp",    BuiltinFunction("exp",  t_fn(t_num(), { t_num() }), &fn_exp) },
+		{ "abs",    BuiltinFunction("abs",  t_fn(t_num(), { t_num() }), &fn_abs) },
+		{ "sqrt",   BuiltinFunction("sqrt", t_fn(t_num(), { t_num() }), &fn_sqrt) },
+
+		{ "sin",    BuiltinFunction("sin",  t_fn(t_num(), { t_num() }), &fn_sin) },
+		{ "cos",    BuiltinFunction("cos",  t_fn(t_num(), { t_num() }), &fn_cos) },
+		{ "tan",    BuiltinFunction("tan",  t_fn(t_num(), { t_num() }), &fn_tan) },
+		{ "asin",   BuiltinFunction("asin", t_fn(t_num(), { t_num() }), &fn_asin) },
+		{ "acos",   BuiltinFunction("acos", t_fn(t_num(), { t_num() }), &fn_acos) },
+		{ "atan",   BuiltinFunction("atan", t_fn(t_num(), { t_num() }), &fn_atan) },
+
+		{ "atan2",  BuiltinFunction("atan2",  t_fn(t_num(), { t_num(), t_num() }), &fn_atan2) },
+		{ "rtod",   BuiltinFunction("rtod",   t_fn(t_num(), { t_num() }), &fn_rtod) },
+		{ "dtor",   BuiltinFunction("dtor",   t_fn(t_num(), { t_num() }), &fn_dtor) },
 		{ "__builtin_markov", BuiltinFunction("__builtin_markov", t_fn(t_list(t_str()), { t_vla(t_str()) }), &fn_markov) },
 		{ "__builtin_dismantle", BuiltinFunction("__builtin_dismantle", t_fn(t_list(t_str()), { t_vla(t_str()) }), &fn_dismantle) }
 	};
@@ -697,212 +648,101 @@ namespace ikura::interp
 
 
 
-	static Result<interp::Value> fn_ln_real(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_ln(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_number())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(std::log(cs.arguments[0].get_double()));
+		return Value::of_number(std::log(cs.arguments[0].get_number()));
 	}
 
-	static Result<interp::Value> fn_lg_real(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_lg(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_number())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(std::log10(cs.arguments[0].get_double()));
+		return Value::of_number(std::log10(cs.arguments[0].get_number()));
 	}
 
-	static Result<interp::Value> fn_log_real(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_log(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.arguments.size() != 2 || !(cs.arguments[0].is_double() && cs.arguments[1].is_double()))
+		if(cs.arguments.size() != 2 || !(cs.arguments[0].is_number() && cs.arguments[1].is_number()))
 			return zpr::sprint("invalid argument");
 
 		// change of base
-		return Value::of_double(std::log(cs.arguments[1].get_double()) / std::log(cs.arguments[0].get_double()));
+		return Value::of_number(std::log(cs.arguments[1].get_number()) / std::log(cs.arguments[0].get_number()));
 	}
 
-	static Result<interp::Value> fn_exp_real(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_exp(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_number())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(std::exp(cs.arguments[0].get_double()));
+		return Value::of_number(std::exp(cs.arguments[0].get_number()));
 	}
 
-	static Result<interp::Value> fn_abs_real(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_abs(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_number())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::abs(cs.arguments[0].get_double()));
+		return Value::of_number(std::abs(cs.arguments[0].get_number()));
 	}
 
-	static Result<interp::Value> fn_sqrt_real(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_sqrt(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_number())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(std::sqrt(cs.arguments[0].get_double()));
+		return Value::of_number(std::sqrt(cs.arguments[0].get_number()));
 	}
 
-
-
-
-	static Result<interp::Value> fn_ln_complex(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_sin(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
+		if(cs.arguments.empty() || !cs.arguments[0].is_number())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::log(cs.arguments[0].get_complex()));
+		return Value::of_number(std::sin(cs.arguments[0].get_number()));
 	}
 
-	static Result<interp::Value> fn_lg_complex(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_cos(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
+		if(cs.arguments.empty() || !cs.arguments[0].is_number())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::log10(cs.arguments[0].get_complex()));
+		return Value::of_number(std::cos(cs.arguments[0].get_number()));
 	}
 
-	static Result<interp::Value> fn_log_complex(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_tan(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.arguments.size() != 2 || !(cs.arguments[0].is_complex() && cs.arguments[1].is_complex()))
+		if(cs.arguments.empty() || !cs.arguments[0].is_number())
 			return zpr::sprint("invalid argument");
 
-		// change of base
-		return Value::of_complex(std::log(cs.arguments[1].get_complex()) / std::log(cs.arguments[0].get_complex()));
+		return Value::of_number(std::tan(cs.arguments[0].get_number()));
 	}
 
-	static Result<interp::Value> fn_exp_complex(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_asin(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
+		if(cs.arguments.empty() || !cs.arguments[0].is_number())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::exp(cs.arguments[0].get_complex()));
+		return Value::of_number(std::asin(cs.arguments[0].get_number()));
 	}
 
-	static Result<interp::Value> fn_abs_complex(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_acos(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
+		if(cs.arguments.empty() || !cs.arguments[0].is_number())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::abs(cs.arguments[0].get_complex()));
+		return Value::of_number(std::acos(cs.arguments[0].get_number()));
 	}
 
-	static Result<interp::Value> fn_sqrt_complex(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_atan(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
+		if(cs.arguments.empty() || !cs.arguments[0].is_number())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_complex(std::sqrt(cs.arguments[0].get_complex()));
-	}
-
-
-
-
-
-
-
-	static Result<interp::Value> fn_sin_real(InterpState* fs, CmdContext& cs)
-	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_double())
-			return zpr::sprint("invalid argument");
-
-		return Value::of_double(::sin(cs.arguments[0].get_double()));
-	}
-
-	static Result<interp::Value> fn_cos_real(InterpState* fs, CmdContext& cs)
-	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_double())
-			return zpr::sprint("invalid argument");
-
-		return Value::of_double(::cos(cs.arguments[0].get_double()));
-	}
-
-	static Result<interp::Value> fn_tan_real(InterpState* fs, CmdContext& cs)
-	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_double())
-			return zpr::sprint("invalid argument");
-
-		return Value::of_double(::tan(cs.arguments[0].get_double()));
-	}
-
-	static Result<interp::Value> fn_asin_real(InterpState* fs, CmdContext& cs)
-	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_double())
-			return zpr::sprint("invalid argument");
-
-		return Value::of_double(::asin(cs.arguments[0].get_double()));
-	}
-
-	static Result<interp::Value> fn_acos_real(InterpState* fs, CmdContext& cs)
-	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_double())
-			return zpr::sprint("invalid argument");
-
-		return Value::of_double(::acos(cs.arguments[0].get_double()));
-	}
-
-	static Result<interp::Value> fn_atan_real(InterpState* fs, CmdContext& cs)
-	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_double())
-			return zpr::sprint("invalid argument");
-
-		return Value::of_double(::atan(cs.arguments[0].get_double()));
-	}
-
-
-
-
-
-
-	static Result<interp::Value> fn_sin_complex(InterpState* fs, CmdContext& cs)
-	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
-			return zpr::sprint("invalid argument");
-
-		return Value::of_complex(std::sin(cs.arguments[0].get_complex()));
-	}
-
-	static Result<interp::Value> fn_cos_complex(InterpState* fs, CmdContext& cs)
-	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
-			return zpr::sprint("invalid argument");
-
-		return Value::of_complex(std::cos(cs.arguments[0].get_complex()));
-	}
-
-	static Result<interp::Value> fn_tan_complex(InterpState* fs, CmdContext& cs)
-	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
-			return zpr::sprint("invalid argument");
-
-		return Value::of_complex(std::tan(cs.arguments[0].get_complex()));
-	}
-
-	static Result<interp::Value> fn_asin_complex(InterpState* fs, CmdContext& cs)
-	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
-			return zpr::sprint("invalid argument");
-
-		return Value::of_complex(std::asin(cs.arguments[0].get_complex()));
-	}
-
-	static Result<interp::Value> fn_acos_complex(InterpState* fs, CmdContext& cs)
-	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
-			return zpr::sprint("invalid argument");
-
-		return Value::of_complex(std::acos(cs.arguments[0].get_complex()));
-	}
-
-	static Result<interp::Value> fn_atan_complex(InterpState* fs, CmdContext& cs)
-	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_complex())
-			return zpr::sprint("invalid argument");
-
-		return Value::of_complex(std::atan(cs.arguments[0].get_complex()));
+		return Value::of_number(std::atan(cs.arguments[0].get_number()));
 	}
 
 
@@ -915,26 +755,29 @@ namespace ikura::interp
 	constexpr double PI = 3.14159265358979323846264338327950;
 	static Result<interp::Value> fn_rtod(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_number())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(180.0 * (cs.arguments[0].get_double() / PI));
+		return Value::of_number(180.0 * (cs.arguments[0].get_number() / PI));
 	}
 
 	static Result<interp::Value> fn_dtor(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.arguments.empty() || !cs.arguments[0].is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].is_number())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_double(PI * (cs.arguments[0].get_double() / 180.0));
+		return Value::of_number(PI * (cs.arguments[0].get_number() / 180.0));
 	}
 
 	static Result<interp::Value> fn_atan2(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.arguments.size() != 2 || !(cs.arguments[0].is_double() && cs.arguments[1].is_double()))
+		if(cs.arguments.size() != 2 || !(cs.arguments[0].is_number() && cs.arguments[1].is_number())
+			|| cs.arguments[0].get_number().is_complex() || cs.arguments[1].get_number().is_complex())
+		{
 			return zpr::sprint("invalid arguments");
+		}
 
-		return Value::of_double(::atan2(cs.arguments[0].get_double(), cs.arguments[1].get_double()));
+		return Value::of_number(::atan2(cs.arguments[0].get_number().real(), cs.arguments[1].get_number().real()));
 	}
 
 
@@ -951,12 +794,12 @@ namespace ikura::interp
 
 
 
-	static Result<interp::Value> fn_int_to_int(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_num_to_int(InterpState* fs, CmdContext& cs)
 	{
-		if(cs.arguments.empty() || !cs.arguments[0].type()->is_integer())
+		if(cs.arguments.empty() || !cs.arguments[0].type()->is_number())
 			return zpr::sprint("invalid argument");
 
-		return cs.arguments[0];
+		return Value::of_number(cs.arguments[0].get_number().integer());
 	}
 
 	static Result<interp::Value> fn_str_to_int(InterpState* fs, CmdContext& cs)
@@ -967,15 +810,7 @@ namespace ikura::interp
 		auto ret = util::stoi(cs.arguments[0].raw_str());
 		if(!ret) return zpr::sprint("invalid argument");
 
-		return Value::of_integer(ret.value());
-	}
-
-	static Result<interp::Value> fn_dbl_to_int(InterpState* fs, CmdContext& cs)
-	{
-		if(cs.arguments.empty() || !cs.arguments[0].type()->is_double())
-			return zpr::sprint("invalid argument");
-
-		return Value::of_integer((int64_t) cs.arguments[0].get_double());
+		return Value::of_number(ret.value());
 	}
 
 	static Result<interp::Value> fn_char_to_int(InterpState* fs, CmdContext& cs)
@@ -983,7 +818,7 @@ namespace ikura::interp
 		if(cs.arguments.empty() || !cs.arguments[0].type()->is_char())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_integer((int64_t) cs.arguments[0].get_char());
+		return Value::of_number(static_cast<int64_t>(cs.arguments[0].get_char()));
 	}
 
 	static Result<interp::Value> fn_bool_to_int(InterpState* fs, CmdContext& cs)
@@ -991,7 +826,7 @@ namespace ikura::interp
 		if(cs.arguments.empty() || !cs.arguments[0].type()->is_bool())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_integer(cs.arguments[0].get_bool() ? 1 : 0);
+		return Value::of_number(cs.arguments[0].get_bool() ? 1 : 0);
 	}
 
 
@@ -1005,19 +840,9 @@ namespace ikura::interp
 		return cs.arguments[0];
 	}
 
-	static Result<interp::Value> fn_int_to_str(InterpState* fs, CmdContext& cs)
+	static Result<interp::Value> fn_num_to_str(InterpState* fs, CmdContext& cs)
 	{
-
-		if(cs.arguments.empty() || !cs.arguments[0].type()->is_integer())
-			return zpr::sprint("invalid argument");
-
-		return Value::of_string(cs.arguments[0].str());
-	}
-
-	static Result<interp::Value> fn_dbl_to_str(InterpState* fs, CmdContext& cs)
-	{
-
-		if(cs.arguments.empty() || !cs.arguments[0].type()->is_double())
+		if(cs.arguments.empty() || !cs.arguments[0].type()->is_number())
 			return zpr::sprint("invalid argument");
 
 		return Value::of_string(cs.arguments[0].str());

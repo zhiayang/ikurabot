@@ -15,10 +15,8 @@ namespace ikura::interp
 	bool Type::is_bool() const          { return this->_type == T_BOOLEAN; }
 	bool Type::is_char() const          { return this->_type == T_CHAR; }
 	bool Type::is_string() const        { return this->_type == T_LIST && this->_elm_type->is_char(); }
-	bool Type::is_double() const        { return this->_type == T_DOUBLE; }
-	bool Type::is_integer() const       { return this->_type == T_INTEGER; }
 	bool Type::is_function() const      { return this->_type == T_FUNCTION; }
-	bool Type::is_complex() const       { return this->_type == T_COMPLEX; }
+	bool Type::is_number() const        { return this->_type == T_NUMBER; }
 	bool Type::is_variadic_list() const { return this->_type == T_VAR_LIST; }
 	bool Type::is_list() const          { return this->_type == T_LIST || this->_type == T_VAR_LIST; }
 	bool Type::is_generic() const       { return this->_type == T_GENERIC; }
@@ -54,14 +52,6 @@ namespace ikura::interp
 		if(this->is_same(other))
 		{
 			return 0;
-		}
-		else if(this->is_integer() && other->is_double())
-		{
-			return 1;
-		}
-		else if((this->is_integer() || this->is_double()) && other->is_complex())
-		{
-			return 2;
 		}
 		else if(this->is_list() && other->is_list())
 		{
@@ -159,12 +149,10 @@ namespace ikura::interp
 		if(this->is_char())         return "char";
 		if(this->is_bool())         return "bool";
 		if(this->is_string())       return "str";
-		if(this->is_double())       return "double";
-		if(this->is_integer())      return "int";
+		if(this->is_number())       return "num";
 		if(this->is_variadic_list())return zpr::sprint("[{}...]", this->elm_type()->str());
 		if(this->is_list())         return zpr::sprint("[{}]", this->elm_type()->str());
 		if(this->is_map())          return zpr::sprint("[{}: {}]", this->key_type()->str(), this->elm_type()->str());
-		if(this->is_complex())      return "complex";
 		if(this->is_generic())      return this->_gen_name;
 		if(this->is_function())
 		{
@@ -180,16 +168,12 @@ namespace ikura::interp
 	static Type::Ptr t_void;
 	static Type::Ptr t_bool;
 	static Type::Ptr t_char;
-	static Type::Ptr t_double;
-	static Type::Ptr t_integer;
-	static Type::Ptr t_complex;
+	static Type::Ptr t_number;
 
 	Type::Ptr Type::get_void()    { if(!t_void) t_void = std::make_shared<const Type>(Type::T_VOID); return t_void; }
 	Type::Ptr Type::get_bool()    { if(!t_bool) t_bool = std::make_shared<const Type>(Type::T_BOOLEAN); return t_bool; }
 	Type::Ptr Type::get_char()    { if(!t_char) t_char = std::make_shared<const Type>(Type::T_CHAR); return t_char; }
-	Type::Ptr Type::get_double()  { if(!t_double) t_double = std::make_shared<const Type>(Type::T_DOUBLE); return t_double; }
-	Type::Ptr Type::get_integer() { if(!t_integer) t_integer = std::make_shared<const Type>(Type::T_INTEGER); return t_integer; }
-	Type::Ptr Type::get_complex() { if(!t_complex) t_complex = std::make_shared<const Type>(Type::T_COMPLEX); return t_complex; }
+	Type::Ptr Type::get_number()  { if(!t_number) t_number = std::make_shared<const Type>(Type::T_NUMBER); return t_number; }
 	Type::Ptr Type::get_string()  { return Type::get_list(Type::get_char()); }
 
 	Type::Ptr Type::get_list(Ptr elm_type)
@@ -234,6 +218,7 @@ namespace ikura::interp
 	void Type::serialise(Buffer& buf) const
 	{
 		buf.write(&this->_type, 1);
+
 		if(this->is_list())
 		{
 			this->_elm_type->serialise(buf);
@@ -266,9 +251,7 @@ namespace ikura::interp
 		if(t == T_VOID)     return t_void;
 		if(t == T_BOOLEAN)  return t_bool;
 		if(t == T_CHAR)     return t_char;
-		if(t == T_DOUBLE)   return t_double;
-		if(t == T_INTEGER)  return t_integer;
-		if(t == T_COMPLEX)  return t_complex;
+		if(t == T_NUMBER)   return t_number;
 
 		if(t == T_LIST || t == T_VAR_LIST)
 		{

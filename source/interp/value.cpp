@@ -15,16 +15,22 @@ namespace ikura::interp
 		else if(this->_type->is_void())     return "";
 		else if(this->_type->is_bool())     return zpr::sprint("{}", this->v_bool);
 		else if(this->_type->is_char())     return zpr::sprint("{}", (char) this->v_char);
-		else if(this->_type->is_double())   return zpr::sprint("{.3f}", this->v_double);
-		else if(this->_type->is_integer())  return zpr::sprint("{}", this->v_integer);
-		else if(this->_type->is_complex())
+		else if(this->_type->is_number())
 		{
-			auto imag = this->v_complex.imag();
-			if(std::abs(imag) < 0.0001)
+			auto imag = this->v_number.imag();
+			auto real = this->v_number.real();
+
+			if(std::abs(imag) < 0.00005)
 				imag = 0;
 
-			if(imag != 0)   return zpr::sprint("{.3f}{+.3f}i", this->v_complex.real(), imag);
-			else            return zpr::sprint("{.3f}", this->v_complex.real());
+			if(imag != 0)
+				return zpr::sprint("{.3f}{+.3f}i", real, imag);
+
+			else if(real == static_cast<int64_t>(real))
+				return zpr::sprint("{}", static_cast<int64_t>(real));
+
+			else
+				return zpr::sprint("{.3f}", real);
 		}
 		else if(this->_type->is_map())
 		{
@@ -66,19 +72,9 @@ namespace ikura::interp
 	{
 		if(this->is_lvalue())               return this->v_lvalue->str();
 		else if(this->_type->is_void())     return "()";
-		else if(this->_type->is_bool())     return zpr::sprint("{}", this->v_bool);
+		else if(this->_type->is_bool())     return this->raw_str();
 		else if(this->_type->is_char())     return zpr::sprint("'{}'", (char) this->v_char);
-		else if(this->_type->is_double())   return zpr::sprint("{.3f}", this->v_double);
-		else if(this->_type->is_integer())  return zpr::sprint("{}", this->v_integer);
-		else if(this->_type->is_complex())
-		{
-			auto imag = this->v_complex.imag();
-			if(std::abs(imag) < 0.0001)
-				imag = 0;
-
-			if(imag != 0)   return zpr::sprint("{.3f}{+.3f}i", this->v_complex.real(), imag);
-			else            return zpr::sprint("{.3f}", this->v_complex.real());
-		}
+		else if(this->_type->is_number())   return this->raw_str();
 		else if(this->_type->is_map())
 		{
 			std::string ret = "[ ";
@@ -145,28 +141,25 @@ namespace ikura::interp
 		return ret;
 	}
 
-	Value Value::of_double(double d)
+	Value Value::of_number(const ikura::complex& c)
 	{
-		auto ret = Value(Type::get_double());
-		ret.v_double = d;
+		auto ret = Value(Type::get_number());
+		ret.v_number = c;
 
 		return ret;
 	}
 
-	Value Value::of_complex(const ikura::complex& c)
+	Value Value::of_number(double re, double im)
 	{
-		auto ret = Value(Type::get_complex());
-		ret.v_complex = c;
+		auto ret = Value(Type::get_number());
+		ret.v_number = ikura::complex(re, im);
 
 		return ret;
 	}
 
-	Value Value::of_complex(double re, double im)
+	Value Value::of_number(double re)
 	{
-		auto ret = Value(Type::get_complex());
-		ret.v_complex = ikura::complex(re, im);
-
-		return ret;
+		return of_number(re, 0);
 	}
 
 	Value Value::of_string(const char* s)
@@ -184,14 +177,6 @@ namespace ikura::interp
 		auto ret = Value(Type::get_string());
 		for(char c : s)
 			ret.v_list.push_back(Value::of_char(c));
-
-		return ret;
-	}
-
-	Value Value::of_integer(int64_t i)
-	{
-		auto ret = Value(Type::get_integer());
-		ret.v_integer = i;
 
 		return ret;
 	}
@@ -252,15 +237,6 @@ namespace ikura::interp
 		if(this->_type->is_same(type) || type->has_generics())
 			return *this;
 
-		if(this->is_integer() && type->is_double())
-			return Value::of_double((double) this->get_integer());
-
-		if(this->is_integer() && type->is_complex())
-			return Value::of_complex(this->get_integer(), 0);
-
-		if(this->is_double() && type->is_complex())
-			return Value::of_complex(this->get_double(), 0);
-
 		if(this->is_list() && type->is_list())
 			return Value::of_list(type->elm_type(), this->v_list);
 
@@ -318,20 +294,16 @@ namespace ikura::interp
 	bool Value::is_lvalue() const   { return this->v_is_lvalue; }
 	bool Value::is_list() const     { return this->_type->is_list(); }
 	bool Value::is_void() const     { return this->_type->is_void(); }
-	bool Value::is_integer() const  { return this->_type->is_integer(); }
 	bool Value::is_bool() const     { return this->_type->is_bool(); }
-	bool Value::is_double() const   { return this->_type->is_double(); }
 	bool Value::is_string() const   { return this->_type->is_string(); }
 	bool Value::is_map() const      { return this->_type->is_map(); }
 	bool Value::is_char() const     { return this->_type->is_char(); }
 	bool Value::is_function() const { return this->_type->is_function(); }
-	bool Value::is_complex() const  { return this->_type->is_complex(); }
+	bool Value::is_number() const   { return this->_type->is_number(); }
 
-	int64_t Value::get_integer() const      { return this->is_lvalue() ? this->v_lvalue->get_integer() : this->v_integer; }
-	double Value::get_double() const        { return this->is_lvalue() ? this->v_lvalue->get_double() : this->v_double; }
 	bool Value::get_bool() const            { return this->is_lvalue() ? this->v_lvalue->get_bool() : this->v_bool; }
 	uint32_t Value::get_char() const        { return this->is_lvalue() ? this->v_lvalue->get_char() : this->v_char; }
-	ikura::complex Value::get_complex()const{ return this->is_lvalue() ? this->v_lvalue->get_complex() : this->v_complex; }
+	ikura::complex Value::get_number() const{ return this->is_lvalue() ? this->v_lvalue->get_number() : this->v_number; }
 	Value* Value::get_lvalue() const        { return this->v_lvalue; }
 
 	const std::vector<Value>& Value::get_list() const   { return this->is_lvalue() ? this->v_lvalue->get_list() : this->v_list; }
@@ -359,9 +331,7 @@ namespace ikura::interp
 		if(this->_type->is_void())          ;
 		else if(this->_type->is_bool())     wr.write(this->v_bool);
 		else if(this->_type->is_char())     wr.write(this->v_char);
-		else if(this->_type->is_double())   wr.write(this->v_double);
-		else if(this->_type->is_complex())  wr.write(this->v_complex.real()), wr.write(this->v_complex.imag());
-		else if(this->_type->is_integer())  wr.write((uint64_t) this->v_integer);
+		else if(this->_type->is_number())   wr.write(this->v_number.real()), wr.write(this->v_number.imag());
 		else if(this->_type->is_map())      wr.write(this->v_map);
 		else if(this->_type->is_list())     wr.write(this->v_list);
 		else if(this->_type->is_function()) wr.write(this->v_function->getName());
@@ -398,27 +368,12 @@ namespace ikura::interp
 
 			return Value::of_char(x.value());
 		}
-		else if(type->is_double())
-		{
-			auto x = rd.read<double>();
-			if(!x) return { };
-
-			return Value::of_double(x.value());
-		}
-		else if(type->is_complex())
+		else if(type->is_number())
 		{
 			auto re = rd.read<double>(); if(!re) return { };
 			auto im = rd.read<double>(); if(!im) return { };
 
-			return Value::of_complex(re.value(), im.value());
-		}
-		else if(type->is_integer())
-		{
-			//* read as u64, then cast to i64 for the value.
-			auto x = rd.read<uint64_t>();
-			if(!x) return { };
-
-			return Value::of_integer((int64_t) x.value());
+			return Value::of_number(re.value(), im.value());
 		}
 		else if(type->is_list())
 		{
