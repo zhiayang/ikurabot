@@ -22,6 +22,9 @@ using namespace std::chrono_literals;
 
 	TODO (bot):
 
+	add post-processing pass to discord messages right before sending, that looks for
+	known emote strings in messages and replaces them appropriately.
+
 	add blacklist for discord channels to not train markov
 	possibly add blacklist for other stuff (eg. commands)
 
@@ -41,6 +44,13 @@ using namespace std::chrono_literals;
 
 
 	TODO (interpreter):
+
+	unify all number types into just `num` that is a complex number. since we already check the type
+	for subscripts, it should be easy enough to add an is_integer() method to check that the floating
+	and imaginary components of a number are 0.
+
+
+
 
 	pipelining needs to be smarter. we need to split into pipeline components immediately, and apply
 	the arguments appropriately. probably should find a way to just pass the args directly instead

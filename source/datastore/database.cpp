@@ -33,7 +33,7 @@ namespace ikura::db
 
 	static_assert(sizeof(Superblock) == 24);
 
-	constexpr uint32_t DB_VERSION   = 27;
+	constexpr uint32_t DB_VERSION   = 29;
 	constexpr const char* DB_MAGIC  = "ikura_db";
 
 	// the database will only sync to disk if it was modified
@@ -98,6 +98,12 @@ namespace ikura::db
 			lg::warn("db", "database '%s' exists, ignoring '--create' flag", path.string());
 		}
 
+		if(!(std::fs::is_regular_file(path) || std::fs::is_symlink(path)))
+		{
+			return lg::error_b("db", "given path '%s' was not a regular file (or symlink)",
+				path.string());
+		}
+
 		auto t = timer();
 
 		// ok, for sure now there's something.
@@ -118,6 +124,21 @@ namespace ikura::db
 		{
 			if(!readOnly)
 			{
+				// make a backup if we wrote.
+				if(currentDatabaseVersion < DB_VERSION)
+				{
+					auto backup = path;
+					backup.replace_filename(zpr::sprint("db-backup-v%d.db", currentDatabaseVersion));
+
+					lg::log("db", "making a backup: '%s' -> '%s'", path.string(), backup.string());
+
+					std::error_code ec;
+					std::fs::copy_file(path, backup, ec);
+
+					if(ec)
+						return lg::error_b("db", "failed to create backup: %s", ec.message());
+				}
+
 				TheDatabase.on_write_lock([]() { databaseDirty = true; });
 
 				// setup an idiot to periodically synchronise the database to disk.
