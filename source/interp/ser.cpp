@@ -651,6 +651,35 @@ namespace ikura::interp::ast
 	}
 
 
+
+	void LambdaExpr::serialise(Buffer& buf) const
+	{
+		auto wr = serialise::Writer(buf);
+		wr.tag(TYPE_TAG);
+
+		this->signature->serialise(buf);
+		wr.write(this->body);
+	}
+
+	LambdaExpr* LambdaExpr::deserialise(Span& buf)
+	{
+		auto rd = serialise::Reader(buf);
+		if(auto t = rd.tag(); t != TYPE_TAG)
+		{
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
+			return nullptr;
+		}
+
+		auto sig = Type::deserialise(buf);
+		if(!sig) return nullptr;
+
+		Block* body = rd.read<Block*>().value();
+		if(!body) return nullptr;
+
+		return new LambdaExpr(sig.value(), body);
+	}
+
+
 	void FunctionDefn::serialise(Buffer& buf) const
 	{
 		auto wr = serialise::Writer(buf);

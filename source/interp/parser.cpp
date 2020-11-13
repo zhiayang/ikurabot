@@ -283,17 +283,18 @@ namespace ikura::interp::ast
 	static Result<FunctionDefn*> parseFuncDefn(State& st, bool requireKeyword);
 
 
-	static Result<Expr*>  parsePostfix(State& st, Expr* lhs, TT op);
-	static Result<Expr*>  parseParenthesised(State& st);
-	static Result<Expr*>  parseIdentifier(State& st);
-	static Result<Expr*>  parsePrimary(State& st);
-	static Result<Expr*>  parseNumber(State& st);
-	static Result<Expr*>  parseString(State& st);
-	static Result<Expr*>  parseUnary(State& st);
-	static Result<Expr*>  parseList(State& st);
-	static Result<Expr*>  parseChar(State& st);
-	static Result<Expr*>  parseBool(State& st);
-	static Result<Expr*>  parseExpr(State& st);
+	static Result<Expr*> parsePostfix(State& st, Expr* lhs, TT op);
+	static Result<Expr*> parseParenthesised(State& st);
+	static Result<Expr*> parseIdentifier(State& st);
+	static Result<Expr*> parsePrimary(State& st);
+	static Result<Expr*> parseNumber(State& st);
+	static Result<Expr*> parseString(State& st);
+	static Result<Expr*> parseLambda(State& st);
+	static Result<Expr*> parseUnary(State& st);
+	static Result<Expr*> parseList(State& st);
+	static Result<Expr*> parseChar(State& st);
+	static Result<Expr*> parseBool(State& st);
+	static Result<Expr*> parseExpr(State& st);
 
 	static Result<Stmt*> parseStmt(State& st);
 	static Result<Block*> parseBlock(State& st);
@@ -362,6 +363,9 @@ namespace ikura::interp::ast
 			case TT::Dollar:
 			case TT::Identifier:
 				return parseIdentifier(st);
+
+			case TT::Backslash:
+				return parseLambda(st);
 
 			case TT::EndOfFile:
 				return zpr::sprint("unexpected end of input");
@@ -744,6 +748,46 @@ namespace ikura::interp::ast
 		return makeAST<Block>(stmts);
 	}
 
+	static Result<Expr*> parseLambda(State& st)
+	{
+		assert(st.peek() == TT::Backslash);
+		st.pop();
+
+		std::vector<interp::Type::Ptr> args;
+		if(st.peek() == TT::LParen)
+		{
+			st.pop();
+			while(!st.empty() && st.peek() != TT::RParen)
+			{
+				auto t = parseType(st);
+				if(!t) return t.error();
+
+				args.push_back(std::move(t.unwrap()));
+				if(st.peek() == TT::Comma)
+					st.pop();
+				else if(st.peek() == TT::RParen)
+					break;
+				else
+					return zpr::sprint("expected ',' or ')'");
+			}
+
+			assert(st.peek() == TT::RParen);
+			st.pop();
+		}
+		else
+		{
+			auto t = parseType(st);
+			if(!t) return t.error();
+
+			args.push_back(std::move(t.unwrap()));
+		}
+
+		auto body = parseBlock(st);
+		if(!body) return body.error();
+
+		return makeAST<LambdaExpr>(interp::Type::get_function(interp::Type::get_generic("_U", 999), args),
+			body.unwrap());
+	}
 
 	static Result<FunctionDefn*> parseFuncDefn(State& st, bool requireKeyword)
 	{

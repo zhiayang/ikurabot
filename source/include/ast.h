@@ -30,6 +30,7 @@ namespace ikura::interp
 			For,
 
 			Semicolon,
+
 			Dollar,
 			Colon,
 			Pipe,
@@ -67,6 +68,7 @@ namespace ikura::interp
 			DoublePlus,
 			DoubleMinus,
 			Ellipsis,
+			Backslash,
 
 			PlusEquals,
 			MinusEquals,
@@ -418,6 +420,23 @@ namespace ikura::interp
 			virtual void serialise(Buffer& buf) const override;
 			static Block* deserialise(Span& buf);
 		};
+
+		struct LambdaExpr : Expr
+		{
+			LambdaExpr(Type::Ptr sig, Block* body) : signature(std::move(sig)), body(body) { }
+			virtual ~LambdaExpr() override;
+
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
+
+			Type::Ptr signature;
+			Block* body;
+
+			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_LAMBDA;
+			virtual void serialise(Buffer& buf) const override;
+			static LambdaExpr* deserialise(Span& buf);
+		};
+
 
 		struct FunctionDefn : Stmt
 		{

@@ -92,7 +92,7 @@ namespace ikura::interp
 
 	struct BuiltinFunction : Command
 	{
-		BuiltinFunction(std::string name, Type::Ptr type, Result<interp::Value> (*action)(InterpState*, CmdContext&));
+		BuiltinFunction(std::string name, Type::Ptr type, std::function<Result<interp::Value>(InterpState*, CmdContext&)> action);
 
 		virtual Result<interp::Value> run(InterpState* fs, CmdContext& cs) const override;
 		virtual Type::Ptr getSignature() const override;
@@ -102,7 +102,7 @@ namespace ikura::interp
 
 	private:
 		Type::Ptr signature;
-		Result<interp::Value> (*action)(InterpState*, CmdContext&);
+		std::function<Result<interp::Value>(InterpState*, CmdContext&)> action;
 	};
 
 	struct FunctionOverloadSet : Command

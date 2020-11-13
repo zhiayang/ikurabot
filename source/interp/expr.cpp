@@ -500,6 +500,16 @@ namespace ikura::interp::ast
 		return Value::of_variadic_list(out->type()->elm_type(), out->get_list());
 	}
 
+	Result<Value> LambdaExpr::evaluate(InterpState* fs, CmdContext& cs) const
+	{
+		return Value::of_function(std::make_shared<BuiltinFunction>("__lambda", this->signature,
+			[this](InterpState* fs, CmdContext& cs) -> Result<Value> {
+				return this->body->evaluate(fs, cs);
+			}));
+	}
+
+
+
 	Result<Value> DotOp::evaluate(InterpState* fs, CmdContext& cs) const
 	{
 		auto left = this->lhs->evaluate(fs, cs);
@@ -590,8 +600,6 @@ namespace ikura::interp::ast
 
 
 
-
-
 	Result<Value> LitInteger::evaluate(InterpState* fs, CmdContext& cs) const
 	{
 		if(imag) return make_num(0.0, this->value);
@@ -651,6 +659,8 @@ namespace ikura::interp::ast
 	std::string AssignOp::str() const       { return zpr::sprint("{} {} {}", lhs->str(), op_str, rhs->str()); }
 	std::string DotOp::str() const          { return zpr::sprint("{}.{}", lhs->str(), rhs->str()); }
 
+	std::string LambdaExpr::str() const     { return zpr::sprint("\\%s %s", this->signature->str(), this->body->str()); }
+
 	// TODO: don't cheat here
 	std::string TernaryOp::str() const
 	{
@@ -693,5 +703,5 @@ namespace ikura::interp::ast
 	ComparisonOp::~ComparisonOp()   { for(auto e : exprs) delete e; }
 	AssignOp::~AssignOp()           { delete lhs; delete rhs; }
 	DotOp::~DotOp()                 { delete lhs; delete rhs; }
-
+	LambdaExpr::~LambdaExpr()       { delete body; }
 }

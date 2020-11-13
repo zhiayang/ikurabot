@@ -405,6 +405,7 @@ namespace ikura::interp::lexer
 				case '%': ret = Token(TT::Percent, src.take(1));        break;
 				case '~': ret = Token(TT::Tilde, src.take(1));          break;
 				case '?': ret = Token(TT::Question, src.take(1));       break;
+				case '\\': ret = Token(TT::Backslash, src.take(1));     break;
 
 				default:
 					lg::warn("lexer", "invalid token - stream: '{}'", src);

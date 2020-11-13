@@ -922,8 +922,9 @@ namespace ikura::interp
 	}
 
 
-	BuiltinFunction::BuiltinFunction(std::string name, Type::Ptr type, Result<interp::Value> (*action)(InterpState*, CmdContext&))
-		: Command(std::move(name)), signature(std::move(type)), action(action) { }
+	BuiltinFunction::BuiltinFunction(std::string name, Type::Ptr type,
+		std::function<Result<interp::Value>(InterpState*, CmdContext&)> action)
+		: Command(std::move(name)), signature(std::move(type)), action(std::move(action)) { }
 
 	Type::Ptr BuiltinFunction::getSignature() const { return this->signature; }
 
