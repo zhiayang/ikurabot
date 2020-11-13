@@ -694,7 +694,8 @@ namespace ikura::interp
 		if(cs.arguments.empty() || !cs.arguments[0].is_number())
 			return zpr::sprint("invalid argument");
 
-		return Value::of_number(std::sqrt(cs.arguments[0].get_number()));
+		auto num = cs.arguments[0].get_number();
+		return Value::of_number(std::sqrt(num));
 	}
 
 	static Result<interp::Value> fn_sin(InterpState* fs, CmdContext& cs)

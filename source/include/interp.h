@@ -17,13 +17,16 @@ namespace ikura
 	class complex : public std::complex<double>
 	{
 	public:
-		complex() {}
 		complex(const std::complex<double>& c) : std::complex<double>(c) { }
 
 		using std::complex<double>::complex;
 
-		bool is_integral() const { return this->real() == static_cast<double>(static_cast<int64_t>(this->real())); }
-		bool is_complex() const { return this->imag() == 0; }
+		bool is_integral() const
+		{
+			return !this->is_complex()
+				&& (this->real() == static_cast<double>(static_cast<int64_t>(this->real())));
+		}
+		bool is_complex() const { return this->imag() != 0; }
 		int64_t integer() const { return static_cast<int64_t>(this->real()); }
 	};
 }
@@ -37,8 +40,6 @@ namespace ikura::interp
 		using Ptr = std::shared_ptr<const Type>;
 
 		static constexpr uint8_t T_VOID     = 0;
-		static constexpr uint8_t T_INTEGER  = 1;
-		static constexpr uint8_t T_DOUBLE   = 2;
 		static constexpr uint8_t T_BOOLEAN  = 3;
 		static constexpr uint8_t T_LIST     = 4;
 		static constexpr uint8_t T_MAP      = 5;

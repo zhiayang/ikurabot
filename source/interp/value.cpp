@@ -9,6 +9,8 @@
 
 namespace ikura::interp
 {
+	static constexpr double EPSILON = 0.00001;
+
 	std::string Value::raw_str() const
 	{
 		if(this->is_lvalue())               return this->v_lvalue->raw_str();
@@ -17,20 +19,29 @@ namespace ikura::interp
 		else if(this->_type->is_char())     return zpr::sprint("{}", (char) this->v_char);
 		else if(this->_type->is_number())
 		{
-			auto imag = this->v_number.imag();
 			auto real = this->v_number.real();
+			auto imag = this->v_number.imag();
 
-			if(std::abs(imag) < 0.00005)
-				imag = 0;
+			// if the real part is inf or nan, ignore the imaginary part
+			if(std::isinf(real) || std::isnan(real))
+				return zpr::sprint("{}", real);
+
+			if(std::abs(imag) < EPSILON) imag = 0;
+			if(std::abs(real) < EPSILON) real = 0;
 
 			if(imag != 0)
-				return zpr::sprint("{.3f}{+.3f}i", real, imag);
-
+			{
+				if(real == 0)   return zpr::sprint("{.3f}i", imag);
+				else            return zpr::sprint("{.3f}{+.3f}i", real, imag);
+			}
 			else if(real == static_cast<int64_t>(real))
+			{
 				return zpr::sprint("{}", static_cast<int64_t>(real));
-
+			}
 			else
+			{
 				return zpr::sprint("{.3f}", real);
+			}
 		}
 		else if(this->_type->is_map())
 		{

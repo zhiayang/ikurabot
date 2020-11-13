@@ -33,7 +33,25 @@ namespace ikura::interp::ast
 		}
 		else if(this->op == TT::Minus)
 		{
-			if(e.is_number()) return make_num(-e.get_number());
+			if(e.is_number())
+			{
+				// a real monkaS moment. if either the real or complex parts are zero,
+				// we should maintain their sign instead. negative 0 gives wrong results
+				// for certain operations.
+				auto real = e.get_number().real();
+				auto imag = e.get_number().imag();
+
+				real *= -1;
+				imag *= -1;
+
+				if(real == .0 || real == -.0)
+					real = 0;
+
+				if(imag == .0 || imag == -.0)
+					imag = 0;
+
+				return make_num(real, imag);
+			}
 		}
 		else if(this->op == TT::Exclamation)
 		{
@@ -576,14 +594,14 @@ namespace ikura::interp::ast
 
 	Result<Value> LitInteger::evaluate(InterpState* fs, CmdContext& cs) const
 	{
-		if(imag) return make_num(0, this->value);
-		else     return make_num(this->value, 0);
+		if(imag) return make_num(0.0, this->value);
+		else     return make_num(this->value, +0.0);
 	}
 
 	Result<Value> LitDouble::evaluate(InterpState* fs, CmdContext& cs) const
 	{
-		if(imag) return make_num(0, this->value);
-		else     return make_num(this->value, 0);
+		if(imag) return make_num(0.0, this->value);
+		else     return make_num(this->value, +0.0);
 	}
 
 	Result<Value> LitList::evaluate(InterpState* fs, CmdContext& cs) const
