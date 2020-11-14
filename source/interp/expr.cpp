@@ -97,8 +97,10 @@ namespace ikura::interp::ast
 				// lg::log("interp", "{} + {}", left->type()->str(), rhs.type()->str());
 
 				if(rhs.is_list() && (left->type()->elm_type()->is_same(rhs.type()->elm_type())
-					|| left->type()->elm_type()->is_void()
-					|| rhs.type()->elm_type()->is_void()))
+					|| left->type()->get_cast_dist(rhs.type()) >= 0
+					|| rhs.type()->get_cast_dist(left->type()) >= 0
+					|| left->type()->elm_type()->get_cast_dist(rhs.type()->elm_type()) >= 0
+					|| rhs.type()->elm_type()->get_cast_dist(left->type()->elm_type()) >= 0))
 				{
 					auto rl = rhs.decay().get_list();
 

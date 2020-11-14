@@ -39,6 +39,7 @@ namespace ikura::interp
 
 		// in milliseconds.
 		constexpr uint64_t EXECUTION_TIME_LIMIT = 500;
+		constexpr uint64_t MAX_RECURSION_DEPTH = 64;
 
 		Result<Value> FunctionCall::evaluate(InterpState* fs, CmdContext& cs) const
 		{
@@ -53,6 +54,10 @@ namespace ikura::interp
 
 			if(util::getMillisecondTimestamp() > cs.executionStart + EXECUTION_TIME_LIMIT)
 				return zpr::sprint("time limit exceeded");
+
+			if(cs.recursionDepth > MAX_RECURSION_DEPTH)
+				return zpr::sprint("recursion depth exceeded");
+
 
 			std::vector<Value> args;
 			for(Expr* e : this->arguments)
@@ -90,6 +95,7 @@ namespace ikura::interp
 			}
 
 			CmdContext params = cs;
+			params.recursionDepth = cs.recursionDepth + 1;
 			params.arguments = std::move(args);
 
 			return function->run(fs, params);

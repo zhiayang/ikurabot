@@ -27,6 +27,7 @@ namespace ikura::cmd
 	{
 		interp::CmdContext cs;
 		cs.executionStart = util::getMillisecondTimestamp();
+		cs.recursionDepth = 0;
 		cs.callername = username;
 		cs.callerid = userid;
 		cs.channel = chan;

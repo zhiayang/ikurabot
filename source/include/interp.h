@@ -275,6 +275,7 @@ namespace ikura::interp
 		const Channel* channel = nullptr;
 
 		uint64_t executionStart = 0;
+		uint64_t recursionDepth = 0;
 
 		// the arguments, split by spaces and Value::of_string-ed
 		std::vector<interp::Value> arguments;
