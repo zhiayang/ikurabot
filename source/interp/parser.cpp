@@ -744,6 +744,8 @@ namespace ikura::interp::ast
 		if(st.empty() || st.peek() != TT::RBrace)
 			return zpr::sprint("expected '}'");
 
+		st.pop();
+
 	out:
 		return makeAST<Block>(stmts);
 	}
