@@ -331,6 +331,7 @@ namespace ikura::interp::ast
 		st.pop();
 
 		auto inside = parseExpr(st);
+		if(!inside) return inside.error();
 
 		if(!st.match(TT::RParen))
 			return zpr::sprint("expected ')' in parenthesised expression");
