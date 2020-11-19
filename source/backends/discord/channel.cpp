@@ -176,15 +176,20 @@ namespace ikura::discord
 				std::this_thread::sleep_until(wait.value());
 		}
 
-		auto object = std::map<std::string, pj::value> {
+		auto object = pj::object {
 			{ "content", pj::value(message) },
 		};
 
 		if(!tx.replyId.empty())
 		{
-			object["message_reference"] = pj::value(std::map<std::string, pj::value> {
+			object["message_reference"] = pj::value(pj::object {
 				{ "message_id", pj::value(tx.replyId) },
 				{ "channel_id", pj::value(tx.channelId.str()) }
+			});
+
+			object["allowed_mentions"] = pj::value(pj::object {
+				{ "parse", pj::value(pj::array { pj::value("users") }) },
+				{ "replied_user", pj::value(false) }
 			});
 		}
 
