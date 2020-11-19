@@ -384,6 +384,7 @@ namespace ikura::config
 					guild.silentInterpErrors    = get_bool(obj, "silent_interp_errors", false);
 					guild.respondToPings        = get_bool(obj, "respond_to_pings", false);
 					guild.runMessageHandlers    = get_bool(obj, "run_message_handlers", false);
+					guild.useReplies            = get_bool(obj, "use_replies", false);
 					guild.commandPrefixes       = parseCommandPrefixes(obj["command_prefix"]);
 
 					DiscordConfig.guilds.push_back(std::move(guild));

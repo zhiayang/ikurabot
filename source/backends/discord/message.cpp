@@ -61,7 +61,10 @@ namespace ikura::discord
 		// only process commands if we're not lurking
 		bool ran_cmd = false;
 		if(!this->channels[chan.id].lurk)
-			ran_cmd = cmd::processMessage(author.id.str(), author.nickname, &this->channels[chan.id], sanitised, /* enablePings: */ true);
+		{
+			ran_cmd = cmd::processMessage(author.id.str(), author.nickname, &this->channels[chan.id], sanitised,
+				/* enablePings: */ true, /* triggeringMessageId: */ json["id"].as_str());
+		}
 
 		/*
 			auto timestamp = parse_timestamp((wasEdit
@@ -156,7 +159,8 @@ namespace ikura::discord
 				chan.name = j["name"].as_str();
 
 				st->channels[id] = Channel(st, &guild, id, cfg_guild.lurk, cfg_guild.respondToPings,
-					cfg_guild.silentInterpErrors, cfg_guild.runMessageHandlers, cfg_guild.commandPrefixes);
+					cfg_guild.silentInterpErrors, cfg_guild.runMessageHandlers, cfg_guild.useReplies,
+					cfg_guild.commandPrefixes);
 			}
 
 			update_guild_emotes(guild, json);

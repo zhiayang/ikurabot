@@ -48,6 +48,7 @@ namespace ikura::config
 			bool respondToPings;
 			bool silentInterpErrors;
 			bool runMessageHandlers;
+			bool useReplies;
 			std::vector<std::string> commandPrefixes;
 		};
 

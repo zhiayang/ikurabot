@@ -278,8 +278,11 @@ namespace ikura
 			return *this;
 		}
 
+		bool empty() const { return this->fragments.empty() && this->next == nullptr; }
+
 		std::vector<Fragment> fragments;
 		std::unique_ptr<Message> next;
+		std::string discordReplyId; // the id of the message we are replying to
 
 		Message& link(Message m)
 		{

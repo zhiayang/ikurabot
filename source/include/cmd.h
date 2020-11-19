@@ -133,5 +133,8 @@ namespace ikura::cmd
 
 	// returns true if a command was run.
 	bool processMessage(ikura::str_view userid, ikura::str_view username, const Channel* channel,
+		ikura::str_view message, bool enablePings, ikura::str_view triggeringMessageId);
+
+	bool processMessage(ikura::str_view userid, ikura::str_view username, const Channel* channel,
 		ikura::str_view message, bool enablePings);
 }

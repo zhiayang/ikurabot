@@ -18,12 +18,21 @@ namespace ikura::interp
 
 namespace ikura::cmd
 {
-	static void process_command(interp::CmdContext& cs, ikura::str_view user, ikura::str_view username, const Channel* chan, ikura::str_view cmd);
+	static Message process_command(interp::CmdContext& cs, ikura::str_view user, ikura::str_view username, const Channel* chan,
+		ikura::str_view cmd);
+
 	static Message generateResponse(ikura::str_view user, const Channel* chan, ikura::str_view msg);
 
 	Message value_to_message(const interp::Value& val);
 
-	bool processMessage(ikura::str_view userid, ikura::str_view username, const Channel* chan, ikura::str_view message, bool enablePings)
+	bool processMessage(ikura::str_view userid, ikura::str_view username, const Channel* chan, ikura::str_view message,
+		bool enablePings)
+	{
+		return processMessage(userid, username, chan, message, enablePings, "");
+	}
+
+	bool processMessage(ikura::str_view userid, ikura::str_view username, const Channel* chan, ikura::str_view message,
+		bool enablePings, ikura::str_view triggeringMessageId)
 	{
 		interp::CmdContext cs;
 		cs.executionStart = util::getMillisecondTimestamp();
@@ -44,14 +53,24 @@ namespace ikura::cmd
 
 		if(auto prefix_len = match_prefix(message); prefix_len.has_value())
 		{
-			process_command(cs, userid, username, chan, message.drop(*prefix_len));
+			auto resp = process_command(cs, userid, username, chan, message.drop(*prefix_len));
+			resp.discordReplyId = triggeringMessageId;
+
+			chan->sendMessage(std::move(resp));
 			return true;
 		}
 		else if(enablePings && chan->shouldReplyMentions())
 		{
 			if(message.find(chan->getUsername()) != std::string::npos)
-				chan->sendMessage(generateResponse(userid, chan, message));
+			{
+				auto reply = generateResponse(userid, chan, message);
+				reply.discordReplyId = triggeringMessageId;
+
+				chan->sendMessage(std::move(reply));
+				return false;
+			}
 		}
+
 
 		// process on_message handlers
 		// TODO: move this out of the big lock
@@ -243,7 +262,7 @@ namespace ikura::cmd
 
 
 
-	static void process_one_command(interp::CmdContext& cs, ikura::str_view userid, ikura::str_view username, const Channel* chan,
+	static Message process_one_command(interp::CmdContext& cs, ikura::str_view userid, ikura::str_view username, const Channel* chan,
 		ikura::str_view cmd_str, ikura::str_view arg_str, bool pipelined, bool doExpand, std::string* out)
 	{
 		cmd_str = cmd_str.trim();
@@ -256,8 +275,7 @@ namespace ikura::cmd
 			if(!chan->checkUserPermissions(userid, command->perms()))
 			{
 				lg::warn("cmd", "user '{}' tried to execute command '{}' with insufficient permissions", username, command->getName());
-				chan->sendMessage(Message("insufficient permissions"));
-				return;
+				return Message("insufficient permissions");
 			}
 
 			auto t = ikura::timer();
@@ -280,38 +298,47 @@ namespace ikura::cmd
 				return command->run(&fs, cs);
 			});
 
+
 			if(pipelined)
 			{
 				lg::log("interp", "pipeline sub-command took {.3f} ms to execute", t.measure());
 				*out = ret->raw_str();
+				return { };
 			}
 			else
 			{
 				lg::log("interp", "command took {.3f} ms to execute", t.measure());
+
 				if(ret)
-					chan->sendMessage(cmd::value_to_message(ret.unwrap()));
-
+				{
+					return cmd::value_to_message(ret.unwrap());
+				}
 				else if(chan->shouldPrintInterpErrors())
-					chan->sendMessage(Message(ret.error()));
-
+				{
+					return Message(ret.error());
+				}
 				else
+				{
 					lg::error("interp", "{}", ret.error());
+					return { };
+				}
 			}
 		}
 		else
 		{
 			auto found = run_builtin_command(cs, chan, cmd_str, arg_str);
-			if(found) return;
+			if(found) return { };
 
 			lg::warn("cmd", "user '{}' tried non-existent command '{}'", username, cmd_str);
-			return;
+			return { };
 		}
 	}
 
-	static void process_command(interp::CmdContext& cs, ikura::str_view userid, ikura::str_view username, const Channel* chan, ikura::str_view input)
+	static Message process_command(interp::CmdContext& cs, ikura::str_view userid, ikura::str_view username, const Channel* chan,
+		ikura::str_view input)
 	{
 		if(input.empty())
-			return;
+			return { };
 
 		std::string piped_input;
 		bool do_expand = true;     // since we start as a macro invocation, always expand by default
@@ -327,11 +354,11 @@ namespace ikura::cmd
 			// zpr::println("A = '{}'", arg_str);
 
 			auto pipelined = !subsequent.empty();
-			process_one_command(cs, userid, username, chan, cmd_str, arg_str, pipelined, do_expand, &piped_input);
+			auto msg = process_one_command(cs, userid, username, chan, cmd_str, arg_str, pipelined, do_expand, &piped_input);
 
 			input = subsequent;
 			if(!pipelined)
-				break;
+				return msg;
 		}
 	}
 

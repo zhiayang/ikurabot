@@ -109,7 +109,10 @@ namespace ikura::discord
 		auto str = message_to_string(msg, this->guild);
 
 		if(!str.empty())
-			mqueue().emplace_send(str, this->channelId, this->getGuild()->name, this->getName());
+		{
+			mqueue().emplace_send(str, this->channelId, this->getGuild()->name, this->getName(),
+				this->useReplies ? msg.discordReplyId : "");
+		}
 
 		if(msg.next)
 			this->sendMessage(*msg.next);
@@ -173,8 +176,19 @@ namespace ikura::discord
 				std::this_thread::sleep_until(wait.value());
 		}
 
+		auto object = std::map<std::string, pj::value> {
+			{ "content", pj::value(message) },
+		};
 
-		auto body = pj::value(std::map<std::string, pj::value> { { "content", pj::value(message) } });
+		if(!tx.replyId.empty())
+		{
+			object["message_reference"] = pj::value(std::map<std::string, pj::value> {
+				{ "message_id", pj::value(tx.replyId) },
+				{ "channel_id", pj::value(tx.channelId.str()) }
+			});
+		}
+
+		auto body = pj::value(object);
 
 	again:
 		auto& method = (edit ? request::patch : request::post);

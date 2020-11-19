@@ -54,8 +54,8 @@ namespace ikura::discord
 	struct Channel : ikura::Channel
 	{
 		Channel() : lurk(false), respondToPings(false) { }
-		Channel(DiscordState* st, DiscordGuild* g, Snowflake id, bool l, bool p, bool si, bool mh, std::vector<std::string> cp)
-			: guild(g), channelId(id), lurk(l), respondToPings(p), silentInterpErrors(si), runMessageHandlers(mh),
+		Channel(DiscordState* st, DiscordGuild* g, Snowflake id, bool l, bool p, bool si, bool mh, bool r, std::vector<std::string> cp)
+			: guild(g), channelId(id), lurk(l), respondToPings(p), silentInterpErrors(si), runMessageHandlers(mh), useReplies(r),
 			  commandPrefixes(std::move(cp)), state(st) { }
 
 		virtual std::string getName() const override;
@@ -83,6 +83,7 @@ namespace ikura::discord
 		bool respondToPings;
 		bool silentInterpErrors = false;
 		bool runMessageHandlers = false;
+		bool useReplies = false;
 		std::vector<std::string> commandPrefixes;
 
 		DiscordState* state = nullptr;
@@ -160,6 +161,10 @@ namespace ikura::discord
 	{
 		TxMessage() { }
 		TxMessage(bool dc) : disconnected(dc) { }
+		TxMessage(std::string m, Snowflake chanId, std::string guildName, std::string chanName, std::string replyId)
+			: msg(std::move(m)), channelId(std::move(chanId)), guildName(std::move(guildName)),
+			  channelName(std::move(chanName)), replyId(replyId) { }
+
 		TxMessage(std::string m, Snowflake chanId, std::string guildName, std::string chanName)
 			: msg(std::move(m)), channelId(std::move(chanId)), guildName(std::move(guildName)),
 			  channelName(std::move(chanName)) { }
@@ -171,6 +176,7 @@ namespace ikura::discord
 		std::string guildName;
 		std::string channelName;
 		bool disconnected = false;
+		std::string replyId = "";
 	};
 
 	MessageQueue<RxEvent, TxMessage>& mqueue();
