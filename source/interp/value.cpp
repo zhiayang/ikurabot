@@ -11,9 +11,9 @@ namespace ikura::interp
 {
 	static constexpr double EPSILON = 0.00001;
 
-	std::string Value::raw_str() const
+	std::string Value::raw_str(int prec) const
 	{
-		if(this->is_lvalue())               return this->v_lvalue->raw_str();
+		if(this->is_lvalue())               return this->v_lvalue->raw_str(prec);
 		else if(this->_type->is_void())     return "";
 		else if(this->_type->is_bool())     return zpr::sprint("{}", this->v_bool);
 		else if(this->_type->is_char())     return zpr::sprint("{}", (char) this->v_char);
@@ -24,15 +24,15 @@ namespace ikura::interp
 
 			// if the real part is inf or nan, ignore the imaginary part
 			if(std::isinf(real) || std::isnan(real))
-				return zpr::sprint("{}", real);
+				return zpr::sprint("{}", zpr::p(prec)(real));
 
 			if(std::abs(imag) < EPSILON) imag = 0;
 			if(std::abs(real) < EPSILON) real = 0;
 
 			if(imag != 0)
 			{
-				if(real == 0)   return zpr::sprint("{.3f}i", imag);
-				else            return zpr::sprint("{.3f}{+.3f}i", real, imag);
+				if(real == 0)   return zpr::sprint("{f}i", zpr::p(prec)(imag));
+				else            return zpr::sprint("{f}{+f}i", zpr::p(prec)(real), zpr::p(prec)(imag));
 			}
 			else if(real == static_cast<int64_t>(real))
 			{
@@ -40,7 +40,7 @@ namespace ikura::interp
 			}
 			else
 			{
-				return zpr::sprint("{.3f}", real);
+				return zpr::sprint("{f}", zpr::p(prec)(real));
 			}
 		}
 		else if(this->_type->is_map())
@@ -49,7 +49,7 @@ namespace ikura::interp
 			size_t i = 0;
 			for(const auto& [ k, v ] : this->v_map)
 			{
-				ret += zpr::sprint("{}: {}", k.raw_str(), v.raw_str());
+				ret += zpr::sprint("{}: {}", k.raw_str(prec), v.raw_str(prec));
 				if(i + 1 != this->v_map.size())
 					ret += " ";
 
@@ -69,7 +69,7 @@ namespace ikura::interp
 			}
 			else
 			{
-				return zfu::listToString(this->v_list, [](const auto& x) -> auto { return x.raw_str(); },
+				return zfu::listToString(this->v_list, [prec](const auto& x) -> auto { return x.raw_str(prec); },
 					/* braces: */ false, /* sep: */ " ");
 			}
 		}
@@ -79,20 +79,20 @@ namespace ikura::interp
 		}
 	}
 
-	std::string Value::str() const
+	std::string Value::str(int prec) const
 	{
-		if(this->is_lvalue())               return this->v_lvalue->str();
+		if(this->is_lvalue())               return this->v_lvalue->str(prec);
 		else if(this->_type->is_void())     return "()";
 		else if(this->_type->is_bool())     return this->raw_str();
 		else if(this->_type->is_char())     return zpr::sprint("'{}'", (char) this->v_char);
-		else if(this->_type->is_number())   return this->raw_str();
+		else if(this->_type->is_number())   return this->raw_str(prec);
 		else if(this->_type->is_map())
 		{
 			std::string ret = "[ ";
 			size_t i = 0;
 			for(const auto& [ k, v ] : this->v_map)
 			{
-				ret += zpr::sprint("{}: {}", k.str(), v.str());
+				ret += zpr::sprint("{}: {}", k.str(prec), v.str(prec));
 				if(i + 1 != this->v_map.size())
 					ret += ", ";
 
@@ -113,7 +113,7 @@ namespace ikura::interp
 			}
 			else
 			{
-				return zfu::listToString(this->v_list, [](const auto& x) -> auto { return x.str(); });
+				return zfu::listToString(this->v_list, [prec](const auto& x) -> auto { return x.str(prec); });
 			}
 		}
 		else if(this->_type->is_function())

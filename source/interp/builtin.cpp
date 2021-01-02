@@ -479,6 +479,12 @@ namespace ikura::interp
 	static Result<interp::Value> fn_markov(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_dismantle(InterpState* fs, CmdContext& cs);
 
+	static Result<interp::Value> fn_random_int(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_random_float(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_random_int_range(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_random_float_range(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_random_float_normal(InterpState* fs, CmdContext& cs);
+
 	static Result<interp::Value> fn_num_to_int(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_str_to_int(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_char_to_int(InterpState* fs, CmdContext& cs);
@@ -490,6 +496,7 @@ namespace ikura::interp
 	static Result<interp::Value> fn_list_to_str(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_char_to_str(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_bool_to_str(InterpState* fs, CmdContext& cs);
+	static Result<interp::Value> fn_num_to_str_dp(InterpState* fs, CmdContext& cs);
 
 	static Result<interp::Value> fn_rtod(InterpState* fs, CmdContext& cs);
 	static Result<interp::Value> fn_dtor(InterpState* fs, CmdContext& cs);
@@ -514,12 +521,13 @@ namespace ikura::interp
 	static auto bfn_char_to_int = BuiltinFunction("int", t_fn(t_num(), { t_char() }), &fn_char_to_int);
 	static auto bfn_bool_to_int = BuiltinFunction("int", t_fn(t_num(), { t_bool() }), &fn_bool_to_int);
 
-	static auto bfn_str_to_str  = BuiltinFunction("str", t_fn(t_str(), { t_str() }), &fn_str_to_str);
-	static auto bfn_num_to_str  = BuiltinFunction("str", t_fn(t_str(), { t_num() }), &fn_num_to_str);
-	static auto bfn_bool_to_str = BuiltinFunction("str", t_fn(t_str(), { t_bool() }), &fn_bool_to_str);
-	static auto bfn_char_to_str = BuiltinFunction("str", t_fn(t_str(), { t_char() }), &fn_char_to_str);
-	static auto bfn_list_to_str = BuiltinFunction("str", t_fn(t_str(), { t_list(t_void()) }), &fn_list_to_str);
-	static auto bfn_map_to_str  = BuiltinFunction("str", t_fn(t_str(), { t_map(t_void(), t_void()) }), &fn_map_to_str);
+	static auto bfn_str_to_str    = BuiltinFunction("str", t_fn(t_str(), { t_str() }), &fn_str_to_str);
+	static auto bfn_num_to_str    = BuiltinFunction("str", t_fn(t_str(), { t_num() }), &fn_num_to_str);
+	static auto bfn_num_to_str_dp = BuiltinFunction("str", t_fn(t_str(), { t_num(), t_num() }), &fn_num_to_str_dp);
+	static auto bfn_bool_to_str   = BuiltinFunction("str", t_fn(t_str(), { t_bool() }), &fn_bool_to_str);
+	static auto bfn_char_to_str   = BuiltinFunction("str", t_fn(t_str(), { t_char() }), &fn_char_to_str);
+	static auto bfn_list_to_str   = BuiltinFunction("str", t_fn(t_str(), { t_list(t_void()) }), &fn_list_to_str);
+	static auto bfn_map_to_str    = BuiltinFunction("str", t_fn(t_str(), { t_map(t_void(), t_void()) }), &fn_map_to_str);
 
 	static std::unordered_map<std::string, FunctionOverloadSet> builtin_overloaded_fns = {
 		{
@@ -530,7 +538,8 @@ namespace ikura::interp
 
 		{
 			"str", FunctionOverloadSet("str", t_fn(t_str(), { t_gen("T", 0) }), {
-				&bfn_str_to_str, &bfn_num_to_str, &bfn_bool_to_str, &bfn_char_to_str, &bfn_list_to_str, &bfn_map_to_str
+				&bfn_str_to_str, &bfn_num_to_str, &bfn_bool_to_str, &bfn_char_to_str, &bfn_list_to_str, &bfn_map_to_str,
+				&bfn_num_to_str_dp
 			})
 		},
 	};
@@ -539,7 +548,7 @@ namespace ikura::interp
 
 		{ "ln",     BuiltinFunction("ln",   t_fn(t_num(), { t_num() }), &fn_ln) },
 		{ "lg",     BuiltinFunction("lg",   t_fn(t_num(), { t_num() }), &fn_lg) },
-		{ "log",    BuiltinFunction("log",  t_fn(t_num(), { t_num() }), &fn_log) },
+		{ "log",    BuiltinFunction("log",  t_fn(t_num(), { t_num(), t_num() }), &fn_log) },
 		{ "exp",    BuiltinFunction("exp",  t_fn(t_num(), { t_num() }), &fn_exp) },
 		{ "abs",    BuiltinFunction("abs",  t_fn(t_num(), { t_num() }), &fn_abs) },
 		{ "sqrt",   BuiltinFunction("sqrt", t_fn(t_num(), { t_num() }), &fn_sqrt) },
@@ -555,7 +564,13 @@ namespace ikura::interp
 		{ "rtod",   BuiltinFunction("rtod",   t_fn(t_num(), { t_num() }), &fn_rtod) },
 		{ "dtor",   BuiltinFunction("dtor",   t_fn(t_num(), { t_num() }), &fn_dtor) },
 		{ "__builtin_markov", BuiltinFunction("__builtin_markov", t_fn(t_list(t_str()), { t_vla(t_str()) }), &fn_markov) },
-		{ "__builtin_dismantle", BuiltinFunction("__builtin_dismantle", t_fn(t_list(t_str()), { t_vla(t_str()) }), &fn_dismantle) }
+		{ "__builtin_dismantle", BuiltinFunction("__builtin_dismantle", t_fn(t_list(t_str()), { t_vla(t_str()) }), &fn_dismantle) },
+
+		{ "random_int", BuiltinFunction("random_int", t_fn(t_num(), { }), &fn_random_int) },
+		{ "random_float", BuiltinFunction("random_float", t_fn(t_num(), { }), &fn_random_float) },
+		{ "random_int_range", BuiltinFunction("random_int_range", t_fn(t_num(), { t_num(), t_num() }), &fn_random_int_range) },
+		{ "random_float_range", BuiltinFunction("random_float_range", t_fn(t_num(), { t_num(), t_num() }), &fn_random_float_range) },
+		{ "random_float_normal", BuiltinFunction("random_float_normal", t_fn(t_num(), { }), &fn_random_float_normal) }
 	};
 
 
@@ -849,6 +864,14 @@ namespace ikura::interp
 		return Value::of_string(cs.arguments[0].str());
 	}
 
+	static Result<interp::Value> fn_num_to_str_dp(InterpState* fs, CmdContext& cs)
+	{
+		if(cs.arguments.size() != 2 || !cs.arguments[0].type()->is_number() || !cs.arguments[1].type()->is_number())
+			return zpr::sprint("invalid arguments");
+
+		return Value::of_string(cs.arguments[0].str((int) cs.arguments[1].get_number().real()));
+	}
+
 	static Result<interp::Value> fn_map_to_str(InterpState* fs, CmdContext& cs)
 	{
 
@@ -887,8 +910,39 @@ namespace ikura::interp
 
 
 
+	static Result<interp::Value> fn_random_int(InterpState* fs, CmdContext& cs)
+	{
+		return Value::of_number(random::get<int64_t>());
+	}
 
+	static Result<interp::Value> fn_random_float(InterpState* fs, CmdContext& cs)
+	{
+		return Value::of_number(random::get_float<double>());
+	}
 
+	static Result<interp::Value> fn_random_int_range(InterpState* fs, CmdContext& cs)
+	{
+		if(cs.arguments.size() != 2 || !cs.arguments[0].type()->is_number() || !cs.arguments[1].type()->is_number())
+			return zpr::sprint("invalid arguments");
+
+		return Value::of_number(random::get<int64_t>((int64_t) cs.arguments[0].get_number().real(), (int64_t) cs.arguments[1].get_number().real()));
+	}
+
+	static Result<interp::Value> fn_random_float_range(InterpState* fs, CmdContext& cs)
+	{
+		if(cs.arguments.size() != 2 || !cs.arguments[0].type()->is_number() || !cs.arguments[1].type()->is_number())
+			return zpr::sprint("invalid arguments");
+
+		return Value::of_number(random::get_float<double>(cs.arguments[0].get_number().real(), cs.arguments[1].get_number().real()));
+	}
+
+	static Result<interp::Value> fn_random_float_normal(InterpState* fs, CmdContext& cs)
+	{
+		if(!cs.arguments.empty())
+			return zpr::sprint("invalind arguments");
+
+		return Value::of_number(random::get_normal<double>(0, 1));
+	}
 
 
 

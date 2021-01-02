@@ -88,10 +88,14 @@ namespace ikura::interp
 			}
 			else
 			{
-				auto res = coerceTypesForFunctionCall("fn", function->getSignature(), args);
-				if(!res) return res.error();
+				// if it's an overload set, it'll do the coercion for us.
+				if(std::dynamic_pointer_cast<FunctionOverloadSet>(function) == nullptr)
+				{
+					auto res = coerceTypesForFunctionCall("fn", function->getSignature(), args);
+					if(!res) return res.error();
 
-				args = std::move(res.unwrap());
+					args = std::move(res.unwrap());
+				}
 			}
 
 			CmdContext params = cs;

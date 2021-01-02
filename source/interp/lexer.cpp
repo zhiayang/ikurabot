@@ -116,16 +116,37 @@ namespace ikura::interp::lexer
 			src.remove_prefix(2);
 			return ret;
 		}
+		else if(src.find("≠") == 0)
+		{
+			auto x = strlen("≠");
+			auto ret = Token(TT::NotEqual, src.take(x));
+			src.remove_prefix(x);
+			return ret;
+		}
 		else if(src.find("<=") == 0)
 		{
 			auto ret = Token(TT::LessThanEqual, src.take(2));
 			src.remove_prefix(2);
 			return ret;
 		}
+		else if(src.find("≤") == 0)
+		{
+			auto x = strlen("≤");
+			auto ret = Token(TT::LessThanEqual, src.take(x));
+			src.remove_prefix(x);
+			return ret;
+		}
 		else if(src.find(">=") == 0)
 		{
 			auto ret = Token(TT::GreaterThanEqual, src.take(2));
 			src.remove_prefix(2);
+			return ret;
+		}
+		else if(src.find("≥") == 0)
+		{
+			auto x = strlen("≥");
+			auto ret = Token(TT::GreaterThanEqual, src.take(x));
+			src.remove_prefix(x);
 			return ret;
 		}
 		else if(src.find("<<") == 0)

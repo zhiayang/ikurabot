@@ -205,6 +205,9 @@ namespace ikura
 		template <typename T> T get();
 		template <typename T> T get(T min, T max);
 
+		template <typename T> T get_float();
+		template <typename T> T get_float(T min, T max);
+
 		template <typename T> T get_normal(T mean, T stddev);
 	}
 

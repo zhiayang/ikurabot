@@ -136,8 +136,8 @@ namespace ikura::interp
 		std::map<Value, Value>& get_map();
 		const std::map<Value, Value>& get_map() const;
 
-		std::string str() const;
-		std::string raw_str() const;
+		std::string str(int prec = 3) const;
+		std::string raw_str(int prec = 3) const;
 
 		std::optional<Value> cast_to(Type::Ptr type) const;
 

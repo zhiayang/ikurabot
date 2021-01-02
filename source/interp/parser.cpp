@@ -318,7 +318,12 @@ namespace ikura::interp::ast
 		ikura::span span = ts.unwrap();
 
 		auto st = State(span);
-		return parseStmt(st);
+		auto ret = parseStmt(st);
+
+		if(auto x = st.peek(); x != TT::EndOfFile)
+			return zpr::sprint("junk at end of expression: '{}'", x.text);
+
+		return ret;
 	}
 
 

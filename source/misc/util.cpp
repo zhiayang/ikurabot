@@ -339,6 +339,20 @@ namespace ikura
 			return std::normal_distribution<T>(mean, stddev)(st.mersenne);
 		}
 
+		template <typename T>
+		T get_float()
+		{
+			auto& st = rd_state<T>;
+			return std::uniform_real_distribution<T>(-1, +1)(st.mersenne);
+		}
+
+		template <typename T>
+		T get_float(T min, T max)
+		{
+			auto& st = rd_state<T>;
+			return std::uniform_real_distribution<T>(min, max)(st.mersenne);
+		}
+
 		template unsigned char  get<unsigned char>();
 		template unsigned char  get<unsigned char>(unsigned char, unsigned char);
 
@@ -353,6 +367,24 @@ namespace ikura
 
 		template unsigned long long get<unsigned long long>();
 		template unsigned long long get<unsigned long long>(unsigned long long, unsigned long long);
+
+		template char get<char>();
+		template char get<char>(char, char);
+
+		template short get<short>();
+		template short get<short>(short, short);
+
+		template int get<int>();
+		template int get<int>(int, int);
+
+		template long get<long>();
+		template long get<long>(long, long);
+
+		template long long get<long long>();
+		template long long get<long long>(long long, long long);
+
+		template double get_float<double>();
+		template double get_float<double>(double, double);
 
 		// template size_t get<size_t>();      template size_t get<size_t>(size_t, size_t);
 

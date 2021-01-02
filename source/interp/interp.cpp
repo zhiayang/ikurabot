@@ -135,7 +135,7 @@ namespace ikura::interp
 
 	Result<Value> InterpState::evaluateExpr(ikura::str_view expr, CmdContext& cs)
 	{
-		auto exp = ast::parseExpr(expr);
+		auto exp = ast::parse(expr);
 		if(!exp) return exp.error();
 
 		auto ret = exp.unwrap()->evaluate(this, cs);
