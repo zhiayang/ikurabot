@@ -1,6 +1,6 @@
 /*
 	zpr.h
-	Copyright 2020, zhiayang
+	Copyright 2020 - 2021, zhiayang
 
 	Licensed under the Apache License, Version 2.0 (the "License");
 	you may not use this file except in compliance with the License.
@@ -43,8 +43,8 @@
 
 
 /*
-	Version 2.1.4
-	=============
+	Version 2.1.10
+	==============
 
 
 
@@ -179,6 +179,49 @@
 
 	Version History
 	===============
+
+	2.1.10 - 02/01/2021
+	-------------------
+	Bug fixes:
+	- fix truncated `inf` and `nan` when precision is specified.
+
+
+
+	2.1.9 - 23/12/2020
+	------------------
+	Bug fixes:
+	- fix unused variable warning when lookup tables were disabled
+	- fix pointless assertion in integer printing (`sizeof(T) <= 64` -> `sizeof(T) <= 8`)
+
+
+
+	2.1.8 - 14/12/2020
+	------------------
+	Bug fixes:
+	- fix incorrect drop(), drop_last(), take(), and take_last() on tt::str_view
+
+
+
+	2.1.7 - 21/11/2020
+	------------------
+	Bug fixes:
+	- fix warning on member initialisation order for cprint
+
+
+
+	2.1.6 - 20/11/2020
+	------------------
+	Bug fixes:
+	- fix broken std::pair printing
+
+
+
+	2.1.5 - 17/11/2020
+	------------------
+	Bug fixes:
+	- fix broken binary integer printing
+
+
 
 	2.1.4 - 13/11/2020
 	------------------
@@ -635,10 +678,10 @@ namespace zpr::tt
 
 		inline char operator[] (size_t n) { return this->ptr[n]; }
 
-		inline str_view drop(size_t n) const { return (this->size() > n ? this->substr(n) : ""); }
-		inline str_view take(size_t n) const { return (this->size() > n ? this->substr(0, n) : *this); }
-		inline str_view take_last(size_t n) const { return (this->size() > n ? this->substr(this->size() - n) : *this); }
-		inline str_view drop_last(size_t n) const { return (this->size() > n ? this->substr(0, this->size() - n) : *this); }
+		inline str_view drop(size_t n) const { return (this->size() >= n ? this->substr(n) : ""); }
+		inline str_view take(size_t n) const { return (this->size() >= n ? this->substr(0, n) : *this); }
+		inline str_view take_last(size_t n) const { return (this->size() >= n ? this->substr(this->size() - n) : *this); }
+		inline str_view drop_last(size_t n) const { return (this->size() >= n ? this->substr(0, this->size() - n) : *this); }
 		inline str_view substr(size_t pos = 0, size_t cnt = -1) const { return str_view(this->ptr + pos, cnt); }
 
 		inline str_view& remove_prefix(size_t n) { return (*this = this->drop(n)); }
@@ -911,6 +954,9 @@ namespace zpr
 		template <typename CallbackFn>
 		size_t print_special_floating(CallbackFn&& cb, double value, format_args args)
 		{
+			// uwu. apparently, `inf` and `nan` are never truncated.
+			args.set_precision(999);
+
 			if(value != value)
 				return print_string(cb, "nan", 3, static_cast<format_args&&>(args));
 
@@ -1266,6 +1312,9 @@ namespace zpr
 		template <typename T>
 		char* print_hex_integer(char* buf, size_t bufsz, T value)
 		{
+			static_assert(sizeof(T) <= 8);
+
+		#if ZPR_HEXADECIMAL_LOOKUP_TABLE
 			constexpr const char lookup_table[] =
 				"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
 				"202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
@@ -1275,6 +1324,7 @@ namespace zpr
 				"a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf"
 				"c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf"
 				"e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff";
+		#endif
 
 			constexpr auto hex_digit = [](int x) -> char {
 				if(0 <= x && x <= 9)
@@ -1324,7 +1374,7 @@ namespace zpr
 
 			do {
 				*(--ptr) = ('0' + (value & 1));
-				value >>= 4;
+				value >>= 1;
 
 			} while(value > 0);
 
@@ -1334,13 +1384,15 @@ namespace zpr
 		template <typename T>
 		char* print_decimal_integer(char* buf, size_t bufsz, T value)
 		{
-			static_assert(sizeof(T) <= 64);
+			static_assert(sizeof(T) <= 8);
 
+		#if ZPR_DECIMAL_LOOKUP_TABLE
 			constexpr const char lookup_table[] =
 				"000102030405060708091011121314151617181920212223242526272829"
 				"303132333435363738394041424344454647484950515253545556575859"
 				"606162636465666768697071727374757677787980818283848586878889"
 				"90919293949596979899";
+		#endif
 
 			bool neg = false;
 			if constexpr (tt::is_signed_v<T>)
@@ -1604,7 +1656,7 @@ namespace zpr
 		template <typename Fn>
 		struct callback_appender
 		{
-			callback_appender(Fn* callback, bool newline) : len(0), callback(callback), newline(newline) { }
+			callback_appender(Fn* callback, bool newline) : len(0), newline(newline), callback(callback) { }
 			~callback_appender() { if(newline) { (*callback)("\n", 1); } }
 
 			inline void operator() (char c) { (*callback)(&c, 1); this->len += 1; }
@@ -2131,9 +2183,9 @@ namespace zpr
 		void print(const std::pair<A, B>& x, Cb&& cb, format_args args)
 		{
 			cb("{ ");
-			detail::print_one(static_cast<Cb&&>(cb), args, static_cast<A&&>(x.first));
+			detail::print_one(static_cast<Cb&&>(cb), args, x.first);
 			cb(", ");
-			detail::print_one(static_cast<Cb&&>(cb), args, static_cast<B&&>(x.second));
+			detail::print_one(static_cast<Cb&&>(cb), args, x.second);
 			cb(" }");
 		}
 	};

@@ -238,9 +238,9 @@ namespace ikura::interp::ast
 			return true;
 		}
 
-		const lexer::Token& peek()
+		const lexer::Token& peek(size_t n = 0)
 		{
-			return tokens.empty() ? eof : tokens.front();
+			return tokens.size() <= n ? eof : tokens[n];
 		}
 
 		void pop()
@@ -278,6 +278,7 @@ namespace ikura::interp::ast
 		ikura::span<lexer::Token> tokens;
 		std::vector<ikura::span<std::string>> knownGenerics;
 	};
+
 	Result<Type::Ptr> parseType(State& st, int grp = 0);
 	Result<FunctionDefn*> parseFuncDefn(ikura::str_view src);
 	static Result<FunctionDefn*> parseFuncDefn(State& st, bool requireKeyword);
@@ -318,12 +319,23 @@ namespace ikura::interp::ast
 		ikura::span span = ts.unwrap();
 
 		auto st = State(span);
-		auto ret = parseStmt(st);
+		std::vector<Stmt*> stmts;
 
-		if(auto x = st.peek(); x != TT::EndOfFile)
-			return zpr::sprint("junk at end of expression: '{}'", x.text);
+		TT x;
+		while((x = st.peek()) != TT::EndOfFile)
+		{
+			auto s = parseStmt(st);
+			if(!s) return s;
 
-		return ret;
+			stmts.push_back(s.unwrap());
+			if(auto x = st.peek(); x != TT::EndOfFile && x != TT::Semicolon)
+				return zpr::sprint("junk at end of expression: '{}'", x.text);
+
+			if(st.peek() == TT::Semicolon)
+				st.pop();
+		}
+
+		return makeAST<Block>(std::move(stmts));
 	}
 
 
@@ -706,6 +718,23 @@ namespace ikura::interp::ast
 		return makeAST<VarRef>(unicode::normalise(name));
 	}
 
+	static Result<VarDefn*> parseVarDefn(State& st)
+	{
+		if(st.peek(0) != TT::Identifier || st.peek(1) != TT::VarDefn)
+			return zpr::sprint("nani tf");
+
+		std::string name = st.peek().str().str();
+		if(name[0] == '$')
+			return zpr::sprint("variable names cannot start with '$'");
+
+		st.pop();
+		st.pop();
+
+		auto init = parseExpr(st);
+		if(!init) return init.error();
+
+		return makeAST<VarDefn>(unicode::normalise(name), init.unwrap());
+	}
 
 
 
@@ -717,6 +746,9 @@ namespace ikura::interp::ast
 
 		if(st.peek() == TT::LBrace || st.peek() == TT::FatRightArrow)
 			return parseBlock(st);
+
+		if(st.peek(0) == TT::Identifier && st.peek(1) == TT::VarDefn)
+			return parseVarDefn(st);
 
 		return parseExpr(st);
 	}

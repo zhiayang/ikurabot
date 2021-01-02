@@ -651,6 +651,33 @@ namespace ikura::interp::ast
 	}
 
 
+	void VarDefn::serialise(Buffer& buf) const
+	{
+		auto wr = serialise::Writer(buf);
+		wr.tag(TYPE_TAG);
+
+		wr.write(this->name);
+		this->value->serialise(buf);
+	}
+
+	VarDefn* VarDefn::deserialise(Span& buf)
+	{
+		auto rd = serialise::Reader(buf);
+		if(auto t = rd.tag(); t != TYPE_TAG)
+		{
+			lg::error("db", "type tag mismatch (found '{02x}', expected '{02x}')", t, TYPE_TAG);
+			return nullptr;
+		}
+
+		auto name = rd.read<std::string>();
+		if(!name) return nullptr;
+
+		auto init = rd.read<Expr*>();
+		if(!init || !init.value()) return nullptr;
+
+		return new VarDefn(name.value(), init.value());
+	}
+
 
 	void LambdaExpr::serialise(Buffer& buf) const
 	{
@@ -758,7 +785,9 @@ namespace ikura::interp::ast
 		auto tag = buf.peek();
 		switch(tag)
 		{
-			// in terms of statements... we have no statements
+			case serialise::TAG_AST_VAR_DEFN:
+				return VarDefn::deserialise(buf);
+
 			default:
 				break;
 		}

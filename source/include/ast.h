@@ -81,6 +81,8 @@ namespace ikura::interp
 			BitwiseOrEquals,
 			ExponentEquals,
 
+			VarDefn,
+
 			Pipeline,
 
 			StringLit,
@@ -456,6 +458,23 @@ namespace ikura::interp
 			virtual void serialise(Buffer& buf) const override;
 			static FunctionDefn* deserialise(Span& buf);
 		};
+
+		struct VarDefn : Stmt
+		{
+			VarDefn(std::string name, Expr* val) : name(std::move(name)), value(val) { }
+			virtual ~VarDefn() override;
+
+			virtual Result<interp::Value> evaluate(InterpState* fs, CmdContext& cs) const override;
+			virtual std::string str() const override;
+
+			std::string name;
+			Expr* value;
+
+			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_VAR_DEFN;
+			virtual void serialise(Buffer& buf) const override;
+			static VarDefn* deserialise(Span& buf);
+		};
+
 
 		Result<Stmt*> parse(ikura::str_view src);
 		Result<Expr*> parseExpr(ikura::str_view src);

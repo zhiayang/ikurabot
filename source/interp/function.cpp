@@ -12,26 +12,24 @@ namespace ikura::interp
 	{
 		Result<Value> FunctionDefn::evaluate(InterpState* fs, CmdContext& cs) const
 		{
-			// zpr::println("args:");
-			// for(auto& arg : cs.arguments)
-			// 	zpr::println("{}   :: {}", arg.str(), arg.type()->str());
-
 			return this->body->evaluate(fs, cs);
 		}
 
 		Result<Value> Block::evaluate(InterpState* fs, CmdContext& cs) const
 		{
-			// TODO: PUSH SCOPE
+			cs.vars.push_back({ });
 
 			for(size_t i = 0; i < this->stmts.size(); i++)
 			{
 				auto res = this->stmts[i]->evaluate(fs, cs);
+				if(!res)
+					return res;
+
 				if(i + 1 == this->stmts.size() && dynamic_cast<Expr*>(this->stmts[i]))
 					return res;
 			}
 
-			// TODO: POP SCOPE
-
+			cs.vars.pop_back();
 			return Value::of_void();
 		}
 

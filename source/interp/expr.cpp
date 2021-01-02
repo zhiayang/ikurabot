@@ -586,7 +586,21 @@ namespace ikura::interp::ast
 	}
 
 
+	Result<Value> VarDefn::evaluate(InterpState* fs, CmdContext& cs) const
+	{
+		if(cs.vars.empty())
+			return zpr::sprint("no scope for definition");
 
+		auto& vars = cs.vars.back();
+		if(vars.find(this->name) != vars.end())
+			return zpr::sprint("redefinition of '{}'", this->name);
+
+		auto init = this->value->evaluate(fs, cs);
+		if(!init) return init;
+
+		vars.insert({ this->name, std::move(init.unwrap()) });
+		return Value::of_void();
+	}
 
 
 
@@ -649,6 +663,7 @@ namespace ikura::interp::ast
 	std::string LitBoolean::str() const     { return zpr::sprint("{}", value ? "true" : "false"); }
 	std::string LitList::str() const        { return zfu::listToString(elms, [](auto e) { return e->str(); }); }
 
+	std::string VarDefn::str() const        { return zpr::sprint("{} := {}", name, value->str()); }
 	std::string VarRef::str() const         { return name; }
 	std::string SubscriptOp::str() const    { return zpr::sprint("{}[{}]", list->str(), index->str()); }
 	std::string SliceOp::str() const        { return zpr::sprint("{}[{}:{}]", list->str(),
@@ -706,4 +721,5 @@ namespace ikura::interp::ast
 	AssignOp::~AssignOp()           { delete lhs; delete rhs; }
 	DotOp::~DotOp()                 { delete lhs; delete rhs; }
 	LambdaExpr::~LambdaExpr()       { delete body; }
+	VarDefn::~VarDefn()             { delete value; }
 }

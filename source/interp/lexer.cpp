@@ -233,6 +233,12 @@ namespace ikura::interp::lexer
 			src.remove_prefix(2);
 			return ret;
 		}
+		else if(src.find(":=") == 0)
+		{
+			auto ret = Token(TT::VarDefn, src.take(2));
+			src.remove_prefix(2);
+			return ret;
+		}
 		else if('0' <= src[0] && src[0] <= '9')
 		{
 			auto tmp = src;

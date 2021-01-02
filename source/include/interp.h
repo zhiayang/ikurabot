@@ -280,6 +280,8 @@ namespace ikura::interp
 		// the arguments, split by spaces and Value::of_string-ed
 		std::vector<interp::Value> arguments;
 		std::string macro_args;
+
+		std::vector<ikura::string_map<interp::Value>> vars;
 	};
 
 	struct InterpState : Serialisable

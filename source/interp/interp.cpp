@@ -85,6 +85,14 @@ namespace ikura::interp
 		}
 		else
 		{
+			// check the entire stack first
+			for(auto it = cs.vars.rbegin(); it != cs.vars.rend(); ++it)
+			{
+				auto& map = *it;
+				if(auto var = map.find(name); var != map.end())
+					return { var.value(), &var.value() };
+			}
+
 			if(auto it = this->globals.find(name); it != this->globals.end())
 				return { *it.value(), it.value() };
 
