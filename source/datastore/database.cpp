@@ -280,7 +280,17 @@ namespace ikura::db
 
 		size_t todo = buf.size();
 		while(todo > 0)
-			todo -= write(fd, buf.data(), todo);
+		{
+			auto ret = write(fd, buf.data(), todo);
+			if(ret <= 0)
+			{
+				error("failed to sync! write error: {}", strerror(errno));
+				close(fd);
+				return;
+			}
+
+			todo -= ret;
+		}
 
 		close(fd);
 
