@@ -83,11 +83,30 @@ namespace ikura::discord
 				auto name = frag.emote.name;
 				auto [ id, flags ] = guild->emotes[name];
 
-				if(id.value != 0 && (flags & EmoteFlags::NEEDS_COLONS))
-					str += zpr::sprint("<{}:{}:{}>", (flags & EmoteFlags::IS_ANIMATED) ? "a" : "", name, id.str());
+				// fuck discord, seriously. the problem here is that emotes with the same
+				// name on the server *APPEAR* to have different names -- eg. emote and emote~1,
+				// but in the backend they have the same name, and so discord reports the same
+				// name to us, just with different ids.
+				//! this is a hacky solution -- what we do is to allow specifying the emote id
+				//! directly, by using :someEmote*19348182390123 or whatever special snowflake.
+				//! since emote names can't contain '*' (or at least i hope they can't),
+				//! this works.
+				if(name.find("*") != std::string::npos)
+				{
+					auto x = name.find("*");
+					auto the_name = str_view(name).take(x).str();
+					auto the_id   = str_view(name).drop(x + 1).str();
 
+					str += zpr::sprint("<:{}:{}>", the_name, the_id);
+				}
+				else if(id.value != 0 && (flags & EmoteFlags::NEEDS_COLONS))
+				{
+					str += zpr::sprint("<{}:{}:{}>", (flags & EmoteFlags::IS_ANIMATED) ? "a" : "", name, id.str());
+				}
 				else
+				{
 					str += name;
+				}
 			}
 
 			if(i + 1 != msg.fragments.size())
@@ -310,7 +329,7 @@ namespace ikura::discord
 
 	void Channel::startTimer(int seconds) const
 	{
-		if(auto it = activeTimers.find(this); it != activeTimers.end())
+		if(auto it = activeTimers.find(this); it != activeTimers.end() && it->second != nullptr)
 		{
 			this->sendMessage(Message("timer already active"));
 			return;

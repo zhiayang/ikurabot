@@ -103,7 +103,7 @@ namespace ikura::discord
 			if(!j["available"].as_bool())
 				continue;
 
-			// zpr::println("updating emotes: {} -> {}", j["name"].as_str(), j["id"].as_str());
+			zpr::println("updating emotes: {} -> {}", j["name"].as_str(), j["id"].as_str());
 
 			uint64_t flags = 0;
 			if(j["animated"].as_bool())         flags |= EmoteFlags::IS_ANIMATED;

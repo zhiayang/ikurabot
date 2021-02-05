@@ -45,8 +45,24 @@ namespace ikura::interp
 
 	static bool is_builtin_var(ikura::str_view name)
 	{
-		return zfu::match(name, "user", "self", "args", "channel", "raw_args");
+		return zfu::match(name, "user", "self", "args", "channel", "backend", "raw_args");
 	}
+
+	static std::string backend_to_string(Backend b)
+	{
+		switch(b)
+		{
+			case Backend::IRC:
+				return "irc";
+			case Backend::Twitch:
+				return "twitch";
+			case Backend::Discord:
+				return "discord";
+			default:
+				return "unknown";
+		}
+	}
+
 
 	static std::optional<Value> get_builtin_var(ikura::str_view name, CmdContext& cs)
 	{
@@ -55,7 +71,7 @@ namespace ikura::interp
 		if(name == "channel")    return Value::of_string(cs.channel->getName());
 		if(name == "args")       return Value::of_list(Type::get_string(), cs.arguments);
 		if(name == "macro_args") return Value::of_string(cs.macro_args);
-
+		if(name == "backend")    return Value::of_string(backend_to_string(cs.channel->getBackend()));
 		return { };
 	}
 
