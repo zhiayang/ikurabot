@@ -84,7 +84,7 @@ namespace ikura::request
 				auto tmp = buf.sv();
 				auto i = tmp.find("\r\n\r\n");
 				if(i != (size_t) -1)
-					content = tmp.drop(i + 4).str();
+					content += tmp.drop(i + 4).str();
 
 				if(content.size() >= contentLength)
 					finished = true;
