@@ -97,7 +97,11 @@ namespace ikura::discord
 					auto the_name = str_view(name).take(x).str();
 					auto the_id   = str_view(name).drop(x + 1).str();
 
-					str += zpr::sprint("<:{}:{}>", the_name, the_id);
+					bool anim = (flags & EmoteFlags::IS_ANIMATED || name.find("*a") != std::string::npos);
+					if(the_id.find("a") == 0)
+						the_id = the_id.erase(0, 1);
+
+					str += zpr::sprint("<{}:{}:{}>", anim ? "a" : "", the_name, the_id);
 				}
 				else if(id.value != 0 && (flags & EmoteFlags::NEEDS_COLONS))
 				{

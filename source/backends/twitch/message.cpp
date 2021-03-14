@@ -390,7 +390,7 @@ namespace ikura::twitch
 				return;
 
 			else if(msg[0] == '/' || msg[0] == '.')
-				this->sendMessage("Jebaited", channel);
+				this->sendMessage(channel, "Jebaited");
 
 			else
 				this->sendRawMessage(zpr::sprint("PRIVMSG #{} :{}", channel, msg), channel);

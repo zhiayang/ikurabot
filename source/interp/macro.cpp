@@ -29,6 +29,7 @@ namespace ikura::interp
 
 				while(end < code.size())
 				{
+					// TODO: this won't work if we have ( or { or [ inside a string...
 					switch(code[end])
 					{
 						case '(':   parens++; break;
@@ -41,8 +42,13 @@ namespace ikura::interp
 					}
 
 					end++;
-					if(code[end - 1] == ' ' && parens == 0 && braces == 0 && squares == 0)
+
+					// TODO: this is also scuffed, if we have ';' in a string or something
+					if((code[end - 1] == ' ' || code[end - 1] == ';')
+						&& parens == 0 && braces == 0 && squares == 0)
+					{
 						break;
+					}
 				}
 
 				if(end == code.size() && (parens > 0 || braces > 0 || squares > 0))
