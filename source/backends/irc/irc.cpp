@@ -54,6 +54,7 @@ namespace ikura::irc
 		if(!config::haveIRC())
 			return;
 
+		lg::log("irc", "shutting down");
 		for(auto& srv : servers)
 			srv.wlock()->disconnect();
 	}

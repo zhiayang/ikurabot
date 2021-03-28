@@ -17,12 +17,12 @@ namespace ikura::twitch
 	constexpr int CONNECT_RETRIES           = 5;
 	constexpr const char* TWITCH_WSS_URL    = "wss://irc-ws.chat.twitch.tv";
 
+	static bool disconnect_now = false;
 	static Synchronised<TwitchState>* _state = nullptr;
 	static Synchronised<TwitchState>& state() { return *_state; }
 
 	static MessageQueue<twitch::QueuedMsg> msg_queue;
 	MessageQueue<twitch::QueuedMsg>& mqueue() { return msg_queue; }
-
 
 	void send_worker()
 	{
@@ -66,6 +66,25 @@ namespace ikura::twitch
 		lg::dbglog("twitch", "receive worker exited");
 	}
 
+	static bool ws_connect(WebSocket* ws)
+	{
+		auto backoff = 500ms;
+
+		lg::log("twitch", "connecting...");
+		for(int i = 0; i < CONNECT_RETRIES; i++)
+		{
+			if(ws->connect())
+				return true;
+
+			lg::warn("twitch", "connection failed, retrying... ({}/{})", i + 1, CONNECT_RETRIES);
+			util::sleep_for(backoff);
+			backoff *= 2;
+		}
+
+		return ws->connected();
+	}
+
+
 	void ping_worker()
 	{
 		auto& now = std::chrono::system_clock::now;
@@ -75,11 +94,11 @@ namespace ikura::twitch
 		constexpr auto ping_interval = 30s;
 		constexpr auto pong_patience = 10s;
 
-		auto last = now();
+		std::chrono::system_clock::time_point last = { };
 
 		while(true)
 		{
-			if(!state().rlock()->connected)
+			if(__atomic_load_n(&disconnect_now, __ATOMIC_SEQ_CST) == true)
 				break;
 
 			if(now() > last + pong_patience && state().rlock()->last_ping_ack < last)
@@ -88,6 +107,10 @@ namespace ikura::twitch
 				dispatcher().run([]() {
 					state().perform_write([](auto& st) {
 						st.disconnect();
+
+						if(!ws_connect(&st.ws))
+							lg::error("twitch", "connection failed");
+
 						st.connect();
 					});
 				}).discard();
@@ -102,6 +125,8 @@ namespace ikura::twitch
 
 			util::sleep_for(250ms);
 		}
+
+		lg::dbglog("twitch", "ping worker exited");
 	}
 
 
@@ -115,25 +140,10 @@ namespace ikura::twitch
 		});
 	}
 
-
 	TwitchState::TwitchState(URL url, std::chrono::nanoseconds timeout,
 		std::string&& user, std::vector<config::twitch::Chan>&& chans) : ws(url, timeout)
 	{
-		auto backoff = 500ms;
-
-		// try to connect.
-		lg::log("twitch", "connecting...");
-		for(int i = 0; i < CONNECT_RETRIES; i++)
-		{
-			if(this->ws.connect())
-				break;
-
-			lg::warn("twitch", "connection failed, retrying... ({}/{})", i + 1, CONNECT_RETRIES);
-			util::sleep_for(backoff);
-			backoff *= 2;
-		}
-
-		if(!this->ws.connected())
+		if(!ws_connect(&this->ws))
 			lg::error("twitch", "connection failed");
 
 		this->username = std::move(user);
@@ -208,7 +218,7 @@ namespace ikura::twitch
 		}
 
 		lg::log("twitch", "connected");
-		this->connected = true;
+		disconnect_now = false;
 
 		// install the real handler now.
 		this->ws.onReceiveText([](bool, ikura::str_view msg) {
@@ -252,12 +262,15 @@ namespace ikura::twitch
 		util::sleep_for(350ms);
 		this->ws.disconnect();
 
-		this->connected = false;
+		// asdf, this needs to be a global variable; if it was part of TwitchState, then the
+		// worker thread needs a lock to read it, but that lock will never be available (because
+		// someone must have acquired a write lock in order to disconnect), causing a deadlock.
+		__atomic_store_n(&disconnect_now, true, __ATOMIC_SEQ_CST);
 
 		// wait for the workers to finish.
-		this->tx_thread.join();
-		this->rx_thread.join();
-		this->hb_thread.join();
+		if(this->tx_thread.joinable()) this->tx_thread.join();
+		if(this->rx_thread.joinable()) this->rx_thread.join();
+		if(this->hb_thread.joinable()) this->hb_thread.join();
 
 		lg::log("twitch", "disconnected");
 	}
@@ -276,7 +289,7 @@ namespace ikura::twitch
 
 	void shutdown()
 	{
-		if(!config::haveTwitch() || !_state || !state().rlock()->connected)
+		if(!config::haveTwitch() || !_state)
 			return;
 
 		state().wlock()->disconnect();

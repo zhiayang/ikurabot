@@ -39,12 +39,12 @@ namespace ikura::twitch
 
 		if(msg.command == "PING")
 		{
-			lg::dbglog("twitch", "ping-pong");
+			lg::dbglog("twitch", "received ping, ponging");
 			return this->sendRawMessage(zpr::sprint("PONG {}", msg.params.size() > 0 ? msg.params[0] : ""));
 		}
 		else if(msg.command == "PONG")
 		{
-			lg::dbglog("twitch", "pong-ping");
+			lg::dbglog("twitch", "received pong");
 			this->last_ping_ack = std::chrono::system_clock::now();
 		}
 		else if(msg.command == "CAP")
@@ -66,10 +66,10 @@ namespace ikura::twitch
 		else if(msg.command == "PART")
 		{
 			// :user!user@user.tmi.twitch.tv PART #channel
-			if(msg.params.size() != 2)
+			if(msg.params.size() < 1)
 				return error("malformed PART: {}", input);
 
-			log("parted {}", msg.params[1]);
+			log("parted {}", msg.params[0]);
 		}
 		else if(msg.command == "NOTICE")
 		{

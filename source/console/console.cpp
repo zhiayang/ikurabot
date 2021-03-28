@@ -720,6 +720,7 @@ namespace ikura::console
 		}
 
 		local_con.join();
+		lg::log("console", "quitting");
 	}
 
 

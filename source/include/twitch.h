@@ -63,7 +63,7 @@ namespace ikura::twitch
 	{
 		TwitchState(URL url, std::chrono::nanoseconds timeout, std::string&& user, std::vector<config::twitch::Chan>&& chans);
 
-		bool connected = false;
+		// bool connected = false;
 		std::string username;
 		ikura::string_map<Channel> channels;
 
