@@ -66,6 +66,43 @@ namespace ikura::twitch
 		lg::dbglog("twitch", "receive worker exited");
 	}
 
+	void ping_worker()
+	{
+		auto& now = std::chrono::system_clock::now;
+
+		// send a ping every 30 seconds. the sleep interval is only 250ms so that we are
+		// responsive to disconnects -- same pattern as every other worker thread.
+		constexpr auto ping_interval = 30s;
+		constexpr auto pong_patience = 10s;
+
+		auto last = now();
+
+		while(true)
+		{
+			if(!state().rlock()->connected)
+				break;
+
+			if(now() > last + pong_patience && state().rlock()->last_ping_ack < last)
+			{
+				lg::warn("twitch", "patience ran out for PONG; reconnecting");
+				dispatcher().run([]() {
+					state().perform_write([](auto& st) {
+						st.disconnect();
+						st.connect();
+					});
+				}).discard();
+				break;
+			}
+
+			if(last + ping_interval < now())
+			{
+				last = now();
+				state().wlock()->sendRawMessage("PING");
+			}
+
+			util::sleep_for(250ms);
+		}
+	}
 
 
 	const Channel* getChannel(ikura::str_view name)
@@ -193,6 +230,9 @@ namespace ikura::twitch
 		// join channels
 		for(auto& [ _, chan ] : this->channels)
 			this->ws.send(zpr::sprint("JOIN #{}\r\n", chan.getName()));
+
+		// setup the ping worker
+		this->hb_thread = std::thread(&ping_worker);
 	}
 
 	void TwitchState::disconnect()
@@ -217,6 +257,7 @@ namespace ikura::twitch
 		// wait for the workers to finish.
 		this->tx_thread.join();
 		this->rx_thread.join();
+		this->hb_thread.join();
 
 		lg::log("twitch", "disconnected");
 	}

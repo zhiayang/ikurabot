@@ -42,6 +42,11 @@ namespace ikura::twitch
 			lg::dbglog("twitch", "ping-pong");
 			return this->sendRawMessage(zpr::sprint("PONG {}", msg.params.size() > 0 ? msg.params[0] : ""));
 		}
+		else if(msg.command == "PONG")
+		{
+			lg::dbglog("twitch", "pong-ping");
+			this->last_ping_ack = std::chrono::system_clock::now();
+		}
 		else if(msg.command == "CAP")
 		{
 			// :tmi.twitch.tv CAP * ACK :twitch.tv/tags

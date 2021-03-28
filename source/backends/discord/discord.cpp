@@ -44,11 +44,13 @@ namespace ikura::discord
 						// close code, so just use 1002 -- protocol_error.
 						lg::error("discord", "did not receive heartbeat ack, reconnecting...");
 
-						dispatcher().run([&st]() {
-							auto [ seq, ses ] = std::make_tuple(st.sequence, st.session_id);
+						dispatcher().run([]() {
+							state().perform_write([](auto& st) {
+								auto [ seq, ses ] = std::make_tuple(st.sequence, st.session_id);
 
-							st.disconnect();
-							st.resume(seq, ses);
+								st.disconnect();
+								st.resume(seq, ses);
+							});
 						}).discard();
 
 						// should_heartbeat = false;
@@ -223,7 +225,7 @@ namespace ikura::discord
 
 
 	retry:
-		this->ws.onReceiveText([resume, &cv, &success, &resumable](bool, ikura::str_view msg) {
+		this->ws.onReceiveText([resume, &cv, &success, &resumable, this](bool, ikura::str_view msg) {
 			// if(cv.get() || success)
 			//	return;
 
@@ -242,6 +244,7 @@ namespace ikura::discord
 					mqueue().push_receive(std::move(obj));
 
 					lg::log("discord", "resumed");
+					this->sequence = 0;
 					success = true;
 					cv.set(true);
 				}

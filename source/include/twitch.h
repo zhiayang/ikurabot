@@ -80,11 +80,15 @@ namespace ikura::twitch
 		std::thread tx_thread;
 		std::thread rx_thread;
 
+		std::thread hb_thread;
+		std::chrono::system_clock::time_point last_ping_ack;
+
 		void connect();
 		void disconnect();
 
 		friend void send_worker();
 		friend void recv_worker();
+		friend void ping_worker();
 
 		friend void init();
 		friend void shutdown();

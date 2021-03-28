@@ -25,6 +25,11 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
+
+/*
+  NOTE: this copy of picojson has been modified to add support for comments.
+*/
+
 #ifndef picojson_h
 #define picojson_h
 
