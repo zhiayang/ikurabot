@@ -432,7 +432,7 @@ namespace ikura
 		{
 			Fn fn;
 
-			foozle(Fn p) : fn(std::move(p)) {}
+			foozle(Fn&& p) : fn(std::move(p)) {}
 
 			foozle(foozle&&) = default;
 			foozle& operator = (foozle&&) = default;
@@ -449,7 +449,7 @@ namespace ikura
 
 	public:
 		template <typename Fn>
-		unique_function(Fn fun) : std::function<F>(foozle<Fn>(std::move(fun))) { }
+		unique_function(Fn&& fun) : std::function<F>(foozle<Fn>(std::move(fun))) { }
 
 		using std::function<F>::operator();
 
