@@ -72,6 +72,7 @@ namespace ikura::discord
 		std::string str;
 		for(size_t i = 0; i < msg.fragments.size(); i++)
 		{
+			bool swallow_space = false;
 			const auto& frag = msg.fragments[i];
 
 			if(!frag.isEmote)
@@ -81,6 +82,13 @@ namespace ikura::discord
 			else
 			{
 				auto name = frag.emote.name;
+
+				if(name.back() == '~')
+				{
+					swallow_space = true;
+					name = str_view(name).drop_last(1).str();
+				}
+
 				auto [ id, flags ] = guild->emotes[name];
 
 				// fuck discord, seriously. the problem here is that emotes with the same
@@ -113,12 +121,11 @@ namespace ikura::discord
 				}
 			}
 
-			if(i + 1 != msg.fragments.size())
+			if(i + 1 != msg.fragments.size() && !swallow_space && (!str.empty() && str.back() != '\n'))
 				str += ' ';
 		}
 
 		return str;
-
 	}
 
 	bool Channel::shouldLurk() const
