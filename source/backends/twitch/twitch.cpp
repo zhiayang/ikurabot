@@ -18,11 +18,18 @@ namespace ikura::twitch
 	constexpr const char* TWITCH_WSS_URL    = "wss://irc-ws.chat.twitch.tv";
 
 	static bool disconnect_now = false;
+	static std::chrono::system_clock::time_point last_ping_ack;
+
 	static Synchronised<TwitchState>* _state = nullptr;
 	static Synchronised<TwitchState>& state() { return *_state; }
 
 	static MessageQueue<twitch::QueuedMsg> msg_queue;
 	MessageQueue<twitch::QueuedMsg>& mqueue() { return msg_queue; }
+
+	void set_last_ping_ack()
+	{
+		last_ping_ack = std::chrono::system_clock::now();
+	}
 
 	void send_worker()
 	{
@@ -101,7 +108,7 @@ namespace ikura::twitch
 			if(__atomic_load_n(&disconnect_now, __ATOMIC_SEQ_CST) == true)
 				break;
 
-			if(now() > last + pong_patience && state().rlock()->last_ping_ack < last)
+			if(now() > last + pong_patience && last_ping_ack < last)
 			{
 				lg::warn("twitch", "patience ran out for PONG; reconnecting");
 				dispatcher().run([]() {

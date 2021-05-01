@@ -27,6 +27,8 @@ namespace ikura::twitch
 	static std::vector<ikura::str_view> extract_emotes(ikura::str_view channel, const ikura::string_map<std::string>& tags,
 		ikura::str_view utf8, const std::vector<int32_t>& utf32);
 
+	// defined in twitch.cpp
+	void set_last_ping_ack();
 
 	void TwitchState::processMessage(ikura::str_view input)
 	{
@@ -45,7 +47,7 @@ namespace ikura::twitch
 		else if(msg.command == "PONG")
 		{
 			lg::dbglog("twitch", "received pong");
-			this->last_ping_ack = std::chrono::system_clock::now();
+			set_last_ping_ack();
 		}
 		else if(msg.command == "CAP")
 		{
