@@ -79,9 +79,7 @@ namespace ikura::twitch
 
 		std::thread tx_thread;
 		std::thread rx_thread;
-
 		std::thread hb_thread;
-		std::chrono::system_clock::time_point last_ping_ack;
 
 		void connect();
 		void disconnect();
