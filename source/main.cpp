@@ -56,6 +56,23 @@ using namespace std::chrono_literals;
 	maybe a proper generic solver one day. it works if we just hamfist it right now, so meh...
 */
 
+
+
+namespace ikura
+{
+	static ThreadPool<4> pool;
+	ThreadPool<4>& dispatcher()
+	{
+		return pool;
+	}
+
+	static std::chrono::system_clock::time_point start_time;
+	std::chrono::system_clock::duration get_uptime()
+	{
+		return std::chrono::system_clock::now() - start_time;
+	}
+}
+
 int main(int argc, char** argv)
 {
 	if(argc < 3)
@@ -63,6 +80,8 @@ int main(int argc, char** argv)
 		zpr::println("usage: ./ikurabot <config.json> <database.db> [--create] [--readonly]");
 		exit(1);
 	}
+
+	ikura::start_time = std::chrono::system_clock::now();
 
 	auto opts = zfu::map(zfu::rangeOpen(1, argc), [&](int i) -> auto {
 		return std::string(argv[i]);
@@ -103,12 +122,3 @@ int main(int argc, char** argv)
 
 
 
-
-namespace ikura
-{
-	static ThreadPool<4> pool;
-	ThreadPool<4>& dispatcher()
-	{
-		return pool;
-	}
-}

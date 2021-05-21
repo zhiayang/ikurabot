@@ -4,6 +4,7 @@
 *.so
 *.dll
 *.cpp.d
+*.h.d
 *.c.d
 *.log
 build

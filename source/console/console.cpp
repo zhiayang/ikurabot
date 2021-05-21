@@ -22,6 +22,11 @@
 
 using namespace std::chrono_literals;
 
+namespace ikura
+{
+	extern std::chrono::system_clock::duration get_uptime();
+}
+
 namespace ikura::console
 {
 	constexpr uint8_t FF_NONE        = 0x0;
@@ -478,6 +483,26 @@ namespace ikura::console
 							else                        filt.discordChannels[server].erase(channel);
 						}
 					}
+				}
+				else if(cmd == "uptime")
+				{
+					namespace sc = std::chrono;
+					auto uptime = get_uptime();
+
+					auto hours = sc::duration_cast<sc::hours>(uptime).count();
+					auto minutes = sc::duration_cast<sc::minutes>(uptime).count();
+					auto seconds = sc::duration_cast<sc::seconds>(uptime).count();
+
+					auto days = hours / 24;
+					hours = hours % 24;
+
+					std::string str;
+					if(days > 0)    str += zpr::sprint("{} day{}", days, days == 1 ? "" : "s");
+					if(hours > 0)   str += zpr::sprint("{}{} hour{}", str.empty() ? "" : ", ", hours, hours == 1 ? "" : "s");
+					if(minutes > 0) str += zpr::sprint("{}{} minute{}", str.empty() ? "" : ", ", minutes, minutes == 1 ? "" : "s");
+					if(seconds > 0) str += zpr::sprint("{}{} second{}", str.empty() ? "" : ", ", seconds, seconds == 1 ? "" : "s");
+
+					echo_message(sock, zpr::sprint("uptime: {}\n", str));
 				}
 				else if(!cmd.empty())
 				{
