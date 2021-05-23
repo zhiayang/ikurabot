@@ -481,10 +481,37 @@ namespace ikura::interp
 		}
 
 		if(auto dc = dynamic_cast<const discord::Channel*>(chan); dc != nullptr)
-			dc->startTimer(seconds);
+		{
+			auto fn = ast::parseExpr(expr);
+			if(!fn.has_value())
+			{
+				if(chan->shouldPrintInterpErrors())
+					chan->sendMessage(Message(fn.error()));
 
+				return;
+			}
+			auto inside = fn.unwrap();
+			if(auto lam = dynamic_cast<ast::LambdaExpr*>(inside); lam != nullptr)
+			{
+				auto args = lam->signature->arg_types();
+				if(args.size() != 1)
+					goto fail;
+				if(!args[0]->is_number())
+					goto fail;
+
+				// ok, you pass.
+				dc->startEvalTimer(interval, lam);
+			}
+			else
+			{
+			fail:
+				chan->sendMessage(Message("expected lambda expression taking 1 num 'argument'"));
+			}
+		}
 		else
+		{
 			chan->sendMessage(Message("timers only work on discord"));
+		}
 	}
 
 	static void command_stop_timer(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)

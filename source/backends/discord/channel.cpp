@@ -3,6 +3,7 @@
 // Licensed under the Apache License Version 2.0.
 
 #include "db.h"
+#include "ast.h"
 #include "defs.h"
 #include "rate.h"
 #include "perms.h"
@@ -331,43 +332,71 @@ namespace ikura::discord
 		bool stop = false;
 		Snowflake messageId;
 
+		int interval_ms = 1000;
 		uint64_t start_ms = 0;
+
+		int elapsed_ticks = 0;
+		interp::ast::LambdaExpr* lambda = 0;
 
 		std::thread worker;
 	};
 
 	static std::map<const Channel*, TimerState*> activeTimers;
 
-	void Channel::startTimer(int seconds) const
+	static void setup_worker(const Channel* chan, TimerState* timer)
 	{
-		if(auto it = activeTimers.find(this); it != activeTimers.end() && it->second != nullptr)
-		{
-			this->sendMessage(Message("timer already active"));
-			return;
-		}
-
-		auto t = new TimerState();
-		t->millis = seconds * 1000;  // milliseconds
-		t->down   = (seconds > 0);
-		t->stop   = false;
-		t->worker = std::thread([](const Channel* chan, TimerState* ts) {
-
+		timer->worker = std::thread([](const Channel* chan, TimerState* ts) {
 			auto make_message = [chan, ts](int n, bool end = false) -> TxMessage {
 
-				constexpr const char* kek = "⏳";
-
-				std::string str;
-				if(end)
+				if(ts->lambda != nullptr)
 				{
-					auto elapsed = (double) (util::getMillisecondTimestamp() - ts->start_ms) / 1000.0;
-					str = zpr::sprint("{}: beep beep ({.1f}s)", kek, elapsed);
+					using namespace interp::ast;
+
+					// prepare a context
+					interp::CmdContext cs;
+					cs.executionStart = util::getMillisecondTimestamp();
+					cs.recursionDepth = 0;
+					cs.channel = chan;
+
+					// prepare a function call
+					auto fc = new FunctionCall(ts->lambda, { new LitInteger(ts->elapsed_ticks, false) });
+					fc->weak_callee_ref = true;
+
+					auto res = interpreter().map_write([&cs, &fc](auto& interp) -> auto {
+						return fc->evaluate(&interp, cs);
+					});
+
+					if(!res.has_value())
+					{
+						ts->stop = true;
+						return TxMessage("<expr error>", chan->getChannelId(), chan->getGuild()->name, chan->getName());
+					}
+					else
+					{
+						auto str = res->str();
+						auto ret = TxMessage(str, chan->getChannelId(), chan->getGuild()->name, chan->getName());
+
+						delete fc;
+						return ret;
+					}
 				}
 				else
 				{
-					str = zpr::sprint("{}: {.1f}s", kek, std::max(0.0, (double) n / 1000.0));
-				}
+					constexpr const char* kek = "⏳";
 
-				return TxMessage(str, chan->channelId, chan->getGuild()->name, chan->getName());
+					std::string str;
+					if(end)
+					{
+						auto elapsed = (double) (util::getMillisecondTimestamp() - ts->start_ms) / 1000.0;
+						str = zpr::sprint("{}: beep beep ({.1f}s)", kek, elapsed);
+					}
+					else
+					{
+						str = zpr::sprint("{}: {.1f}s", kek, std::max(0.0, (double) n / 1000.0));
+					}
+
+					return TxMessage(str, chan->getChannelId(), chan->getGuild()->name, chan->getName());
+				}
 			};
 
 			RateLimitWrapper rate;
@@ -410,6 +439,7 @@ namespace ikura::discord
 
 				msg = make_message(ts->millis);
 				send_one_message(rate, msg, /* ignoreRates: */ true, /* edit: */ true, ts->messageId);
+				ts->elapsed_ticks += 1;
 			}
 
 			// make the last one
@@ -424,10 +454,48 @@ namespace ikura::discord
 
 			return;
 
-		}, this, t);
+		}, chan, timer);
+	}
 
+	void Channel::startTimer(int seconds) const
+	{
+		if(auto it = activeTimers.find(this); it != activeTimers.end() && it->second != nullptr)
+		{
+			this->sendMessage(Message("timer already active"));
+			return;
+		}
+
+		auto t = new TimerState();
+		t->millis       = seconds * 1000;  // milliseconds
+		t->interval_ms  = 1000;
+		t->down         = (seconds > 0);
+		t->stop         = false;
+		t->lambda       = 0;
+
+		setup_worker(this, t);
 		activeTimers[this] = t;
 	}
+
+	void Channel::startEvalTimer(double interval, interp::ast::LambdaExpr* lambda) const
+	{
+		if(auto it = activeTimers.find(this); it != activeTimers.end() && it->second != nullptr)
+		{
+			this->sendMessage(Message("timer already active"));
+			return;
+		}
+
+		auto t = new TimerState();
+		t->millis       = 0;
+		t->interval_ms  = interval * 1000;
+		t->down         = false;
+		t->stop         = false;
+		t->lambda       = lambda;
+
+		setup_worker(this, t);
+		activeTimers[this] = t;
+	}
+
+
 
 	void Channel::stopTimer() const
 	{
@@ -438,6 +506,9 @@ namespace ikura::discord
 		ts->stop = true;
 		while(ts->worker.joinable())
 			;
+
+		if(ts->lambda != nullptr)
+			delete ts->lambda;
 
 		delete ts;
 		activeTimers.erase(this);

@@ -145,8 +145,14 @@ namespace ikura::interp
 
 		Block::~Block()                 { for(auto s : stmts) delete s; }
 		FunctionDefn::~FunctionDefn()   { delete body; }
-		FunctionCall::~FunctionCall()   { delete callee; for(auto e : arguments) delete e; }
+		FunctionCall::~FunctionCall()
+		{
+			if(!this->weak_callee_ref)
+				delete callee;
 
+			for(auto e : arguments)
+				delete e;
+		}
 	}
 
 

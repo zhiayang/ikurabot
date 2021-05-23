@@ -140,6 +140,20 @@ namespace ikura
 				tm->tm_hour, tm->tm_min, tm->tm_sec);
 		}
 
+		std::optional<double> stod(ikura::str_view s)
+		{
+			if(s.empty())
+				return { };
+
+			char* tmp = 0;
+			auto ss = s.str();
+			double ret = strtod(ss.c_str(), &tmp);
+			if(tmp != ss.data() + ss.size())
+				return { };
+
+			return ret;
+		}
+
 		std::optional<int64_t> stoi(ikura::str_view s, int base)
 		{
 			if(s.empty())

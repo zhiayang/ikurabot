@@ -401,6 +401,7 @@ namespace ikura::interp
 			virtual std::string str() const override;
 
 			Expr* callee;
+			bool weak_callee_ref = false;
 			std::vector<Expr*> arguments;
 
 			static constexpr uint8_t TYPE_TAG = serialise::TAG_AST_FUNCTION_CALL;

@@ -12,6 +12,8 @@
 
 namespace picojson { class value; }
 
+namespace ikura::interp::ast { struct LambdaExpr; }
+
 namespace ikura::discord
 {
 	namespace opcode
@@ -74,7 +76,10 @@ namespace ikura::discord
 		const DiscordGuild* getGuild() const { return this->guild; }
 
 		void startTimer(int seconds) const;
+		void startEvalTimer(double interval, interp::ast::LambdaExpr* lambda) const;
 		void stopTimer() const;
+
+		Snowflake getChannelId() const { return this->channelId; }
 
 	private:
 		DiscordGuild* guild = nullptr;

@@ -120,6 +120,7 @@ namespace ikura
 		std::tuple<int, uint8_t*, size_t> mmapEntireFile(const std::string& path);
 		void munmapEntireFile(int fd, uint8_t* buf, size_t len);
 
+		std::optional<double>   stod(ikura::str_view s);
 		std::optional<int64_t>  stoi(ikura::str_view s, int base = 10);
 		std::optional<uint64_t> stou(ikura::str_view s, int base = 10);
 
