@@ -494,7 +494,9 @@ namespace ikura::console
 					auto seconds = sc::duration_cast<sc::seconds>(uptime).count();
 
 					auto days = hours / 24;
-					hours = hours % 24;
+					hours %= 24;
+					minutes %= 60;
+					seconds %= 60;
 
 					std::string str;
 					if(days > 0)    str += zpr::sprint("{} day{}", days, days == 1 ? "" : "s");

@@ -36,12 +36,13 @@ namespace ikura::interp
 	static void command_listgroups(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_stop_timer(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 	static void command_start_timer(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
+	static void command_eval_timer(CmdContext& cs, const Channel* chan, ikura::str_view arg_str);
 
 	bool is_builtin_command(ikura::str_view x)
 	{
 		return zfu::match(x, "def", "eval", "show", "redef", "undef", "chmod", "global",
 			"usermod", "groupadd", "groupdel", "groups", "showmod", "defun", "listcmds",
-			"stop_timer", "start_timer"
+			"stop_timer", "start_timer", "eval_timer"
 		);
 	}
 
@@ -63,6 +64,7 @@ namespace ikura::interp
 		{ "listcmds",   command_listcmds    },
 		{ "stop_timer", command_stop_timer  },
 		{ "start_timer",command_start_timer },
+		{ "eval_timer", command_eval_timer  },
 	};
 
 	/* not sure if this is a good idea...
@@ -445,6 +447,38 @@ namespace ikura::interp
 		if(auto [ x, xs ] = util::bisect(arg_str, ' '); !x.empty())
 			seconds = util::stoi(x).value_or(0);
 
+
+		if(auto dc = dynamic_cast<const discord::Channel*>(chan); dc != nullptr)
+			dc->startTimer(seconds);
+
+		else
+			chan->sendMessage(Message("timers only work on discord"));
+	}
+
+	// even sillier
+	static void command_eval_timer(CmdContext& cs, const Channel* chan, ikura::str_view arg_str)
+	{
+		// syntax: eval_timer <interval> <expr>
+		double interval = 0;
+		ikura::str_view expr;
+		if(auto [ x, xs ] = util::bisect(arg_str, ' '); !x.empty())
+		{
+			if(auto foo = util::stod(x); foo.has_value())
+			{
+				interval = foo.value(), expr = xs;
+				if(interval < 1.0) interval = 1.0;
+			}
+			else
+			{
+				chan->sendMessage(Message("expected interval for 'eval_timer'"));
+				return;
+			}
+		}
+		else
+		{
+			chan->sendMessage(Message("uwu"));
+			return;
+		}
 
 		if(auto dc = dynamic_cast<const discord::Channel*>(chan); dc != nullptr)
 			dc->startTimer(seconds);
