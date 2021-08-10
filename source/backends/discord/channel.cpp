@@ -14,6 +14,12 @@
 
 using namespace std::chrono_literals;
 
+namespace ikura::cmd
+{
+	// command.cpp
+	Message value_to_message(const interp::Value& val);
+}
+
 namespace ikura::discord
 {
 	std::string Channel::getName() const
@@ -68,7 +74,7 @@ namespace ikura::discord
 	}
 
 
-	static std::string message_to_string(const Message& msg, DiscordGuild* guild)
+	static std::string message_to_string(const Message& msg, const DiscordGuild* guild)
 	{
 		std::string str;
 		for(size_t i = 0; i < msg.fragments.size(); i++)
@@ -90,7 +96,11 @@ namespace ikura::discord
 					name = str_view(name).drop_last(1).str();
 				}
 
-				auto [ id, flags ] = guild->emotes[name];
+				Snowflake id { 0 };
+				uint64_t flags = 0;
+
+				if(auto it = guild->emotes.find(name); it != guild->emotes.end())
+					std::tie(id, flags) = it->second;
 
 				// fuck discord, seriously. the problem here is that emotes with the same
 				// name on the server *APPEAR* to have different names -- eg. emote and emote~1,
@@ -341,7 +351,7 @@ namespace ikura::discord
 		std::thread worker;
 	};
 
-	static std::map<const Channel*, TimerState*> activeTimers;
+	static Synchronised<std::map<const Channel*, TimerState*>> activeTimers;
 
 	static void setup_worker(const Channel* chan, TimerState* timer)
 	{
@@ -373,7 +383,8 @@ namespace ikura::discord
 					}
 					else
 					{
-						auto str = res->str();
+						auto msg = cmd::value_to_message(res.unwrap());
+						auto str = message_to_string(msg, chan->getGuild());
 						auto ret = TxMessage(str, chan->getChannelId(), chan->getGuild()->name, chan->getName());
 
 						delete fc;
@@ -429,7 +440,7 @@ namespace ikura::discord
 				auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(now() - last).count();
 
 				last = now();
-				next = last + 1000ms;
+				next = last + std::chrono::milliseconds(ts->interval_ms);
 
 				if(ts->down) ts->millis -= diff;
 				else         ts->millis += diff;
@@ -459,7 +470,7 @@ namespace ikura::discord
 
 	void Channel::startTimer(int seconds) const
 	{
-		if(auto it = activeTimers.find(this); it != activeTimers.end() && it->second != nullptr)
+		if(activeTimers.map_read([this](auto& a) { return a.find(this) != a.end(); }))
 		{
 			this->sendMessage(Message("timer already active"));
 			return;
@@ -473,12 +484,12 @@ namespace ikura::discord
 		t->lambda       = 0;
 
 		setup_worker(this, t);
-		activeTimers[this] = t;
+		activeTimers.wlock()->insert({ this, t });
 	}
 
 	void Channel::startEvalTimer(double interval, interp::ast::LambdaExpr* lambda) const
 	{
-		if(auto it = activeTimers.find(this); it != activeTimers.end() && it->second != nullptr)
+		if(activeTimers.map_read([this](auto& a) { return a.find(this) != a.end(); }))
 		{
 			this->sendMessage(Message("timer already active"));
 			return;
@@ -492,25 +503,30 @@ namespace ikura::discord
 		t->lambda       = lambda;
 
 		setup_worker(this, t);
-		activeTimers[this] = t;
+		activeTimers.wlock()->insert({ this, t });
 	}
 
 
 
 	void Channel::stopTimer() const
 	{
-		auto ts = activeTimers[this];
+		auto ts = activeTimers.map_write([this](auto& at) -> auto {
+			auto ret = at[this];
+			at.erase(this);
+			return ret;
+		});
 		if(ts == nullptr)
 			return;
 
 		ts->stop = true;
-		while(ts->worker.joinable())
-			;
+
+		if(ts->worker.joinable())
+			ts->worker.join();
 
 		if(ts->lambda != nullptr)
 			delete ts->lambda;
 
 		delete ts;
-		activeTimers.erase(this);
+		this->sendMessage(Message("timer cancelled"));
 	}
 }

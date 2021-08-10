@@ -3,6 +3,7 @@
 // Copyright (c) 2020, zhiayang
 // Licensed under the Apache License Version 2.0.
 
+#include <mutex>
 #include <limits>
 #include <random>
 #include <chrono>
@@ -136,8 +137,8 @@ namespace ikura
 
 			if(!tm) return "??";
 
-			return zpr::sprint("{02}:{02}:{02}",
-				tm->tm_hour, tm->tm_min, tm->tm_sec);
+			return zpr::sprint("{02}/{02} {02}:{02}:{02}",
+				tm->tm_mday, 1 + tm->tm_mon, tm->tm_hour, tm->tm_min, tm->tm_sec);
 		}
 
 		std::optional<double> stod(ikura::str_view s)

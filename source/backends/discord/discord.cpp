@@ -374,9 +374,11 @@ namespace ikura::discord
 			dispatcher().run([this]() {
 				util::sleep_for(1000ms);
 
+				lg::log("discord", "trying to disconnect...");
 				this->disconnect();
 				util::sleep_for(1000ms);
 
+				lg::log("discord", "trying to resume...");
 				this->resume();
 			}).discard();
 		});

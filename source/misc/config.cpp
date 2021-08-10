@@ -56,8 +56,15 @@ namespace ikura::config
 
 		bool isUserIgnored(ikura::str_view username)
 		{
-			return std::find(TwitchConfig.ignoredUsers.begin(), TwitchConfig.ignoredUsers.end(),
-				username.str()) != TwitchConfig.ignoredUsers.end();
+			auto un = util::lowercase(username);
+			for(auto& ign : TwitchConfig.ignoredUsers)
+			{
+				// the names in the array should already be lowercase.
+				if(ign == un)
+					return true;
+			}
+
+			return false;
 		}
 
 		uint64_t getEmoteAutoUpdateInterval()
@@ -403,6 +410,7 @@ namespace ikura::config
 					continue;
 				}
 
+				// no need to lowercase it, since they should contain discord IDs (snowflakes)
 				auto str = ign.as_str();
 				DiscordConfig.ignoredUsers.emplace_back(std::move(str));
 			}
@@ -445,8 +453,9 @@ namespace ikura::config
 					continue;
 				}
 
+				// this one needs to be lowercased.
 				auto str = ign.as_str();
-				TwitchConfig.ignoredUsers.push_back(std::move(str));
+				TwitchConfig.ignoredUsers.push_back(util::lowercase(str));
 			}
 		}
 

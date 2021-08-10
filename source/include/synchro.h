@@ -5,10 +5,12 @@
 #pragma once
 
 #include <deque>
+#include <mutex>
 #include <atomic>
 #include <thread>
 #include <chrono>
 #include <shared_mutex>
+#include <condition_variable>
 
 namespace ikura
 {
