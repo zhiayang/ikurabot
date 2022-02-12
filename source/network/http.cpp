@@ -182,9 +182,10 @@ namespace ikura
 
 	std::optional<HttpHeaders> HttpHeaders::parse(ikura::str_view data)
 	{
+		// we actually want to return null if the header is incomplete.
 		auto x = data.find("\r\n");
 		if(x == std::string::npos)
-			{ lg::warn("http", "A"); return std::nullopt; }
+			return std::nullopt;
 
 		auto hdrs = HttpHeaders(data.substr(0, x));
 		data.remove_prefix(x + 2);
@@ -193,7 +194,7 @@ namespace ikura
 		{
 			auto ki = data.find(':');
 			if(ki == std::string::npos)
-				{ lg::warn("http", "B"); return std::nullopt; }
+				return std::nullopt;
 
 			auto key = util::lowercase(data.substr(0, ki));
 			data.remove_prefix(ki + 1);
@@ -203,15 +204,15 @@ namespace ikura
 				data.remove_prefix(1);
 
 			if(data.size() == 0)
-				{ lg::warn("http", "C"); return std::nullopt; }
+				return std::nullopt;
 
 			auto vi = data.find("\r\n");
 			if(vi == std::string::npos)
-				{ lg::warn("http", "D"); return std::nullopt; }
+				return std::nullopt;
 
 			auto value = std::string(data.substr(0, vi));
-			hdrs.add(std::move(key), std::move(value));
 
+			hdrs.add(std::move(key), std::move(value));
 			data.remove_prefix(vi + 2);
 		}
 
